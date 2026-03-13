@@ -68,6 +68,21 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /sys/fs/cgroup:/sys/fs/cgroup
 
+  agent:
+    build:
+      context: apps/agent
+    container_name: pcrm_agent
+    restart: unless-stopped
+    environment:
+      - BROKER_URL=http://broker:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
     driver: local
