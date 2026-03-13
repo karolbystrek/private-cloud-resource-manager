@@ -31,8 +31,47 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: pcrm_minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nomad:
+    image: hashicorp/nomad:1.7
+    container_name: pcrm_nomad
+    # Using -dev for a single-node cluster that acts as both server and client.
+    # Bind to all interfaces so it's accessible from host and other containers.
+    command: agent -dev -bind 0.0.0.0 -network-interface eth0
+    privileged: true
+    restart: unless-stopped
+    ports:
+      - "4646:4646"
+      - "4647:4647"
+      - "4648:4648"
+    environment:
+      CHECKPOINT_DISABLE: "1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys/fs/cgroup:/sys/fs/cgroup
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  minio_data:
     driver: local
