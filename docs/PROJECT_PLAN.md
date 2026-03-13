@@ -2,6 +2,8 @@ Private Cloud Resource Manager.
 
 ## Project Plan: Private Cloud Resource Manager
 
+> **Development Roadmap**: For the detailed task list and GitHub-style issues, please see [docs/ROADMAP.md](ROADMAP.md).
+
 This document outlines the architecture, technology stack, and implementation milestones for a distributed on-premise
 cloud system. The system provisions institutional hardware for batch jobs using Docker, orchestrated by Nomad, with a
 strictly controlled Compute Unit (CU) billing system.
