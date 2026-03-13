@@ -10,7 +10,7 @@ The system is a distributed on-premise cloud for batch jobs, enforcing strict bi
 - **Frontend**: Next.js + TypeScript. User dashboard and job submission.
 - **Data Plane (Worker Nodes)**:
   - **Orchestrator**: HashiCorp Nomad (schedules Docker containers).
-  - **Proprietary Agent**: Python/Java. Runs alongside Nomad on workers. **CRITICAL**: Enforces "hard-kill" if lease expires.
+  - **Proprietary Agent**: Python. Runs alongside Nomad on workers. **CRITICAL**: Enforces "hard-kill" if lease expires.
 - **State**:
   - **PostgreSQL**: Permanent store. **MUST** use pessimistic locking for wallet transactions.
   - **Redis**: Distributed locks (mutex) for concurrent lease requests.
@@ -30,6 +30,10 @@ The core invariant is **No Unbilled Compute**.
 
 ## 3. Directory Structure & Conventions
 
+- `apps/`: Monorepo root for all services.
+  - `agent/`: Python-based worker agent. See `apps/agent/README.md`.
+  - `broker/`: Java Spring Boot control plane. See `apps/broker/pom.xml`.
+  - `frontend/`: Next.js web dashboard. See `apps/frontend/README.md`.
 - `docs/`: **Source of Truth**. See `PROJECT_PLAN.md` and `DATABASE_SCHEMA_PLAN.md` before architectural changes.
 - `db/init/`: SQL Schema definitions.
 - `compose.yml`: Local development environment (Postgres, Redis, MinIO).
