@@ -46,3 +46,16 @@ The core invariant is **No Unbilled Compute**.
 
 - **Ledger Entries**: Never update a ledger row. Always `INSERT` a new transaction (Debit/Credit/Refund).
 - **UUIDs**: Use `uuid-ossp` for all primary keys.
+
+## 6. Version Control Workflow
+
+- **Branching Strategy**:
+  - Default: Work directly on `main` branch.
+  - Push: Push directly to `main` upon completion, unless instructed otherwise.
+- **Commit Convention**:
+  - **Style**: Strictly follow **Conventional Commits** (e.g., `feat:`, `fix:`, `chore:`, `docs:`).
+  - **Atomicity**: Keep commits small and focused. Do not combine unrelated changes.
+- **Issue References**:
+  - **Protocol**: Before committing, **ask the user** for a GitHub Issue Reference.
+    - If provided: Include it in the commit footer or subject (e.g., `Ref: #123`).
+    - If user says "no issue": Proceed without it.
