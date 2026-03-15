@@ -19,16 +19,16 @@ services:
     environment:
       MINIO_BROWSER: "off"
     deploy:
-        resources:
-            limits:
-                memory: 1G
+      resources:
+        limits:
+          memory: 1G
 
   nomad:
     restart: always
     deploy:
-        resources:
-            limits:
-                memory: 1G
+      resources:
+        limits:
+          memory: 1G
 
   broker:
     restart: always
@@ -47,7 +47,7 @@ services:
         max-size: "10m"
         max-file: "3"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/actuator/health" ]
       interval: 30s
       timeout: 10s
       retries: 3

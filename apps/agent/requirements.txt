@@ -1,7 +1,0 @@
-# Requirements for PCRM Agent
-
-# Used for Docker interaction (Virtual Node)
-docker>=7.0.0
-
-# Future: requests for HTTP calls to Broker
-requests>=2.31.0

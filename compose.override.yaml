@@ -34,21 +34,8 @@ services:
       - SPRING_DATA_REDIS_PORT=${REDIS_PORT}
     restart: "no"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/actuator/health" ]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 30s
-
-  agent:
-    build:
-      context: apps/agent
-    container_name: pcrm_agent
-    environment:
-      - BROKER_URL=http://broker:${BROKER_PORT}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    depends_on:
-      broker:
-        condition: service_healthy
-    restart: "no"
