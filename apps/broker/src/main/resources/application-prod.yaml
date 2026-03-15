@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+
+  flyway:
+    clean-disabled: true
+    validate-on-migrate: true
+    out-of-order: false
+    baseline-on-migrate: true
+    baseline-version: "1.0"
+    # Use a separate user with DDL (CREATE/ALTER) permissions for migrations
+    user: ${DATABASE_MIGRATION_USERNAME:${DATABASE_USERNAME}}
+    password: ${DATABASE_MIGRATION_PASSWORD:${DATABASE_PASSWORD}}
+    # Wait for other instances to finish migrating before starting (for clusters)
+    lock-retry-count: 20

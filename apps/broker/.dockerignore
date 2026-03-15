@@ -1,0 +1,47 @@
+# --- Build Artifacts ---
+target/
+build/
+bin/
+out/
+
+# --- IDEs & Editors ---
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+.nb-gradle/
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Version Control ---
+.git
+.gitignore
+.gitattributes
+.hg
+.svn
+
+# --- Local Configuration & Secrets ---
+*.local
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# --- Logs & Temp Files ---
+*.log
+logs/
+temp/
+tmp/
+
+# --- Maven/Wrapper (KEEP these for the build stage) ---
+!.mvn/wrapper/maven-wrapper.jar
+!mvnw
