@@ -10,44 +10,56 @@ strictly controlled Compute Unit (CU) billing system.
 
 ### 1. Technology Stack and Component Mapping
 
-| Component                     | Technology                 | Primary Responsibility                                                                                                                                                  |
-|-------------------------------|----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Frontend UI**               | React, Next.js, TypeScript | User dashboard, job submission (Docker image URL, resource sliders), CU wallet balance, and result downloads.                                                           |
-| **Broker (Control Plane)**    | Java (Spring Boot)         | API Gateway, CU transaction validation, Redis locking, Nomad API communication, and lease issuance/billing updates.                                                     |
-| **Database & State**          | PostgreSQL, Redis          | Postgres: Persistent state, user accounts, CU ledger with pessimistic locking. Redis: Distributed locks, real-time Agent lease renewals.                                |
-| **Worker Node Service**       | Python (or Java)           | Your proprietary software installed directly on every computer sharing resources. Manages compute leases, monitors Docker stats, and enforces offline hard-kill limits. |
-| **Orchestration & Execution** | HashiCorp Nomad, Docker    | Nomad client receives tasks from the Broker. Docker enforces cgroup limits (CPU/RAM/GPU) and isolates the student's process.                                            |
-| **Artifact Storage**          | MinIO (S3-Compatible)      | Centralized, decoupled storage for output logs, trained models, and dataset retrieval.                                                                                  |
+| Component                     | Technology                 | Primary Responsibility                                                                                                                     |
+|-------------------------------|----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| **Frontend UI**               | React, Next.js, TypeScript | User dashboard, job submission (Docker image URL, resource sliders), CU wallet balance, and result downloads.                              |
+| **Broker (Control Plane)**    | Java (Spring Boot)         | API Gateway, CU transaction validation, Redis locking, Nomad API communication, node polling, and lease issuance/billing updates.          |
+| **Database & State**          | PostgreSQL, Redis          | Postgres: Persistent state, user accounts, CU ledger with pessimistic locking. Redis: Distributed locks for resource allocation.           |
+| **Lease Enforcer (Sidecar)**  | Lightweight Container      | An ephemeral sidecar container dynamically injected into every job to manage compute leases and strictly enforce offline hard-kill limits. |
+| **Orchestration & Execution** | HashiCorp Nomad, Docker    | Nomad schedules tasks dynamically. Docker enforces cgroup limits (CPU/RAM/GPU) and isolates the student's process.                         |
+| **Artifact Storage**          | MinIO (S3-Compatible)      | Centralized, decoupled storage for output logs, trained models, and dataset retrieval.                                                     |
 
 ---
 
 ### 2. Core System Workflows
 
-**A. Job Submission and Scheduling**
+**A. Infrastructure Tracking**
+
+* The Java Broker periodically polls the central Nomad Server API (`GET /v1/nodes`) to discover available physical
+  laboratory machines.
+* The Broker updates the Postgres database with the latest node availability, CPU, and RAM capacity, acting as the
+  single source of truth without requiring custom daemons on the physical hardware.
+
+**B. Job Submission and Scheduling**
 
 * The user submits a job via the Next.js UI, providing a Docker image URL, a run command, and hardware requirements.
 * The Java Broker verifies the user's CU balance and deducts an initial 15-minute pre-paid compute lease using
-  pessimistic locking (`SELECT ... FOR UPDATE`) in PostgreSQL to prevent concurrent overdrafts.
-* To prevent the "Thundering Herd" problem, the Broker acquires a distributed lock in Redis for the target resource pool
-  before proceeding.
-* The Broker registers the job with the centralized Nomad Server via API, which dispatches it to an available worker
-  node.
+  pessimistic locking (`SELECT ... FOR UPDATE`) in PostgreSQL.
+* The Broker constructs a specialized 3-task Nomad group consisting of:
+    1. The `lease-enforcer` sidecar (prestart).
+    2. The `user-workload` container.
+    3. The `artifact-uploader` hook (poststop).
+* The Broker dispatches this job group to the Nomad API.
 
-**B. Execution and Billing (The Proprietary Agent)**
+**C. Execution and Billing (Dynamic Enforcer)**
 
-* The Nomad client on the worker node pulls the image and starts the Docker container with strict resource limits.
-* Your proprietary Agent, running locally on that exact same hardware, detects the running container.
-* The Agent periodically contacts the Java Broker to renew its 15-minute compute leases, which deducts CUs in chunks
-  upfront from the PostgreSQL ledger.
-* If the network drops between the worker node and the Broker, the Agent allows the container to run only until the
-  active 15-minute lease expires, after which it hard-kills the container to prevent unbilled compute overdrafts.
+* Nomad schedules the task group onto an available worker node.
+* The `lease-enforcer` sidecar runs an internal 15-minute countdown timer. Every 10 minutes, it contacts the Broker to
+  renew the lease.
+* **HTTP 200**: The Broker deducts another 15 minutes of CU from the ledger. The sidecar resets its internal timer.
+* **HTTP 402**: The user is out of funds. The sidecar immediately exits with code 1.
+* **Network Partition**: The sidecar cannot reach the Broker. The countdown continues. If it reaches zero without a
+  successful renewal, the sidecar exits with code 1.
+* If the sidecar exits with an error code, Nomad marks the allocation as failed and natively hard-kills the
+  `user-workload` container, strictly preventing unbilled compute.
 
-**C. Result Retrieval**
+**D. Result Retrieval**
 
-* Upon task completion (or OOM-kill/timeout), a shutdown script packages the designated output directory, and a refund
-  transaction is issued to the ledger for any unused lease time.
-* The package is uploaded directly to a pre-signed MinIO bucket URL.
-* The container is destroyed, the resource lock is released, and the Next.js UI presents a download link to the user.
+* Upon task completion, OOM-kill, or a hard-kill enforcement, Nomad triggers the `artifact-uploader` poststop container.
+* This container zips the shared `alloc/data` directory and executes a direct PUT request to a Broker-generated MinIO
+  pre-signed URL.
+* The Nomad allocation terminates, the Broker issues a refund transaction to the ledger for any unused lease time, and
+  the UI presents a download link.
 
 ---
 
@@ -58,22 +70,24 @@ strictly controlled Compute Unit (CU) billing system.
 * Design the PostgreSQL schema for users, resources, and the append-only CU transaction ledger.
 * Set up the Redis instance for distributed locking and lease state storage.
 * Deploy a local MinIO instance and configure S3 buckets for result storage.
+* Build the ephemeral `lease-enforcer` sidecar Docker image.
 
 **Milestone 2: The Control Plane (Broker & UI)**
 
 * Develop the Java Broker REST API for handling user authentication and basic job submission requests.
-* Implement the transactional logic with pessimistic locking for issuing 15-minute leases and managing Redis locks.
+* Implement the background Nomad polling mechanism for automated node tracking.
 * Build the Next.js frontend to allow users to log in, view their CU balance, and see available hardware nodes.
 
-**Milestone 3: Orchestration and The Data Plane (Agent)**
+**Milestone 3: Orchestration and The Data Plane (Sidecar)**
 
 * Set up a small Nomad cluster (1 server, 1-2 clients) and configure Docker on the client nodes.
-* Develop the proprietary Agent to run on the worker nodes alongside Nomad.
-* Implement the lease renewal mechanism between the Agent and the Broker.
+* Implement the transactional logic with pessimistic locking for issuing 15-minute leases.
+* Build the Nomad job dispatch integration in the Broker to dynamically inject the 3-task enforcement group.
 
 **Milestone 4: Integration and Edge Case Handling**
 
-* Connect the Next.js UI job submission to the Java Broker, which then triggers Nomad to spin up the Docker container.
-* Implement the MinIO upload logic and unused lease refund logic at the end of the container lifecycle.
-* Build and test the network partition logic, deliberately dropping the connection to ensure the Agent strictly monitors
-  the lease boundary and hard-kills the container upon offline expiration.
+* Connect the Next.js UI job submission to the Java Broker, triggering Nomad scheduling.
+* Implement the MinIO upload logic via the Nomad poststop task and the unused lease refund logic during Broker
+  reconciliation.
+* Conduct chaos testing by deliberately dropping the Sidecar-to-Broker network connection to ensure the hard-kill
+  mechanism functions natively via Nomad upon countdown expiration.
