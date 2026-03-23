@@ -46,6 +46,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
+     * Handles resource not found (e.g. user, wallet).
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ProblemDetail handleNotFound(ResourceNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Resource Not Found");
+        problem.setType(URI.create("about:blank"));
+        return problem;
+    }
+
+    /**
      * Catch-all for any unhandled exception.
      */
     @ExceptionHandler(Exception.class)
