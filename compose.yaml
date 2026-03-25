@@ -2,6 +2,9 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: pcrm_postgres
+    restart: "no"
+    ports:
+      - "${POSTGRES_PORT}:5432" # Exposed for local debugging
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -17,6 +20,9 @@ services:
   redis:
     image: redis:7-alpine
     container_name: pcrm_redis
+    restart: "no"
+    ports:
+      - "${REDIS_PORT}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -29,15 +35,35 @@ services:
       context: apps/broker
       dockerfile: Dockerfile
     container_name: pcrm_broker
+    restart: "no"
+    ports:
+      - "${BROKER_PORT}:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - DATABASE_URL=${BROKER_DB_URL}
+      - DATABASE_USERNAME=${BROKER_DB_USERNAME}
+      - DATABASE_PASSWORD=${BROKER_DB_PASSWORD}
+      - SPRING_DATA_REDIS_HOST=${REDIS_HOST}
+      - SPRING_DATA_REDIS_PORT=${REDIS_PORT}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/actuator/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: pcrm_minio
+    restart: "no"
+    ports:
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -53,6 +79,11 @@ services:
   nomad:
     image: hashicorp/nomad:1.7
     container_name: pcrm_nomad
+    restart: "no"
+    ports:
+      - "${NOMAD_HTTP_PORT}:4646"
+      - "${NOMAD_RPC_PORT}:4647"
+      - "${NOMAD_SERF_PORT}:4648"
     # Using -dev for a single-node cluster (server + client).
     command: agent -dev -bind 0.0.0.0 -network-interface eth0
     privileged: true
