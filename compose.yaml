@@ -93,6 +93,27 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /sys/fs/cgroup:/sys/fs/cgroup
 
+  frontend:
+    build:
+      context: apps/frontend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: pcrm_frontend
+    restart: "no"
+    ports:
+      - "${FRONTEND_PORT}:3000"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      # Mount source code for instant hot-reload during local development.
+      # node_modules is explicitly excluded so the container's installed
+      # packages are used instead of the host's.
+      - ./apps/frontend:/app
+      - /app/node_modules
+    depends_on:
+      broker:
+        condition: service_healthy
+
 volumes:
   postgres_data:
     driver: local
