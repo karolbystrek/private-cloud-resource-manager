@@ -2,6 +2,10 @@
 
 This document provides essential context for AI agents working on the Private Cloud Resource Manager.
 
+## Repository Coordinates
+
+- **GitHub Repository**: `karolbystrek/private-cloud-resource-manager`
+
 ## 1. System Architecture & Components
 
 The system is a distributed on-premise cloud for batch jobs, enforcing strict billing via a "Pre-Paid Lease" mechanism.
