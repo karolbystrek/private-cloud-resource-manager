@@ -7,6 +7,7 @@ import com.pcrm.broker.auth.service.AuthenticationService;
 import com.pcrm.broker.auth.service.JwtService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,9 @@ public class AuthenticationResource {
 
     private final AuthenticationService authenticationService;
     private final JwtService jwtService;
+
+    @Value("${app.security.cookie.secure:true}")
+    private boolean isSecureCookie;
 
     @PostMapping("/login")
     public ResponseEntity<AuthenticationResponse> authenticate(@RequestBody @Valid AuthenticationRequest authenticationRequest) {
@@ -43,7 +47,7 @@ public class AuthenticationResource {
         }
         ResponseCookie clearCookie = ResponseCookie.from("refresh_token", "")
                 .httpOnly(true)
-                .secure(true)
+                .secure(isSecureCookie)
                 .sameSite("Lax")
                 .path("/")
                 .maxAge(0)
@@ -56,7 +60,7 @@ public class AuthenticationResource {
     private ResponseEntity<AuthenticationResponse> buildResponseWithCookie(TokenPair tokenPair) {
         ResponseCookie cookie = ResponseCookie.from("refresh_token", tokenPair.refreshToken())
                 .httpOnly(true)
-                .secure(true)
+                .secure(isSecureCookie)
                 .sameSite("Lax")
                 .path("/")
                 .maxAge(jwtService.getRefreshExpiration() / 1000)

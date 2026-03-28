@@ -3,29 +3,19 @@ package com.pcrm.broker.auth.service;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.KeyFactory;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
 import java.util.Date;
 import java.util.function.Function;
 
 @Service
+@RequiredArgsConstructor
 public class JwtService {
 
-    @Value("${application.security.jwt.private-key}")
-    private String privateKeyPath;
-
-    @Value("${application.security.jwt.public-key}")
-    private String publicKeyPath;
+    private final JwtKeyProvider jwtKeyProvider;
 
     @Value("${application.security.jwt.expiration}")
     private long jwtExpiration;
@@ -48,7 +38,7 @@ public class JwtService {
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + jwtExpiration))
-                .signWith(getPrivateKey(), Jwts.SIG.EdDSA)
+                .signWith(jwtKeyProvider.getPrivateKey(), Jwts.SIG.EdDSA)
                 .compact();
     }
 
@@ -58,7 +48,7 @@ public class JwtService {
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + refreshExpiration))
-                .signWith(getPrivateKey(), Jwts.SIG.EdDSA)
+                .signWith(jwtKeyProvider.getPrivateKey(), Jwts.SIG.EdDSA)
                 .compact();
     }
 
@@ -81,39 +71,9 @@ public class JwtService {
 
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .verifyWith(getPublicKey())
+                .verifyWith(jwtKeyProvider.getPublicKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-    }
-
-    private PrivateKey getPrivateKey() {
-        try {
-            String keyContent = Files.readString(Path.of(privateKeyPath))
-                    .replace("-----BEGIN PRIVATE KEY-----", "")
-                    .replace("-----END PRIVATE KEY-----", "")
-                    .replaceAll("\\s", "");
-            byte[] keyBytes = Base64.getDecoder().decode(keyContent);
-            PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
-            KeyFactory kf = KeyFactory.getInstance("Ed25519");
-            return kf.generatePrivate(spec);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to load Private Key", e);
-        }
-    }
-
-    private PublicKey getPublicKey() {
-        try {
-            String keyContent = Files.readString(Path.of(publicKeyPath))
-                    .replace("-----BEGIN PUBLIC KEY-----", "")
-                    .replace("-----END PUBLIC KEY-----", "")
-                    .replaceAll("\\s", "");
-            byte[] keyBytes = Base64.getDecoder().decode(keyContent);
-            X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
-            KeyFactory kf = KeyFactory.getInstance("Ed25519");
-            return kf.generatePublic(spec);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to load Public Key", e);
-        }
     }
 }

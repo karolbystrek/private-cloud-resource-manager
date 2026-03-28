@@ -4,8 +4,9 @@ spring:
     validate-on-migrate: false
 
 app:
-  cors:
-    allowed-origins: "http://localhost:3000"
+  security:
+    cookie:
+      secure: false
 
 logging:
   level:

@@ -61,8 +61,11 @@ public class AuthenticationService {
             throw tokenRefreshException();
         }
 
-        refreshSession.setRevoked(true);
-        refreshTokenRepository.save(refreshSession);
+        int updatedRows = refreshTokenRepository.revokeTokenIfActive(jti);
+        if (updatedRows == 0) {
+            // Token was already revoked by another concurrent request. This is reuse attempt!
+            throw tokenRefreshException();
+        }
 
         return issueTokenPair(userDetails);
     }
@@ -70,10 +73,7 @@ public class AuthenticationService {
     @Transactional
     public void logout(String token) {
         var jti = jwtService.extractTokenId(token);
-        refreshTokenRepository.findByTokenId(jti).ifPresent(session -> {
-            session.setRevoked(true);
-            refreshTokenRepository.save(session);
-        });
+        refreshTokenRepository.revokeTokenIfActive(jti);
     }
 
     private TokenPair issueTokenPair(CustomUserDetails userDetails) {

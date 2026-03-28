@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+
+  flyway:
+    enabled: false
+
+app:
+  security:
+    cookie:
+      secure: false
+  cors:
+    allowed-origins: http://localhost:3000
+
+application:
+  security:
+    jwt:
+      public-key: src/test/resources/secrets/public.pem
+      private-key: src/test/resources/secrets/private.pem
+      expiration: 900000
+      refresh-expiration: 604800000
