@@ -1,11 +1,11 @@
 spring:
-  datasource:
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
   flyway:
     clean-disabled: false
     validate-on-migrate: false
+
+app:
+  cors:
+    allowed-origins: "http://localhost:3000"
 
 logging:
   level:

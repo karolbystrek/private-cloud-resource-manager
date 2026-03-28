@@ -1,22 +1,20 @@
-package com.pcrm.broker.controller;
+package com.pcrm.broker.wallet.resource;
 
-import java.util.UUID;
-
+import com.pcrm.broker.wallet.dto.WalletBalanceResponse;
+import com.pcrm.broker.wallet.service.WalletService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.pcrm.broker.dto.WalletBalanceResponse;
-import com.pcrm.broker.service.WalletService;
-
-import lombok.RequiredArgsConstructor;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/wallets")
 @RequiredArgsConstructor
-public class WalletController {
+public class WalletResource {
 
     private final WalletService walletService;
 

@@ -4,7 +4,7 @@ services:
     container_name: pcrm_postgres
     restart: "no"
     ports:
-      - "${POSTGRES_PORT}:5432" # Exposed for local debugging
+      - "${POSTGRES_PORT}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -39,19 +39,23 @@ services:
     ports:
       - "${BROKER_PORT}:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - DATABASE_URL=${BROKER_DB_URL}
-      - DATABASE_USERNAME=${BROKER_DB_USERNAME}
-      - DATABASE_PASSWORD=${BROKER_DB_PASSWORD}
+      - SPRING_PROFILES_ACTIVE
+      - DATABASE_URL
+      - DATABASE_USERNAME
+      - DATABASE_PASSWORD
       - SPRING_DATA_REDIS_HOST=${REDIS_HOST}
       - SPRING_DATA_REDIS_PORT=${REDIS_PORT}
+      - JWT_EXPIRATION_MS
+      - JWT_REFRESH_EXPIRATION_MS
+    volumes:
+      - ./secrets:/app/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080/actuator/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/api/health" ]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -105,9 +109,6 @@ services:
     environment:
       - NODE_ENV=development
     volumes:
-      # Mount source code for instant hot-reload during local development.
-      # node_modules is explicitly excluded so the container's installed
-      # packages are used instead of the host's.
       - ./apps/frontend:/app
       - /app/node_modules
     depends_on:

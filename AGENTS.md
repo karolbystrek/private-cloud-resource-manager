@@ -49,6 +49,7 @@ The core invariant is **No Unbilled Compute**.
   - **Java Broker**: Use Redis for distributed locking to prevent "Thundering Herd" on resource pools.
   - **Database**: Rely on Row-Level Locking for wallet consistency.
 - **API Contracts**: Broker is the central authority. Agents and UI are consumers.
+- **Authentication**: The Broker uses a hybrid JWT authentication system. A short-lived Access Token is returned in the JSON response body to be stored in memory by the client and sent in the Authorization header as a Bearer token. A long-lived Refresh Token is issued securely as an `HttpOnly`, `Secure`, and `SameSite=Lax` cookie to protect against XSS and CSRF.
 
 ## 5. Common Patterns
 

@@ -1,7 +1,4 @@
-package com.pcrm.broker.domain.user;
-
-import java.time.OffsetDateTime;
-import java.util.UUID;
+package com.pcrm.broker.user;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,6 +14,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
@@ -36,6 +36,9 @@ public class User {
 
     @Column(nullable = false, unique = true)
     private String email;
+
+    @Column(name = "password_hash")
+    private String passwordHash;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
