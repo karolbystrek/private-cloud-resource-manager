@@ -10,6 +10,12 @@ This system is a distributed on-premise cloud for batch jobs, enforcing strict b
    cp .env.example .env
    ```
 
+2. **Install Dependencies**: Use pnpm to install the required dependencies:
+
+   ```bash
+   pnpm install
+   ```
+
 2. **Generate Security Keys**: Create the cryptographic keys required for JWT authentication.
 
    ```bash
@@ -22,4 +28,13 @@ This system is a distributed on-premise cloud for batch jobs, enforcing strict b
 
    ```bash
    docker compose up -d
+   ```
+
+### Code Quality & Pre-commit Hooks
+
+We use Husky to run pre-commit hooks that enforce code quality. If a commit is rejected due to formatting or linting
+errors, run the lint auto-fix script to resolve the issues automatically:
+
+   ```bash
+  pnpm lint:fix
    ```

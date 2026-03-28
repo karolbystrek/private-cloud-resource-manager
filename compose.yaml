@@ -102,8 +102,8 @@ services:
 
   frontend:
     build:
-      context: apps/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/frontend/Dockerfile
       target: dev
     container_name: pcrm_frontend
     restart: "no"
@@ -112,8 +112,9 @@ services:
     environment:
       - NODE_ENV=development
     volumes:
-      - ./apps/frontend:/app
+      - .:/app
       - /app/node_modules
+      - /app/apps/frontend/node_modules
     depends_on:
       broker:
         condition: service_healthy
