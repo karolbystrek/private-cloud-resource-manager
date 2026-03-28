@@ -1,6 +1,10 @@
 spring:
   application:
     name: broker
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
 
   mvc:
     problemdetails:
@@ -11,3 +15,15 @@ spring:
     locations: classpath:db/migration
     table: flyway_schema_history
     group: true
+
+server:
+  servlet:
+    context-path: /api
+
+application:
+  security:
+    jwt:
+      public-key: /app/secrets/public.pem
+      private-key: /app/secrets/private.pem
+      expiration: ${JWT_EXPIRATION_MS}
+      refresh-expiration: ${JWT_REFRESH_EXPIRATION_MS}

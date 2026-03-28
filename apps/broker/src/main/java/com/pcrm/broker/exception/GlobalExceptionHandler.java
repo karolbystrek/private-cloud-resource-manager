@@ -1,17 +1,18 @@
 package com.pcrm.broker.exception;
 
-import java.net.URI;
-
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+
+import java.net.URI;
 
 /**
  * Global exception handler following RFC 7807 Problem Details.
@@ -46,6 +47,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
+     * Handles token refresh failures.
+     * Returns 401 Unauthorized and proactively clears the invalid refresh token cookie.
+     */
+    @ExceptionHandler(TokenRefreshException.class)
+    public ResponseEntity<ProblemDetail> handleTokenRefreshException(TokenRefreshException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNAUTHORIZED, ex.getMessage());
+        problem.setTitle("Authentication Failed");
+        problem.setType(URI.create("about:blank"));
+
+        ResponseCookie clearCookie = ResponseCookie.from("refresh_token", "")
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(0)
+                .build();
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header(HttpHeaders.SET_COOKIE, clearCookie.toString())
+                .body(problem);
+    }
+
+    /**
      * Handles resource not found (e.g. user, wallet).
      */
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -73,5 +98,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     /**
      * Simple record for structured field-level validation errors.
      */
-    private record FieldError(String field, String message) {}
+    private record FieldError(String field, String message) {
+    }
 }

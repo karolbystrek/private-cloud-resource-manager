@@ -1,10 +1,6 @@
-package com.pcrm.broker.domain.wallet;
+package com.pcrm.broker.wallet;
 
-import java.math.BigDecimal;
-import java.util.UUID;
-
-import com.pcrm.broker.domain.user.User;
-
+import com.pcrm.broker.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -19,6 +15,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.math.BigDecimal;
+import java.util.UUID;
 
 @Entity
 @Table(name = "wallets")

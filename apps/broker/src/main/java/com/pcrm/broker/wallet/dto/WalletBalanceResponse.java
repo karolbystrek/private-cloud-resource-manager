@@ -1,4 +1,4 @@
-package com.pcrm.broker.dto;
+package com.pcrm.broker.wallet.dto;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -10,4 +10,5 @@ public record WalletBalanceResponse(
         UUID walletId,
         UUID userId,
         BigDecimal balanceCu
-) {}
+) {
+}

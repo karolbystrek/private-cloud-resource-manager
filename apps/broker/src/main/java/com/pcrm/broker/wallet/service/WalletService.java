@@ -1,16 +1,14 @@
-package com.pcrm.broker.service;
+package com.pcrm.broker.wallet.service;
 
-import java.util.UUID;
-
+import com.pcrm.broker.exception.ResourceNotFoundException;
+import com.pcrm.broker.wallet.Wallet;
+import com.pcrm.broker.wallet.dto.WalletBalanceResponse;
+import com.pcrm.broker.wallet.repository.WalletRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.pcrm.broker.domain.wallet.Wallet;
-import com.pcrm.broker.domain.wallet.WalletRepository;
-import com.pcrm.broker.dto.WalletBalanceResponse;
-import com.pcrm.broker.exception.ResourceNotFoundException;
-
-import lombok.RequiredArgsConstructor;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
