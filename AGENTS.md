@@ -50,6 +50,7 @@ The core invariant is **No Unbilled Compute**.
   - **Database**: Rely on Row-Level Locking for wallet consistency.
 - **API Contracts**: Broker is the central authority. Agents and UI are consumers.
 - **Authentication**: The Broker uses a hybrid JWT authentication system. A short-lived Access Token is returned in the JSON response body to be stored in memory by the client and sent in the Authorization header as a Bearer token. A long-lived Refresh Token is issued securely as an `HttpOnly`, `Secure`, and `SameSite=Lax` cookie to protect against XSS and CSRF.
+- **Frontend Components**: All interactive interfaces and structural layouts must utilize Shadcn UI components. Use `npx shadcn@latest add <component>` to add required primitives to `apps/frontend/src/components/ui/`.
 
 ## 5. Common Patterns
 
