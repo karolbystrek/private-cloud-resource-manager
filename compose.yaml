@@ -110,7 +110,9 @@ services:
     ports:
       - "${FRONTEND_PORT}:3000"
     environment:
-      - NODE_ENV=development
+      NODE_ENV: development
+      NEXT_PUBLIC_BACKEND_URL: http://broker:8080
+      NEXT_JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS}
     volumes:
       - ./apps/frontend:/app
       - /app/node_modules
