@@ -29,3 +29,5 @@ This system is a distributed on-premise cloud for batch jobs, enforcing strict b
    ```bash
    docker compose up -d
    ```
+
+For authentication API testing, use [`apps/broker/client.http`](apps/broker/client.http), which includes requests for all auth endpoints.
