@@ -1,21 +1,24 @@
 package com.pcrm.broker.auth.service;
 
 import com.pcrm.broker.auth.domain.CustomUserDetails;
-import com.pcrm.broker.auth.domain.RefreshToken;
 import com.pcrm.broker.auth.dto.AuthenticationRequest;
+import com.pcrm.broker.auth.dto.RegistrationRequest;
 import com.pcrm.broker.auth.dto.TokenPair;
 import com.pcrm.broker.auth.repository.RefreshTokenRepository;
+import com.pcrm.broker.exception.RegistrationConflictException;
 import com.pcrm.broker.exception.TokenRefreshException;
+import com.pcrm.broker.user.User;
+import com.pcrm.broker.user.UserRole;
 import com.pcrm.broker.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.util.UUID;
 
 import static com.pcrm.broker.exception.TokenRefreshException.tokenRefreshException;
 
@@ -27,6 +30,7 @@ public class AuthenticationService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional
     public TokenPair authenticate(AuthenticationRequest request) {
@@ -37,7 +41,7 @@ public class AuthenticationService {
                 )
         );
         var userDetails = (CustomUserDetails) authentication.getPrincipal();
-        return issueTokenPair(userDetails);
+        return jwtService.issueTokenPair(userDetails);
     }
 
     @Transactional
@@ -67,7 +71,7 @@ public class AuthenticationService {
             throw tokenRefreshException();
         }
 
-        return issueTokenPair(userDetails);
+        return jwtService.issueTokenPair(userDetails);
     }
 
     @Transactional
@@ -76,19 +80,29 @@ public class AuthenticationService {
         refreshTokenRepository.revokeTokenIfActive(jti);
     }
 
-    private TokenPair issueTokenPair(CustomUserDetails userDetails) {
-        var accessToken = jwtService.generateToken(userDetails);
-        var jti = UUID.randomUUID().toString();
-        var refreshTokenStr = jwtService.generateRefreshToken(userDetails, jti);
+    @Transactional
+    public void register(RegistrationRequest request, boolean isAdminRegistration) {
+        if (userRepository.existsByUsername(request.username())) {
+            throw new RegistrationConflictException("Username already exists");
+        }
+        if (userRepository.existsByEmail(request.email())) {
+            throw new RegistrationConflictException("Email already exists");
+        }
 
-        var refreshToken = RefreshToken.builder()
-                .user(userDetails.user())
-                .tokenId(jti)
-                .expiresAt(OffsetDateTime.now().plusSeconds(jwtService.getRefreshExpiration() / 1000))
-                .revoked(false)
+        UserRole role = UserRole.STUDENT;
+        if (isAdminRegistration && request.role() != null) {
+            role = request.role();
+        }
+
+        var user = User.builder()
+                .username(request.username())
+                .email(request.email())
+                .passwordHash(passwordEncoder.encode(request.password()))
+                .role(role)
                 .build();
-        refreshTokenRepository.save(refreshToken);
 
-        return new TokenPair(accessToken, refreshTokenStr);
+        userRepository.save(user);
+
+        // TODO: create wallet row transactionally with user registration.
     }
 }

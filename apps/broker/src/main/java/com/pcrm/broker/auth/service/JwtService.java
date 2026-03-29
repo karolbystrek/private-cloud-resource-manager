@@ -1,5 +1,9 @@
 package com.pcrm.broker.auth.service;
 
+import com.pcrm.broker.auth.domain.CustomUserDetails;
+import com.pcrm.broker.auth.domain.RefreshToken;
+import com.pcrm.broker.auth.dto.TokenPair;
+import com.pcrm.broker.auth.repository.RefreshTokenRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import lombok.Getter;
@@ -8,12 +12,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
 import java.util.Date;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Service
 @RequiredArgsConstructor
 public class JwtService {
+
+    private final RefreshTokenRepository refreshTokenRepository;
 
     private final JwtKeyProvider jwtKeyProvider;
 
@@ -28,12 +36,28 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
 
-    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
+    public TokenPair issueTokenPair(CustomUserDetails userDetails) {
+        var accessToken = generateToken(userDetails);
+        var jti = UUID.randomUUID().toString();
+        var refreshTokenStr = generateRefreshToken(userDetails, jti);
+
+        var refreshToken = RefreshToken.builder()
+                .user(userDetails.user())
+                .tokenId(jti)
+                .expiresAt(OffsetDateTime.now().plusSeconds(getRefreshExpiration() / 1000))
+                .revoked(false)
+                .build();
+        refreshTokenRepository.save(refreshToken);
+
+        return new TokenPair(accessToken, refreshTokenStr);
     }
 
-    public String generateToken(UserDetails userDetails) {
+    public boolean isTokenValid(String token, UserDetails userDetails) {
+        final String username = extractUsername(token);
+        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    }
+
+    private String generateToken(UserDetails userDetails) {
         return Jwts.builder()
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
@@ -42,7 +66,7 @@ public class JwtService {
                 .compact();
     }
 
-    public String generateRefreshToken(UserDetails userDetails, String jti) {
+    private String generateRefreshToken(UserDetails userDetails, String jti) {
         return Jwts.builder()
                 .id(jti)
                 .subject(userDetails.getUsername())
@@ -52,9 +76,9 @@ public class JwtService {
                 .compact();
     }
 
-    public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
     }
 
     private boolean isTokenExpired(String token) {

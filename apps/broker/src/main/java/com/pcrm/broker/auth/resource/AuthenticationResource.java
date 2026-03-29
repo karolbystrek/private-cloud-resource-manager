@@ -2,6 +2,7 @@ package com.pcrm.broker.auth.resource;
 
 import com.pcrm.broker.auth.dto.AuthenticationRequest;
 import com.pcrm.broker.auth.dto.AuthenticationResponse;
+import com.pcrm.broker.auth.dto.RegistrationRequest;
 import com.pcrm.broker.auth.dto.TokenPair;
 import com.pcrm.broker.auth.service.AuthenticationService;
 import com.pcrm.broker.auth.service.JwtService;
@@ -9,8 +10,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -55,6 +58,17 @@ public class AuthenticationResource {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, clearCookie.toString())
                 .build();
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<Void> register(
+            @RequestBody @Valid RegistrationRequest registrationRequest,
+            Authentication authentication
+    ) {
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        authenticationService.register(registrationRequest, isAdmin);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     private ResponseEntity<AuthenticationResponse> buildResponseWithCookie(TokenPair tokenPair) {
