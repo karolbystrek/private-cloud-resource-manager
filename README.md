@@ -10,10 +10,10 @@ This system is a distributed on-premise cloud for batch jobs, enforcing strict b
    cp .env.example .env
    ```
 
-2. **Install Dependencies**: Use pnpm to install the required dependencies:
+2. **Install Dependencies**: Use npm workspaces to install the required dependencies from the repository root:
 
    ```bash
-   cd apps/frontend && npm install
+   npm install
    ```
 
 2. **Generate Security Keys**: Create the cryptographic keys required for JWT authentication.

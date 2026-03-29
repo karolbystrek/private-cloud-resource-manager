@@ -1,0 +1,7 @@
+{
+  "name": "private-cloud-resource-manager",
+  "private": true,
+  "workspaces": [
+    "apps/frontend"
+  ]
+}
