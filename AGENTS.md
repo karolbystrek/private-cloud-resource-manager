@@ -37,16 +37,15 @@ The core invariant is **No Unbilled Compute**.
 ## 3. Directory Structure & Conventions
 
 - `apps/`: Monorepo root for all services.
-    - `agent/`: Python-based worker agent. See `apps/agent/README.md`.
     - `broker/`: Java Spring Boot control plane. See `apps/broker/pom.xml`.
     - `frontend/`: Next.js web dashboard. See `apps/frontend/README.md`.
-- `docs/`: **Source of Truth**. See `PROJECT_PLAN.md` and `DATABASE_SCHEMA_PLAN.md` before architectural changes.
+- `docs/`: **Source of Truth**. See `PROJECT_PLAN.md` and `ROADMAP.md` before architectural changes.
 - `db/init/`: SQL Schema definitions.
-- `compose.yml`: Local development environment (Postgres, Redis, MinIO).
+- `compose.yaml`: Local development environment (Postgres, Redis, MinIO).
 
 ## 4. Development & Integration
 
-- **Database Changes**: Always update `db/init/01_schema.sql` and `docs/DATABASE_SCHEMA_PLAN.md` in tandem.
+- **Database Changes**: Apply schema updates through versioned Flyway migrations in `apps/broker/src/main/resources/db/migration/`.
 - **Concurrency**:
     - **Java Broker**: Use Redis for distributed locking to prevent "Thundering Herd" on resource pools.
     - **Database**: Rely on Row-Level Locking for wallet consistency.
