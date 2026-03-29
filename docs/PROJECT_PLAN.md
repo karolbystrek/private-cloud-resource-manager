@@ -6,15 +6,15 @@ Private Cloud Resource Manager.
 
 This document outlines the architecture, technology stack, and implementation milestones for a distributed on-premise
 cloud system. The system provisions institutional hardware for batch jobs using Docker, orchestrated by Nomad, with a
-strictly controlled Compute Unit (CU) billing system.
+strictly controlled credits billing system.
 
 ### 1. Technology Stack and Component Mapping
 
 | Component                     | Technology                 | Primary Responsibility                                                                                                                     |
 |-------------------------------|----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| **Frontend UI**               | React, Next.js, TypeScript | User dashboard, job submission (Docker image URL, resource sliders), CU wallet balance, and result downloads.                              |
-| **Broker (Control Plane)**    | Java (Spring Boot)         | API Gateway, CU transaction validation, Redis locking, Nomad API communication, node polling, and lease issuance/billing updates.          |
-| **Database & State**          | PostgreSQL, Redis          | Postgres: Persistent state, user accounts, CU ledger with pessimistic locking. Redis: Distributed locks for resource allocation.           |
+| **Frontend UI**               | React, Next.js, TypeScript | User dashboard, job submission (Docker image URL, resource sliders), credits wallet balance, and result downloads.                         |
+| **Broker (Control Plane)**    | Java (Spring Boot)         | API Gateway, credits transaction validation, Redis locking, Nomad API communication, node polling, and lease issuance/billing updates.     |
+| **Database & State**          | PostgreSQL, Redis          | Postgres: Persistent state, user accounts, credit registry with pessimistic locking. Redis: Distributed locks for resource allocation.      |
 | **Lease Enforcer (Sidecar)**  | Lightweight Container      | An ephemeral sidecar container dynamically injected into every job to manage compute leases and strictly enforce offline hard-kill limits. |
 | **Orchestration & Execution** | HashiCorp Nomad, Docker    | Nomad schedules tasks dynamically. Docker enforces cgroup limits (CPU/RAM/GPU) and isolates the student's process.                         |
 | **Artifact Storage**          | MinIO (S3-Compatible)      | Centralized, decoupled storage for output logs, trained models, and dataset retrieval.                                                     |
@@ -33,7 +33,7 @@ strictly controlled Compute Unit (CU) billing system.
 **B. Job Submission and Scheduling**
 
 * The user submits a job via the Next.js UI, providing a Docker image URL, a run command, and hardware requirements.
-* The Java Broker verifies the user's CU balance and deducts an initial 15-minute pre-paid compute lease using
+* The Java Broker verifies the user's credits balance and deducts an initial 15-minute pre-paid compute lease using
   pessimistic locking (`SELECT ... FOR UPDATE`) in PostgreSQL.
 * The Broker constructs a specialized 3-task Nomad group consisting of:
     1. The `lease-enforcer` sidecar (prestart).
@@ -46,7 +46,7 @@ strictly controlled Compute Unit (CU) billing system.
 * Nomad schedules the task group onto an available worker node.
 * The `lease-enforcer` sidecar runs an internal 15-minute countdown timer. Every 10 minutes, it contacts the Broker to
   renew the lease.
-* **HTTP 200**: The Broker deducts another 15 minutes of CU from the ledger. The sidecar resets its internal timer.
+* **HTTP 200**: The Broker deducts another 15 minutes of credits from the credit registry. The sidecar resets its internal timer.
 * **HTTP 402**: The user is out of funds. The sidecar immediately exits with code 1.
 * **Network Partition**: The sidecar cannot reach the Broker. The countdown continues. If it reaches zero without a
   successful renewal, the sidecar exits with code 1.
@@ -58,7 +58,7 @@ strictly controlled Compute Unit (CU) billing system.
 * Upon task completion, OOM-kill, or a hard-kill enforcement, Nomad triggers the `artifact-uploader` poststop container.
 * This container zips the shared `alloc/data` directory and executes a direct PUT request to a Broker-generated MinIO
   pre-signed URL.
-* The Nomad allocation terminates, the Broker issues a refund transaction to the ledger for any unused lease time, and
+* The Nomad allocation terminates, the Broker issues a refund transaction to the credit registry for any unused lease time, and
   the UI presents a download link.
 
 ---
@@ -67,7 +67,7 @@ strictly controlled Compute Unit (CU) billing system.
 
 **Milestone 1: Infrastructure and Database Foundation**
 
-* Design the PostgreSQL schema for users, resources, and the append-only CU transaction ledger.
+* Design the PostgreSQL schema for users, resources, and the append-only credit transaction registry.
 * Set up the Redis instance for distributed locking and lease state storage.
 * Deploy a local MinIO instance and configure S3 buckets for result storage.
 * Build the ephemeral `lease-enforcer` sidecar Docker image.
@@ -76,7 +76,7 @@ strictly controlled Compute Unit (CU) billing system.
 
 * Develop the Java Broker REST API for handling user authentication and basic job submission requests.
 * Implement the background Nomad polling mechanism for automated node tracking.
-* Build the Next.js frontend to allow users to log in, view their CU balance, and see available hardware nodes.
+* Build the Next.js frontend to allow users to log in, view their credits balance, and see available hardware nodes.
 
 **Milestone 3: Orchestration and The Data Plane (Sidecar)**
 

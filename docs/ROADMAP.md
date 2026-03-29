@@ -92,7 +92,7 @@ designed for a **4-person team** working in a **Monorepo** structure.
 
 **Goal**: End-to-end job submission using the dynamic 3-task Nomad group.
 
-### [BE-04] Job Submission & Ledger
+### [BE-04] Job Submission & Credit Registry
 
 - **Description**: Handle the user's request to start work.
 - **Tasks**:
@@ -101,7 +101,7 @@ designed for a **4-person team** working in a **Monorepo** structure.
         2. **Transaction**: `SELECT wallet FOR UPDATE`.
         3. Deduct *1st Lease* (15 mins cost).
         4. Insert `JOB` record.
-        5. Insert `LEDGER` record (`LEASE_DEDUCTION`).
+        5. Insert `CREDIT_REGISTRY` record (`LEASE_DEDUCTION`).
         6. Return Job ID.
 - **Acceptance Criteria**: Wallet balance decreases immediately upon submission.
 
@@ -136,7 +136,7 @@ designed for a **4-person team** working in a **Monorepo** structure.
         1. Lock Wallet.
         2. Deduct *Next Lease*.
         3. Update `jobs.active_lease_expires_at`.
-        4. Insert `LEDGER` record.
+        4. Insert `CREDIT_REGISTRY` record.
 - **Acceptance Criteria**: Wallet balance decreases periodically while job runs.
 
 ---
@@ -160,7 +160,7 @@ designed for a **4-person team** working in a **Monorepo** structure.
 - **Tasks**:
     - Listen for Nomad allocation terminal events.
     - Calculate unused minutes of the final active lease.
-    - Insert `LEDGER` record (`LEASE_REFUND`).
+    - Insert `CREDIT_REGISTRY` record (`LEASE_REFUND`).
     - Credit Wallet.
 - **Acceptance Criteria**: Finishing a job early automatically refunds the remaining fraction of the 15-minute chunk.
 
