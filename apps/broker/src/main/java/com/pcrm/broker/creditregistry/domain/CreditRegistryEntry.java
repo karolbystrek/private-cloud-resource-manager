@@ -1,15 +1,17 @@
-package com.pcrm.broker.user;
+package com.pcrm.broker.creditregistry.domain;
 
+import com.pcrm.broker.jobs.domain.Job;
 import com.pcrm.broker.wallet.domain.Wallet;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.PreUpdate;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,45 +23,37 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "users")
+@Table(name = "credit_registry")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class User {
+public class CreditRegistryEntry {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, unique = true, length = 50)
-    private String username;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "wallet_id", nullable = false)
+    private Wallet wallet;
 
-    @Column(nullable = false, unique = true)
-    private String email;
-
-    @Column(name = "password_hash")
-    private String passwordHash;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_id")
+    private Job job;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    @Builder.Default
-    private UserRole role = UserRole.STUDENT;
+    @Column(name = "transaction_type", nullable = false, length = 30)
+    private TransactionType transactionType;
 
-    @OneToOne(mappedBy = "user")
-    private Wallet wallet;
+    @Column(name = "amount_credits", nullable = false)
+    private Long amountCredits;
+
+    @Column(name = "description")
+    private String description;
 
     @Column(name = "created_at", updatable = false)
     @Builder.Default
     private OffsetDateTime createdAt = OffsetDateTime.now();
-
-    @Column(name = "updated_at")
-    @Builder.Default
-    private OffsetDateTime updatedAt = OffsetDateTime.now();
-
-    @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = OffsetDateTime.now();
-    }
 }

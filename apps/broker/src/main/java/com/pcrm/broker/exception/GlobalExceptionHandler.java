@@ -1,12 +1,12 @@
 package com.pcrm.broker.exception;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -97,6 +97,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT, "Registration data conflicts with existing records");
         problem.setTitle("Registration Conflict");
+        problem.setType(URI.create("about:blank"));
+        return problem;
+    }
+
+    @ExceptionHandler(InsufficientFundsException.class)
+    public ProblemDetail handleInsufficientFunds(InsufficientFundsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.PAYMENT_REQUIRED, ex.getMessage());
+        problem.setTitle("Payment Required");
+        problem.setType(URI.create("about:blank"));
+        return problem;
+    }
+
+    @ExceptionHandler(NomadDispatchException.class)
+    public ProblemDetail handleNomadDispatch(NomadDispatchException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+        problem.setTitle("Scheduler Dispatch Failed");
         problem.setType(URI.create("about:blank"));
         return problem;
     }

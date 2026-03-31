@@ -21,6 +21,10 @@ server:
     context-path: /api
 
 app:
+  pricing:
+    base-cpu-rate-per-hour: ${BASE_CPU_RATE_PER_HOUR}
+    base-gpu-rate-per-hour: ${BASE_GPU_RATE_PER_HOUR}
+    base-ram-rate-per-hour: ${BASE_RAM_RATE_PER_HOUR}
   security:
     cookie:
       secure: true
