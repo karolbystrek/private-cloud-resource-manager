@@ -50,6 +50,9 @@ services:
       - JWT_PRIVATE_KEY_PATH
       - JWT_EXPIRATION_MS
       - JWT_REFRESH_EXPIRATION_MS
+      - BASE_CPU_RATE_PER_HOUR
+      - BASE_GPU_RATE_PER_HOUR
+      - BASE_RAM_RATE_PER_HOUR
     volumes:
       - ./secrets:/app/secrets:ro
     depends_on:

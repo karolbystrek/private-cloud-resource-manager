@@ -37,5 +37,5 @@ public class Wallet {
 
     @Column(name = "balance_credits", nullable = false)
     @Builder.Default
-    private Long balanceCredits = 0L;
+    private Long balance = 0L;
 }

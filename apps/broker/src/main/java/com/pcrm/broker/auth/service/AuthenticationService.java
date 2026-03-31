@@ -10,6 +10,7 @@ import com.pcrm.broker.exception.TokenRefreshException;
 import com.pcrm.broker.user.User;
 import com.pcrm.broker.user.UserRole;
 import com.pcrm.broker.user.repository.UserRepository;
+import com.pcrm.broker.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -31,6 +32,7 @@ public class AuthenticationService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final PasswordEncoder passwordEncoder;
+    private final WalletService walletService;
 
     @Transactional
     public TokenPair authenticate(AuthenticationRequest request) {
@@ -89,20 +91,19 @@ public class AuthenticationService {
             throw new RegistrationConflictException("Email already exists");
         }
 
-        UserRole role = UserRole.STUDENT;
+        var userRole = UserRole.STUDENT;
         if (isAdminRegistration && request.role() != null) {
-            role = request.role();
+            userRole = request.role();
         }
 
         var user = User.builder()
                 .username(request.username())
                 .email(request.email())
                 .passwordHash(passwordEncoder.encode(request.password()))
-                .role(role)
+                .role(userRole)
                 .build();
 
         userRepository.save(user);
-
-        // TODO: create wallet row transactionally with user registration.
+        walletService.createWallet(user);
     }
 }

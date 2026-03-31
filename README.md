@@ -27,7 +27,8 @@ This system is a distributed on-premise cloud for batch jobs, enforcing strict b
 3. **Start Services**: Run the following command to start the development environment using Docker Compose:
 
    ```bash
-   docker compose up -d
+   docker compose up --build
    ```
 
-For authentication API testing, use [`apps/broker/client.http`](apps/broker/client.http), which includes requests for all auth endpoints.
+For authentication API testing, use [`apps/broker/client.http`](apps/broker/client.http), which includes requests for
+all auth endpoints.

@@ -66,11 +66,11 @@ public class JobSubmissionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet", "userId", userId.toString()));
 
         long initialLeaseCost = pricingService.calculateInitialLeaseCost(request);
-        if (wallet.getBalanceCredits() < initialLeaseCost) {
-            throw new InsufficientFundsException(wallet.getBalanceCredits(), initialLeaseCost);
+        if (wallet.getBalance() < initialLeaseCost) {
+            throw new InsufficientFundsException(wallet.getBalance(), initialLeaseCost);
         }
 
-        wallet.setBalanceCredits(wallet.getBalanceCredits() - initialLeaseCost);
+        wallet.setBalance(wallet.getBalance() - initialLeaseCost);
 
         var job = Job.builder()
                 .user(user)
@@ -126,7 +126,7 @@ public class JobSubmissionService {
         var job = jobRepository.findById(preparedJobSubmission.jobId())
                 .orElseThrow(() -> new ResourceNotFoundException("Job", preparedJobSubmission.jobId()));
 
-        wallet.setBalanceCredits(wallet.getBalanceCredits() + preparedJobSubmission.initialLeaseCost());
+        wallet.setBalance(wallet.getBalance() + preparedJobSubmission.initialLeaseCost());
         job.setStatus(JobStatus.FAILED);
 
         var creditRegistryEntry = CreditRegistryEntry.builder()
