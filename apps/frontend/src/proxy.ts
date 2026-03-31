@@ -14,7 +14,7 @@ function isAuthenticated(request: NextRequest): boolean {
   return Boolean(accessToken || refreshToken);
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const hasSession = isAuthenticated(request);
   const isAuthPath = AUTH_PATHS.has(pathname);
