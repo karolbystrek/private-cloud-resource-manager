@@ -3,5 +3,8 @@
   "private": true,
   "workspaces": [
     "apps/frontend"
-  ]
+  ],
+  "overrides": {
+    "axios": "1.14.0"
+  }
 }

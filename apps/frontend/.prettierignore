@@ -1,8 +1,8 @@
+node_modules
+dist
+build
+coverage
 .next
 .cache
-build
-dist
-node_modules
+*.min.js
 public
-*.config.js
-package-lock.json
