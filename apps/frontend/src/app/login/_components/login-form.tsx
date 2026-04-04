@@ -3,15 +3,7 @@
 import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -44,14 +36,14 @@ export function LoginForm() {
   }, [searchParams]);
 
   function handleUsernameChange(event: ChangeEvent<HTMLInputElement>) {
-    setFormData(previous => ({
+    setFormData((previous) => ({
       ...previous,
       username: event.target.value,
     }));
   }
 
   function handlePasswordChange(event: ChangeEvent<HTMLInputElement>) {
-    setFormData(previous => ({
+    setFormData((previous) => ({
       ...previous,
       password: event.target.value,
     }));
@@ -89,55 +81,57 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>Login</CardTitle>
-        <CardDescription>Sign in to access your workspace.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          {isRegistered ? (
-            <p className="text-xs text-green-600 dark:text-green-400">
-              Account created successfully. You can sign in now.
-            </p>
-          ) : null}
-          <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              name="username"
-              autoComplete="username"
-              required
-              value={formData.username}
-              onChange={handleUsernameChange}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={formData.password}
-              onChange={handlePasswordChange}
-            />
-          </div>
-          {errorMessage ? (
-            <p className="text-destructive text-xs">{errorMessage}</p>
-          ) : null}
-          <Button className="w-full" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in...' : 'Sign in'}
-          </Button>
-          <p className="text-muted-foreground text-center text-xs">
-            {"Don't have an account? "}
-            <Link className="text-primary hover:underline" href="/signup">
-              Create one
-            </Link>
+    <div className="mx-auto w-full max-w-sm space-y-8">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-semibold tracking-tight">Login</h1>
+        <p className="text-muted-foreground text-sm">Sign in to access your workspace.</p>
+      </div>
+      <form className="space-y-6" onSubmit={handleSubmit}>
+        {isRegistered ? (
+          <p className="text-sm font-medium text-green-600 dark:text-green-400">
+            Account created successfully. You can sign in now.
           </p>
-        </form>
-      </CardContent>
-    </Card>
+        ) : null}
+        <div className="space-y-2">
+          <Label htmlFor="username" className="text-sm font-medium">
+            Username
+          </Label>
+          <Input
+            id="username"
+            name="username"
+            autoComplete="username"
+            required
+            value={formData.username}
+            onChange={handleUsernameChange}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-sm font-medium">
+            Password
+          </Label>
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={formData.password}
+            onChange={handlePasswordChange}
+          />
+        </div>
+        {errorMessage ? (
+          <p className="text-destructive text-sm font-medium">{errorMessage}</p>
+        ) : null}
+        <Button className="w-full rounded-none" type="submit" disabled={isSubmitting} size="lg">
+          {isSubmitting ? 'Signing in...' : 'Sign in'}
+        </Button>
+        <p className="text-muted-foreground mt-4 text-center text-sm">
+          {"Don't have an account? "}
+          <Link className="text-primary font-medium hover:underline" href="/signup">
+            Create one
+          </Link>
+        </p>
+      </form>
+    </div>
   );
 }

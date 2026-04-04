@@ -1,22 +1,22 @@
-import '@/app/globals.css';
-
 import { ReactNode } from 'react';
 import { Metadata } from 'next';
+import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import { cookies } from 'next/headers';
-import { IBM_Plex_Sans, JetBrains_Mono } from 'next/font/google';
-
-import { cn } from '@/lib/utils';
+import '@/app/globals.css';
 import { Header } from '@/components/header';
 import { ThemeProvider } from '@/components/theme-provider';
+import { cn } from '@/lib/utils';
 
 const ibmPlexSans = IBM_Plex_Sans({
   subsets: ['latin'],
   variable: '--font-sans',
+  weight: ['400', '500', '600', '700'],
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const ibmPlexMono = IBM_Plex_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
+  weight: ['400', '500', '600', '700'],
 });
 
 export const metadata: Metadata = {
@@ -27,14 +27,13 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
   const hasSession = Boolean(
-    cookieStore.get('access_token')?.value
-    || cookieStore.get('refresh_token')?.value,
+    cookieStore.get('access_token')?.value || cookieStore.get('refresh_token')?.value,
   );
 
   return (
     <html
       lang="en"
-      className={cn(jetbrainsMono.variable, 'font-sans', ibmPlexSans.variable)}
+      className={cn(ibmPlexMono.variable, 'font-sans', ibmPlexSans.variable)}
       suppressHydrationWarning
     >
       <body>
