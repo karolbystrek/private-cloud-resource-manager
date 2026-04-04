@@ -105,8 +105,8 @@ services:
 
   frontend:
     build:
-      context: apps/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/frontend/Dockerfile
       target: dev
     container_name: pcrm_frontend
     restart: "no"
@@ -117,7 +117,7 @@ services:
       NEXT_PUBLIC_BACKEND_URL: http://broker:8080
       NEXT_JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS}
     volumes:
-      - ./apps/frontend:/app
+      - ./:/app
       - /app/node_modules
     depends_on:
       broker:

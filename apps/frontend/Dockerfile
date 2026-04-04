@@ -3,38 +3,39 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY apps/frontend/package.json ./apps/frontend/
 RUN npm ci
 
 # ---- Stage 2: Development ----
 # Copies pre-installed deps, exposes port 3000, and starts the Next.js dev server.
 # The compose.yaml mounts the host source tree over /app so edits are reflected instantly.
 FROM node:20-alpine AS dev
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+WORKDIR /app/apps/frontend
+COPY --from=deps /app/node_modules /app/node_modules
 # When used with compose.yaml the host source tree is mounted over /app,
 # overriding this layer. The COPY is kept so the stage also works standalone.
-COPY . .
+COPY apps/frontend /app/apps/frontend
 ENV NODE_ENV=development
 EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
 # ---- Stage 3: Build ----
 FROM node:20-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+WORKDIR /app/apps/frontend
+COPY --from=deps /app/node_modules /app/node_modules
+COPY apps/frontend /app/apps/frontend
 RUN npm run build
 
 # ---- Stage 4: Production ----
 # Minimal image: only the Next.js standalone output and static assets.
 FROM node:20-alpine AS production
-WORKDIR /app
+WORKDIR /app/apps/frontend
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/standalone /app/
+COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/static /app/apps/frontend/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/public ./public
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]
