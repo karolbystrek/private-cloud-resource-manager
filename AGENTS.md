@@ -39,13 +39,14 @@ The core invariant is **No Unbilled Compute**.
 - `apps/`: Monorepo root for all services.
     - `broker/`: Java Spring Boot control plane. See `apps/broker/pom.xml`.
     - `frontend/`: Next.js web dashboard. See `apps/frontend/README.md`.
-- `docs/`: **Source of Truth**. See `PROJECT_PLAN.md` and `ROADMAP.md` before architectural changes.
+- `docs/`: **Source of Truth**.
 - `db/init/`: SQL Schema definitions.
 - `compose.yaml`: Local development environment (Postgres, Redis, MinIO).
 
 ## 4. Development & Integration
 
-- **Database Changes**: Apply schema updates through versioned Flyway migrations in `apps/broker/src/main/resources/db/migration/`.
+- **Database Changes**: Apply schema updates through versioned Flyway migrations in
+  `apps/broker/src/main/resources/db/migration/`.
 - **Concurrency**:
     - **Java Broker**: Use Redis for distributed locking to prevent "Thundering Herd" on resource pools.
     - **Database**: Rely on Row-Level Locking for wallet consistency.
@@ -62,7 +63,8 @@ The core invariant is **No Unbilled Compute**.
   naming conventions. Do not add comments to the code. The code should be self-explanatory and easy to read. Do not
   write large files. If a file exceeds 200 lines, split it into smaller files. If you need to mutate data (like
   submitting a form to your backend) and then re-fetch it, Server Actions allow you to call server-side code directly
-  from client-side interactions (like a button click) without having to manually build an API endpoint.
+  from client-side interactions (like a button click) without having to manually build an API endpoint. Do not use
+  FormEvent type, use SubmitEvent instead.
 
 ## 5. Common Patterns
 
