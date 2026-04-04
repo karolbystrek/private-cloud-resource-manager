@@ -1,6 +1,6 @@
 # Private Cloud Resource Manager
 
-This system is a distributed on-premise cloud for batch jobs, enforcing strict billing via a "Pre-Paid Lease" mechanism.
+This system is a distributed on-premise cloud for batch jobs, enforcing strict billing via a "Prepaid Lease" mechanism.
 
 ## How to run the project locally
 
@@ -16,7 +16,7 @@ This system is a distributed on-premise cloud for batch jobs, enforcing strict b
    npm install
    ```
 
-2. **Generate Security Keys**: Create the cryptographic keys required for JWT authentication.
+3. **Generate Security Keys**: Create the cryptographic keys required for JWT authentication.
 
    ```bash
    mkdir -p secrets
@@ -24,11 +24,18 @@ This system is a distributed on-premise cloud for batch jobs, enforcing strict b
    openssl pkey -in secrets/private.pem -pubout -out secrets/public.pem
    ```
 
-3. **Start Services**: Run the following command to start the development environment using Docker Compose:
+4. **Start Services**: Run the following command to start the development environment using Docker Compose:
 
    ```bash
-   docker compose up --build
+   docker compose up
    ```
+
+## UI URLs (Local Development)
+
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8080/api/swagger-ui/index.html
+- Nomad UI: http://localhost:4646
+- MinIO Console: http://localhost:9001
 
 For authentication API testing, use [`apps/broker/client.http`](apps/broker/client.http), which includes requests for
 all auth endpoints.
