@@ -10,3 +10,9 @@ spring:
     password: ${DATABASE_MIGRATION_PASSWORD:${DATABASE_PASSWORD}}
     # Wait for other instances to finish migrating before starting (for clusters)
     lock-retry-count: 20
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

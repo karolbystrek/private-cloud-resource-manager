@@ -3,6 +3,12 @@ spring:
     clean-disabled: false
     validate-on-migrate: false
 
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
 app:
   security:
     cookie:

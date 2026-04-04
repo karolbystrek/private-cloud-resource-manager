@@ -20,6 +20,12 @@ server:
   servlet:
     context-path: /api
 
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 app:
   pricing:
     base-cpu-rate-per-hour: ${BASE_CPU_RATE_PER_HOUR}
