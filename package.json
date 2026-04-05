@@ -2,7 +2,7 @@
   "name": "private-cloud-resource-manager",
   "private": true,
   "workspaces": [
-    "apps/frontend"
+    "frontend"
   ],
   "overrides": {
     "axios": "1.14.0"

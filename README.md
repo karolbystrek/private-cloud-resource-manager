@@ -37,5 +37,5 @@ This system is a distributed on-premise cloud for batch jobs, enforcing strict b
 - Nomad UI: http://localhost:4646
 - MinIO Console: http://localhost:9001
 
-For authentication API testing, use [`apps/broker/client.http`](apps/broker/client.http), which includes requests for
+For authentication API testing, use [`backend/client.http`](backend/client.http), which includes requests for
 all auth endpoints.

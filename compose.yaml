@@ -1,14 +1,12 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: pcrm_postgres
+    container_name: postgres
     restart: "no"
     ports:
-      - "${POSTGRES_PORT}:5432"
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,10 +17,10 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: pcrm_redis
+    container_name: redis
     restart: "no"
     ports:
-      - "${REDIS_PORT}:6379"
+      - "${REDIS_PORT}:${REDIS_PORT}"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -30,32 +28,55 @@ services:
       interval: 10s
       retries: 5
 
-  broker:
-    build:
-      context: apps/broker
-      dockerfile: Dockerfile
-    container_name: pcrm_broker
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: minio
     restart: "no"
     ports:
-      - "${BROKER_PORT}:8080"
+      - "${MINIO_API_PORT}:${MINIO_API_PORT}"
+      - "${MINIO_CONSOLE_PORT}:${MINIO_CONSOLE_PORT}"
+    env_file:
+      - .env
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nomad:
+    image: hashicorp/nomad:1.7
+    container_name: nomad
+    restart: "no"
+    ports:
+      - "${NOMAD_HTTP_PORT}:${NOMAD_HTTP_PORT}"
+      - "${NOMAD_RPC_PORT}:${NOMAD_RPC_PORT}"
+      - "${NOMAD_SERF_PORT}:${NOMAD_SERF_PORT}"
+    # Added -config pointing to the mounted file
+    command: agent -dev -bind 0.0.0.0 -network-interface eth0
+    privileged: true
+    cgroup: host
     environment:
-      - SPRING_PROFILES_ACTIVE
-      - DATABASE_URL
-      - DATABASE_USERNAME
-      - DATABASE_PASSWORD
-      - NOMAD_BASE_URL=http://nomad:4646
-      - SPRING_DATA_REDIS_HOST=${REDIS_HOST}
-      - SPRING_DATA_REDIS_PORT=${REDIS_PORT}
-      - CORS_ALLOWED_ORIGINS
-      - JWT_PUBLIC_KEY_PATH
-      - JWT_PRIVATE_KEY_PATH
-      - JWT_EXPIRATION_MS
-      - JWT_REFRESH_EXPIRATION_MS
-      - BASE_CPU_RATE_PER_HOUR
-      - BASE_GPU_RATE_PER_HOUR
-      - BASE_RAM_RATE_PER_HOUR
+      CHECKPOINT_DISABLE: "1"
+      NOMAD_SKIP_DOCKER_IMAGE_WARN: "1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  backend:
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    container_name: backend
+    restart: "no"
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    env_file:
+      - .env
     volumes:
       - ./secrets:/app/secrets:ro
+      - ./nomad:/app/nomad:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,60 +89,22 @@ services:
       retries: 5
       start_period: 30s
 
-  minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
-    container_name: pcrm_minio
-    restart: "no"
-    ports:
-      - "${MINIO_API_PORT}:9000"
-      - "${MINIO_CONSOLE_PORT}:9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  nomad:
-    image: hashicorp/nomad:1.7
-    container_name: pcrm_nomad
-    restart: "no"
-    ports:
-      - "${NOMAD_HTTP_PORT}:4646"
-      - "${NOMAD_RPC_PORT}:4647"
-      - "${NOMAD_SERF_PORT}:4648"
-    # Using -dev for a single-node cluster (server + client).
-    command: agent -dev -bind 0.0.0.0 -network-interface eth0
-    privileged: true
-    environment:
-      CHECKPOINT_DISABLE: "1"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /sys/fs/cgroup:/sys/fs/cgroup
-
   frontend:
     build:
       context: .
-      dockerfile: apps/frontend/Dockerfile
+      dockerfile: frontend/Dockerfile
       target: dev
-    container_name: pcrm_frontend
+    container_name: frontend
     restart: "no"
     ports:
-      - "${FRONTEND_PORT}:3000"
-    environment:
-      NODE_ENV: development
-      NEXT_PUBLIC_BACKEND_URL: http://broker:8080
-      NEXT_JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS}
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    env_file:
+      - .env
     volumes:
       - ./:/app
       - /app/node_modules
     depends_on:
-      broker:
+      backend:
         condition: service_healthy
 
 volumes:
