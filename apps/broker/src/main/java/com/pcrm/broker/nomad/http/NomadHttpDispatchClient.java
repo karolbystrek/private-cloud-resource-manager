@@ -3,100 +3,94 @@ package com.pcrm.broker.nomad.http;
 import com.pcrm.broker.exception.NomadDispatchException;
 import com.pcrm.broker.jobs.dto.JobSubmissionRequest;
 import com.pcrm.broker.nomad.NomadDispatchClient;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.springframework.http.MediaType.APPLICATION_JSON;
+
+@Slf4j
 @Service
 public class NomadHttpDispatchClient implements NomadDispatchClient {
 
+    private static final String TEMPLATE_JOB_ID = "user-workload-template";
+
     private final RestClient restClient;
+    private final String hclTemplate;
 
     public NomadHttpDispatchClient(
-            @Value("${app.nomad.base-url:http://localhost:4646}") String nomadBaseUrl
-    ) {
+            @Value("${app.nomad.base-url}") String nomadBaseUrl,
+            @Value("classpath:nomad/user-workload.hcl") Resource hclResource
+    ) throws IOException {
         this.restClient = RestClient.builder().baseUrl(nomadBaseUrl).build();
+        this.hclTemplate = Files.readString(hclResource.getFile().toPath());
+    }
+
+    @PostConstruct
+    public void init() {
+        try {
+            // 1. Convert HCL to JSON Specification
+            var parseResponse = restClient.post()
+                    .uri("/v1/jobs/parse")
+                    .body(Map.of("JobHCL", hclTemplate))
+                    .retrieve()
+                    .body(Map.class);
+
+            // 2. Register the parsed job
+            restClient.post()
+                    .uri("/v1/jobs")
+                    .body(Map.of("Job", parseResponse))
+                    .retrieve()
+                    .toBodilessEntity();
+
+            System.out.println("Nomad job template registered successfully.");
+        } catch (Exception e) {
+            System.err.println("Failed to register Nomad template: " + e.getMessage());
+        }
     }
 
     @Override
     public void dispatchJob(UUID jobId, JobSubmissionRequest request) {
-        Map<String, Object> payload = buildPayload(jobId, request);
+        var payload = buildPayload(jobId, request);
 
         try {
             restClient.post()
-                    .uri("/v1/jobs")
-                    .contentType(MediaType.APPLICATION_JSON)
+                    .uri("/v1/job/{id}/dispatch", TEMPLATE_JOB_ID)
+                    .contentType(APPLICATION_JSON)
                     .body(payload)
                     .retrieve()
+                    .onStatus(HttpStatusCode::isError, (_, res) -> {
+                        throw new NomadDispatchException("Nomad dispatch failed with status code: " + res.getStatusCode());
+                    })
                     .toBodilessEntity();
-        } catch (ResourceAccessException ex) {
-            throw new NomadDispatchException("Nomad dispatch timed out", ex);
-        } catch (RestClientResponseException ex) {
-            if (ex.getStatusCode().is5xxServerError()) {
-                throw new NomadDispatchException("Nomad dispatch failed with status " + ex.getStatusCode(), ex);
-            }
-            throw new NomadDispatchException("Nomad dispatch request was rejected", ex);
-        } catch (RuntimeException ex) {
-            throw new NomadDispatchException("Nomad dispatch failed", ex);
+            log.debug("Successfully dispatched job {} to Nomad with payload: {}", jobId, payload);
+        } catch (Exception ex) {
+            throw new NomadDispatchException("Failed to dispatch job " + jobId, ex);
         }
     }
 
     private Map<String, Object> buildPayload(UUID jobId, JobSubmissionRequest request) {
-        Map<String, Object> leaseTask = new HashMap<>();
-        leaseTask.put("Name", "lease-enforcer");
-        leaseTask.put("Driver", "docker");
-        leaseTask.put("Config", Map.of("image", "pcrm/lease-enforcer:latest"));
-        leaseTask.put("Lifecycle", Map.of("Hook", "prestart", "Sidecar", true));
-        leaseTask.put("RestartPolicy", Map.of("Attempts", 0, "Mode", "fail"));
-        leaseTask.put("Env", Map.of("JOB_ID", jobId.toString()));
-
-        Map<String, Object> workloadResources = new HashMap<>();
-        workloadResources.put("CPU", request.reqCpuCores() * 1000);
-        workloadResources.put("MemoryMB", request.reqRamGb() * 1024);
-        if (request.reqGpuCount() > 0) {
-            workloadResources.put("Devices", List.of(Map.of("Name", "nvidia/gpu", "Count", request.reqGpuCount())));
-        }
-
-        Map<String, Object> userTask = new HashMap<>();
-        userTask.put("Name", "user-workload");
-        userTask.put("Driver", "docker");
-        userTask.put("Config", Map.of(
-                "image", request.dockerImage(),
-                "command", "/bin/sh",
-                "args", List.of("-c", request.executionCommand())
-        ));
-        userTask.put("Resources", workloadResources);
-
-        Map<String, Object> uploaderTask = new HashMap<>();
-        uploaderTask.put("Name", "artifact-uploader");
-        uploaderTask.put("Driver", "docker");
-        uploaderTask.put("Config", Map.of("image", "pcrm/artifact-uploader:latest"));
-        uploaderTask.put("Lifecycle", Map.of("Hook", "poststop", "Sidecar", false));
-
-        List<Map<String, Object>> tasks = new ArrayList<>();
-        tasks.add(leaseTask);
-        tasks.add(userTask);
-        tasks.add(uploaderTask);
-
-        Map<String, Object> taskGroup = new HashMap<>();
-        taskGroup.put("Name", "job-group");
-        taskGroup.put("Tasks", tasks);
-
-        Map<String, Object> job = new HashMap<>();
-        job.put("ID", jobId.toString());
-        job.put("Name", "job-" + jobId);
-        job.put("Type", "batch");
-        job.put("TaskGroups", List.of(taskGroup));
-
-        return Map.of("Job", job);
+        return Map.of(
+                "Meta", Map.of(
+                        "DOCKER_IMAGE", request.dockerImage(),
+                        "EXECUTION_COMMAND", request.executionCommand(),
+                        "JOB_ID", jobId.toString()
+                ),
+                "Payload", "",
+                "Resources", Map.of(
+                        "CPU", 0, // Must be 0 if using cores
+                        "Cores", request.reqCpuCores(),
+                        "MemoryMB", request.reqRamGb() * 1024
+                )
+        );
     }
 }

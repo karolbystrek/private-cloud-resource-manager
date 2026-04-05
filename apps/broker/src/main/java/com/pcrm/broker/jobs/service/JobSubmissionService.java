@@ -12,6 +12,7 @@ import com.pcrm.broker.jobs.repository.JobRepository;
 import com.pcrm.broker.nomad.NomadDispatchClient;
 import com.pcrm.broker.user.repository.UserRepository;
 import com.pcrm.broker.wallet.repository.WalletRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import static com.pcrm.broker.creditregistry.domain.TransactionType.LEASE_DEDUCTION;
 import static com.pcrm.broker.creditregistry.domain.TransactionType.LEASE_REFUND;
 
+@Slf4j
 @Service
 public class JobSubmissionService {
 
@@ -97,12 +99,14 @@ public class JobSubmissionService {
         creditRegistryRepository.save(creditRegistryEntry);
         walletRepository.save(wallet);
 
+        log.debug("Prepared job submission for user {}: jobId={}, initialLeaseCost={}", user.getUsername(), savedJob.getId(), initialLeaseCost);
         return new PreparedJobSubmission(savedJob.getId(), userId, initialLeaseCost);
     }
 
     public UUID submitJob(UUID userId, JobSubmissionRequest request) {
-        var preparedJobSubmission = submissionTransactionTemplate.execute(status ->
-                prepareSubmission(userId, request));
+        var preparedJobSubmission = submissionTransactionTemplate.execute(
+                _ -> prepareSubmission(userId, request)
+        );
 
         if (preparedJobSubmission == null) {
             throw new IllegalStateException("Failed to prepare job submission");
@@ -140,5 +144,6 @@ public class JobSubmissionService {
         creditRegistryRepository.save(creditRegistryEntry);
         walletRepository.save(wallet);
         jobRepository.save(job);
+        log.debug("Compensated failed dispatch for jobId={}, refundedCredits={}", preparedJobSubmission.jobId(), preparedJobSubmission.initialLeaseCost());
     }
 }

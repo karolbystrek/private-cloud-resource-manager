@@ -27,6 +27,8 @@ springdoc:
     enabled: false
 
 app:
+  nomad:
+    base-url: ${NOMAD_BASE_URL}
   pricing:
     base-cpu-rate-per-hour: ${BASE_CPU_RATE_PER_HOUR}
     base-gpu-rate-per-hour: ${BASE_GPU_RATE_PER_HOUR}
@@ -44,3 +46,7 @@ application:
       private-key: ${JWT_PRIVATE_KEY_PATH}
       expiration: ${JWT_EXPIRATION_MS}
       refresh-expiration: ${JWT_REFRESH_EXPIRATION_MS}
+
+logging:
+  level:
+    root: info

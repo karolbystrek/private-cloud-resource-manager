@@ -6,6 +6,7 @@ import com.pcrm.broker.jobs.dto.JobSubmissionResponse;
 import com.pcrm.broker.jobs.service.JobSubmissionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/jobs")
@@ -26,6 +28,7 @@ public class JobsResource {
             @RequestBody @Valid JobSubmissionRequest request,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
+        log.info("Received job submission request from user {}: {}", principal.user().getUsername(), request);
         var jobId = jobSubmissionService.submitJob(principal.user().getId(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(new JobSubmissionResponse(jobId));
     }
