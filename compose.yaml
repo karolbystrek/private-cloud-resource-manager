@@ -54,7 +54,7 @@ services:
       - "${NOMAD_HTTP_PORT}:${NOMAD_HTTP_PORT}"
       - "${NOMAD_RPC_PORT}:${NOMAD_RPC_PORT}"
       - "${NOMAD_SERF_PORT}:${NOMAD_SERF_PORT}"
-    command: agent -server -client -bootstrap-expect=1 -data-dir=/opt/nomad/data -bind 0.0.0.0 -network-interface eth0 -node=nomad-server -meta=private-cloud-resource-manager.node_id=local-node-01
+    command: agent -server -client -bootstrap-expect=1 -data-dir=/tmp/nomad/data -bind 0.0.0.0 -network-interface eth0 -node=nomad-server -meta=private-cloud-resource-manager.node_id=local-node-01
     privileged: true
     cgroup: host
     environment:
@@ -62,6 +62,7 @@ services:
       NOMAD_SKIP_DOCKER_IMAGE_WARN: "1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/nomad/data:/tmp/nomad/data
 
   backend:
     build:

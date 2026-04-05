@@ -1,5 +1,7 @@
 package com.pcrm.backend.nodes.service;
 
+import com.pcrm.backend.exception.ResourceNotFoundException;
+import com.pcrm.backend.nodes.dto.NodeDetailsResponse;
 import com.pcrm.backend.nodes.dto.NodeResponse;
 import com.pcrm.backend.nodes.repository.NodeRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,5 +22,12 @@ public class NodeQueryService {
                 .stream()
                 .map(NodeResponse::toNodeResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public NodeDetailsResponse getNodeDetails(String nodeId) {
+        return nodeRepository.findById(nodeId)
+                .map(NodeDetailsResponse::toNodeDetailsResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Node", "id", nodeId));
     }
 }
