@@ -7,6 +7,7 @@ type JobSubmissionBody = {
   reqCpuCores: number;
   reqRamGb: number;
   reqGpuCount: number;
+  envVars: Record<string, string>;
 };
 
 type JobSubmissionResponse = {
@@ -24,11 +25,7 @@ type BrokerProblemDetail = {
 };
 
 type JobSubmissionFieldErrors = {
-  dockerImage?: string[];
-  executionCommand?: string[];
-  reqCpuCores?: string[];
-  reqRamGb?: string[];
-  reqGpuCount?: string[];
+  [key: string]: string[] | undefined;
 };
 
 type ApiErrorResponse = {
@@ -44,7 +41,37 @@ const validFields = new Set([
   'reqCpuCores',
   'reqRamGb',
   'reqGpuCount',
+  'envVars',
 ]);
+
+const envVarErrorMessages = new Map([
+  ['envVars.MAX_ENTRIES_EXCEEDED', 'Maximum 50 environment variables are allowed.'],
+  ['envVars.INVALID_KEY', 'Environment variable keys must match ^[a-zA-Z_][a-zA-Z0-9_]*$.'],
+  ['envVars.RESERVED_KEY', 'Environment variable keys cannot be JOB_ID or start with NOMAD_.'],
+  ['envVars.KEY_TOO_LONG', 'Environment variable key length cannot exceed 255 characters.'],
+  ['envVars.VALUE_TOO_LONG', 'Environment variable value length cannot exceed 4096 characters.'],
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseEnvVars(value: unknown): Record<string, string> | null {
+
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const parsed: Record<string, string> = {};
+  for (const [key, envValue] of Object.entries(value)) {
+    if (typeof envValue !== 'string') {
+      return null;
+    }
+    parsed[key] = envValue;
+  }
+
+  return parsed;
+}
 
 function toNumber(value: unknown): number {
   if (typeof value === 'number') {
@@ -65,13 +92,15 @@ function parseBody(rawBody: unknown): JobSubmissionBody | null {
   const reqCpuCores = toNumber(body.reqCpuCores);
   const reqRamGb = toNumber(body.reqRamGb);
   const reqGpuCount = toNumber(body.reqGpuCount);
+  const envVars = parseEnvVars(body.envVars);
 
   if (
     typeof body.dockerImage !== 'string' ||
     typeof body.executionCommand !== 'string' ||
     Number.isNaN(reqCpuCores) ||
     Number.isNaN(reqRamGb) ||
-    Number.isNaN(reqGpuCount)
+    Number.isNaN(reqGpuCount) ||
+    envVars === null
   ) {
     return null;
   }
@@ -82,10 +111,13 @@ function parseBody(rawBody: unknown): JobSubmissionBody | null {
     reqCpuCores,
     reqRamGb,
     reqGpuCount,
+    envVars,
   };
 }
 
-function buildFieldErrors(errors: BrokerFieldError[] | undefined): JobSubmissionFieldErrors | undefined {
+function buildFieldErrors(
+  errors: BrokerFieldError[] | undefined,
+): JobSubmissionFieldErrors | undefined {
   if (!errors?.length) {
     return undefined;
   }
@@ -93,7 +125,24 @@ function buildFieldErrors(errors: BrokerFieldError[] | undefined): JobSubmission
   const fieldErrors: JobSubmissionFieldErrors = {};
 
   for (const item of errors) {
-    if (!item.field || !item.message || !validFields.has(item.field)) {
+    if (!item.field || !item.message) {
+      continue;
+    }
+
+    if (item.field === 'envVars' && item.message.startsWith('envVars.')) {
+      const key = item.message;
+      const existingMessages = fieldErrors[key] ?? [];
+      fieldErrors[key] = [...existingMessages, envVarErrorMessages.get(key) ?? item.message];
+      continue;
+    }
+
+    if (item.field.startsWith('envVars.')) {
+      const existingMessages = fieldErrors[item.field] ?? [];
+      fieldErrors[item.field] = [...existingMessages, item.message];
+      continue;
+    }
+
+    if (!validFields.has(item.field)) {
       continue;
     }
 
@@ -160,7 +209,9 @@ export async function POST(request: Request) {
     });
 
     if (!backendResponse.ok) {
-      const problem = (await backendResponse.json().catch(() => null)) as BrokerProblemDetail | null;
+      const problem = (await backendResponse
+        .json()
+        .catch(() => null)) as BrokerProblemDetail | null;
       return NextResponse.json(mapErrorResponse(backendResponse.status, problem), {
         status: backendResponse.status,
       });

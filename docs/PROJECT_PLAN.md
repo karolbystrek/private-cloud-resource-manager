@@ -32,7 +32,7 @@ strictly controlled credits billing system.
 
 **B. Job Submission and Scheduling**
 
-* The user submits a job via the Next.js UI, providing a Docker image URL, a run command, and hardware requirements.
+* The user submits a job via the Next.js UI, providing a Docker image URL, a run command, hardware requirements, and an `envVars` map (`{}` when empty).
 * The Java Broker verifies the user's credits balance and deducts an initial 15-minute pre-paid compute lease using
   pessimistic locking (`SELECT ... FOR UPDATE`) in PostgreSQL.
 * The Broker constructs a specialized 3-task Nomad group consisting of:
@@ -40,6 +40,7 @@ strictly controlled credits billing system.
     2. The `user-workload` container.
     3. The `artifact-uploader` hook (poststop).
 * The Broker dispatches this job group to the Nomad API.
+* User-provided environment variables are forwarded only at dispatch runtime and are not persisted in database job records.
 
 **C. Execution and Billing (Dynamic Enforcer)**
 

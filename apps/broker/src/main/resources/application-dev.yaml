@@ -16,4 +16,4 @@ app:
 
 logging:
   level:
-    root: debug
+    com.pcrm.broker: DEBUG

@@ -28,7 +28,7 @@ public class JobsResource {
             @RequestBody @Valid JobSubmissionRequest request,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        log.info("Received job submission request from user {}: {}", principal.user().getUsername(), request);
+        log.info("Received job submission request from user {}", principal.user().getUsername());
         var jobId = jobSubmissionService.submitJob(principal.user().getId(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(new JobSubmissionResponse(jobId));
     }

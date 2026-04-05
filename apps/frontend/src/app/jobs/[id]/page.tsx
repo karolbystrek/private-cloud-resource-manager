@@ -1,5 +1,5 @@
-export default function JobDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
 
   return (
     <div className="flex flex-1 items-center justify-center p-6 font-mono">

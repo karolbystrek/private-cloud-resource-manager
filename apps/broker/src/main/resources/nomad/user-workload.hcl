@@ -1,13 +1,8 @@
-job "user-workload-template" {
+job "user-{{USER_ID}}-job-{{JOB_ID}}" {
   type = "batch"
 
-  # This block allows the job to be invoked multiple times with different metadata
-  parameterized {
-    meta_required = ["DOCKER_IMAGE", "EXECUTION_COMMAND", "JOB_ID"]
-  }
-
   group "execution-group" {
-    # Task 1: The Guard/Lease (Starts before user workload)
+
     # task "lease-enforcer" {
     #   driver = "docker"
     #   lifecycle {
@@ -18,27 +13,30 @@ job "user-workload-template" {
     #     image = "pcrm/lease-enforcer:latest"
     #   }
     #   env {
-    #     JOB_ID = "${NOMAD_META_JOB_ID}"
+    #     JOB_ID = "{{JOB_ID}}"
     #   }
     # }
 
-    # Task 2: The actual user work
     task "user-workload" {
       driver = "docker"
       config {
-        image   = NOMAD_META_DOCKER_IMAGE
+        image   = "{{DOCKER_IMAGE}}"
         command = "/bin/sh"
-        args    = ["-c", NOMAD_META_EXECUTION_COMMAND]
+        args    = ["-c", "{{EXECUTION_COMMAND}}"]
+      }
+
+      # User environment variables injected directly here
+      env {
+        JOB_ID = "{{JOB_ID}}"
+        {{ENV_VARS}}
       }
 
       resources {
-        # Using Cores instead of MHz
-        cores  = 1
-        memory = 1024
+        cores  = {{CORES}}
+        memory = {{MEMORY_MB}}
       }
     }
 
-    # Task 3: The Cleanup/Uploader (Runs after user workload finishes)
     # task "artifact-uploader" {
     #   driver = "docker"
     #   lifecycle {
@@ -47,6 +45,9 @@ job "user-workload-template" {
     #   }
     #   config {
     #     image = "pcrm/artifact-uploader:latest"
+    #   }
+    #   env {
+    #     JOB_ID = "{{JOB_ID}}"
     #   }
     # }
   }

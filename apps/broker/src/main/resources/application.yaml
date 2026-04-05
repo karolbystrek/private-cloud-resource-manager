@@ -46,7 +46,3 @@ application:
       private-key: ${JWT_PRIVATE_KEY_PATH}
       expiration: ${JWT_EXPIRATION_MS}
       refresh-expiration: ${JWT_REFRESH_EXPIRATION_MS}
-
-logging:
-  level:
-    root: info

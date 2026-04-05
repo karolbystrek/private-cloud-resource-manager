@@ -99,7 +99,7 @@ public class JobSubmissionService {
         creditRegistryRepository.save(creditRegistryEntry);
         walletRepository.save(wallet);
 
-        log.debug("Prepared job submission for user {}: jobId={}, initialLeaseCost={}", user.getUsername(), savedJob.getId(), initialLeaseCost);
+        log.debug("Prepared job submission for user {}: jobId#{}", user.getUsername(), savedJob.getId());
         return new PreparedJobSubmission(savedJob.getId(), userId, initialLeaseCost);
     }
 
@@ -113,7 +113,7 @@ public class JobSubmissionService {
         }
 
         try {
-            nomadDispatchClient.dispatchJob(preparedJobSubmission.jobId(), request);
+            nomadDispatchClient.dispatchJob(userId, preparedJobSubmission.jobId(), request);
         } catch (NomadDispatchException ex) {
             compensationTransactionTemplate.executeWithoutResult(_ ->
                     compensateFailedDispatch(preparedJobSubmission));
@@ -144,6 +144,6 @@ public class JobSubmissionService {
         creditRegistryRepository.save(creditRegistryEntry);
         walletRepository.save(wallet);
         jobRepository.save(job);
-        log.debug("Compensated failed dispatch for jobId={}, refundedCredits={}", preparedJobSubmission.jobId(), preparedJobSubmission.initialLeaseCost());
+        log.debug("Compensated failed dispatch for jobId#{}", preparedJobSubmission.jobId());
     }
 }

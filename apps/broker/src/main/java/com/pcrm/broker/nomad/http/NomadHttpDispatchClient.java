@@ -3,26 +3,21 @@ package com.pcrm.broker.nomad.http;
 import com.pcrm.broker.exception.NomadDispatchException;
 import com.pcrm.broker.jobs.dto.JobSubmissionRequest;
 import com.pcrm.broker.nomad.NomadDispatchClient;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.springframework.http.MediaType.APPLICATION_JSON;
-
 @Slf4j
 @Service
 public class NomadHttpDispatchClient implements NomadDispatchClient {
-
-    private static final String TEMPLATE_JOB_ID = "user-workload-template";
 
     private final RestClient restClient;
     private final String hclTemplate;
@@ -35,62 +30,60 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
         this.hclTemplate = Files.readString(hclResource.getFile().toPath());
     }
 
-    @PostConstruct
-    public void init() {
+    @Override
+    public void dispatchJob(UUID userId, UUID jobId, JobSubmissionRequest request) {
+
+        // 1. Safely format user environment variables into HCL syntax
+        StringBuilder envVars = new StringBuilder();
+        if (request.envVars() != null) {
+            request.envVars().forEach((key, value) -> envVars.append(key)
+                    .append(" = \"")
+                    .append(escapeHcl(value))
+                    .append("\"\n        "));
+        }
+
+        // 2. Inject dynamic resources, config, and env vars
+        String renderedHcl = hclTemplate
+                .replace("{{USER_ID}}", userId.toString())
+                .replace("{{JOB_ID}}", jobId.toString())
+                .replace("{{DOCKER_IMAGE}}", escapeHcl(request.dockerImage()))
+                .replace("{{EXECUTION_COMMAND}}", escapeHcl(request.executionCommand()))
+                .replace("{{CORES}}", request.reqCpuCores().toString())
+                .replace("{{MEMORY_MB}}", String.valueOf(request.reqRamGb() * 1024))
+                .replace("{{ENV_VARS}}", envVars.toString());
+
         try {
-            // 1. Convert HCL to JSON Specification
-            var parseResponse = restClient.post()
+            // 3. Parse the dynamically generated HCL into Nomad JSON
+            var parsedResponse = restClient.post()
                     .uri("/v1/jobs/parse")
-                    .body(Map.of("JobHCL", hclTemplate))
+                    .body(Map.of("JobHCL", renderedHcl))
                     .retrieve()
                     .body(Map.class);
 
-            // 2. Register the parsed job
+            if (parsedResponse == null) {
+                throw new NomadDispatchException("Failed to parse HCL: Invalid response from Nomad");
+            }
+
+            // 4. Register the new job
             restClient.post()
                     .uri("/v1/jobs")
-                    .body(Map.of("Job", parseResponse))
+                    .body(Map.of("Job", parsedResponse))
                     .retrieve()
                     .toBodilessEntity();
 
-            System.out.println("Nomad job template registered successfully.");
-        } catch (Exception e) {
-            System.err.println("Failed to register Nomad template: " + e.getMessage());
-        }
-    }
-
-    @Override
-    public void dispatchJob(UUID jobId, JobSubmissionRequest request) {
-        var payload = buildPayload(jobId, request);
-
-        try {
-            restClient.post()
-                    .uri("/v1/job/{id}/dispatch", TEMPLATE_JOB_ID)
-                    .contentType(APPLICATION_JSON)
-                    .body(payload)
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, (_, res) -> {
-                        throw new NomadDispatchException("Nomad dispatch failed with status code: " + res.getStatusCode());
-                    })
-                    .toBodilessEntity();
-            log.debug("Successfully dispatched job {} to Nomad with payload: {}", jobId, payload);
+            log.debug("Successfully registered dynamic job#{} to Nomad", jobId);
+        } catch (RestClientResponseException ex) {
+            log.error("Nomad API rejected the request! Status: {}, Body: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
+            throw new NomadDispatchException("Nomad API error: " + ex.getResponseBodyAsString(), ex);
         } catch (Exception ex) {
-            throw new NomadDispatchException("Failed to dispatch job " + jobId, ex);
+            log.error("Unexpected error during Nomad dispatch", ex);
+            throw new NomadDispatchException("Failed to register job#" + jobId + ": " + ex.getMessage(), ex);
         }
     }
 
-    private Map<String, Object> buildPayload(UUID jobId, JobSubmissionRequest request) {
-        return Map.of(
-                "Meta", Map.of(
-                        "DOCKER_IMAGE", request.dockerImage(),
-                        "EXECUTION_COMMAND", request.executionCommand(),
-                        "JOB_ID", jobId.toString()
-                ),
-                "Payload", "",
-                "Resources", Map.of(
-                        "CPU", 0, // Must be 0 if using cores
-                        "Cores", request.reqCpuCores(),
-                        "MemoryMB", request.reqRamGb() * 1024
-                )
-        );
+    // Prevents HCL injection by escaping backslashes and double quotes in user inputs.
+    private String escapeHcl(String input) {
+        if (input == null) return "";
+        return input.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
