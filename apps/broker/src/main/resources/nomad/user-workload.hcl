@@ -1,4 +1,4 @@
-job "user-{{USER_ID}}-job-{{JOB_ID}}" {
+job "user#{{USER_ID}}-job#{{JOB_ID}}" {
   type = "batch"
 
   group "execution-group" {
