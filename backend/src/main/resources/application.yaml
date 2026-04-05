@@ -1,6 +1,6 @@
 spring:
   application:
-    name: broker
+    name: backend
   datasource:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
@@ -30,6 +30,10 @@ app:
   nomad:
     base-url: ${NOMAD_BASE_URL}
     job-template: ${NOMAD_WORKLOAD_TEMPLATE_PATH}
+    sync:
+      enabled: ${NOMAD_SYNC_ENABLED}
+      interval-ms: ${NOMAD_SYNC_INTERVAL_MS}
+      stale-timeout-sec: ${NOMAD_SYNC_STALE_TIMEOUT_SEC}
   pricing:
     base-cpu-rate-per-hour: ${BASE_CPU_RATE_PER_HOUR}
     base-gpu-rate-per-hour: ${BASE_GPU_RATE_PER_HOUR}

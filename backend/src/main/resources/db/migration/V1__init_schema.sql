@@ -34,17 +34,16 @@ CREATE INDEX idx_wallets_user_id ON wallets (user_id);
 -- ------------------------------------------------------------
 CREATE TABLE nodes
 (
-    id                UUID PRIMARY KEY             DEFAULT uuid_generate_v4(),
-    hostname          VARCHAR(100) UNIQUE NOT NULL,
-    ip_address        INET                NOT NULL,
-    status            VARCHAR(20)         NOT NULL DEFAULT 'AVAILABLE', -- 'AVAILABLE', 'IN_USE', 'OFFLINE', 'MAINTENANCE'
-    total_cpu_cores   INTEGER             NOT NULL,
-    total_ram_gb      INTEGER             NOT NULL,
-    total_gpu_count   INTEGER             NOT NULL DEFAULT 0,
-    cu_price_per_hour NUMERIC(10, 4)      NOT NULL,
-    agent_version     VARCHAR(20)         NOT NULL,
-    last_heartbeat    TIMESTAMP WITH TIME ZONE,
-    created_at        TIMESTAMP WITH TIME ZONE     DEFAULT CURRENT_TIMESTAMP
+    id              UUID PRIMARY KEY             DEFAULT uuid_generate_v4(),
+    hostname        VARCHAR(100) UNIQUE NOT NULL,
+    ip_address      INET                NOT NULL,
+    status          VARCHAR(20)         NOT NULL DEFAULT 'AVAILABLE', -- 'AVAILABLE', 'IN_USE', 'OFFLINE', 'MAINTENANCE'
+    total_cpu_cores INTEGER             NOT NULL,
+    total_ram_gb    INTEGER             NOT NULL,
+    total_gpu_count INTEGER             NOT NULL DEFAULT 0,
+    agent_version   VARCHAR(20)         NOT NULL,
+    last_heartbeat  TIMESTAMP WITH TIME ZONE,
+    created_at      TIMESTAMP WITH TIME ZONE     DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_nodes_status ON nodes (status);
@@ -59,7 +58,7 @@ CREATE TABLE jobs
 (
     id                      UUID PRIMARY KEY         DEFAULT uuid_generate_v4(),
     user_id                 UUID         NOT NULL REFERENCES users (id),
-    node_id                 UUID REFERENCES nodes (id), -- Nullable until Nomad schedules the job
+    node_id                 UUID REFERENCES nodes (id),                 -- Nullable until Nomad schedules the job
     status                  VARCHAR(20)  NOT NULL    DEFAULT 'PENDING', -- 'PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'OOM_KILLED', 'LEASE_EXPIRED'
     docker_image            VARCHAR(255) NOT NULL,
     execution_command       TEXT         NOT NULL,
@@ -68,7 +67,7 @@ CREATE TABLE jobs
     req_gpu_count           INTEGER      NOT NULL    DEFAULT 0,
     started_at              TIMESTAMP WITH TIME ZONE,
     finished_at             TIMESTAMP WITH TIME ZONE,
-    active_lease_expires_at TIMESTAMP WITH TIME ZONE, -- Expiry of the current 15-minute pre-paid chunk
+    active_lease_expires_at TIMESTAMP WITH TIME ZONE,                   -- Expiry of the current 15-minute pre-paid chunk
     total_cost_cu           NUMERIC(10, 4)           DEFAULT 0.0000,
     minio_artifact_url      VARCHAR(512),
     created_at              TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

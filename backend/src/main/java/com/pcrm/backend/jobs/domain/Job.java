@@ -39,7 +39,7 @@ public class Job {
     private User user;
 
     @Column(name = "node_id")
-    private UUID nodeId;
+    private String nodeId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

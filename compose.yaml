@@ -54,8 +54,7 @@ services:
       - "${NOMAD_HTTP_PORT}:${NOMAD_HTTP_PORT}"
       - "${NOMAD_RPC_PORT}:${NOMAD_RPC_PORT}"
       - "${NOMAD_SERF_PORT}:${NOMAD_SERF_PORT}"
-    # Added -config pointing to the mounted file
-    command: agent -dev -bind 0.0.0.0 -network-interface eth0
+    command: agent -server -client -bootstrap-expect=1 -data-dir=/opt/nomad/data -bind 0.0.0.0 -network-interface eth0 -node=nomad-server -meta=private-cloud-resource-manager.node_id=local-node-01
     privileged: true
     cgroup: host
     environment:
