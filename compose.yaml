@@ -60,6 +60,8 @@ services:
     environment:
       CHECKPOINT_DISABLE: "1"
       NOMAD_SKIP_DOCKER_IMAGE_WARN: "1"
+    tmpfs:
+      - /tmp/pcrm-nomad
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
