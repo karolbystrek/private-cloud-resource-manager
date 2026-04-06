@@ -92,7 +92,6 @@ public class NodeSyncService {
                 snapshot.nomadModifyIndex(),
                 snapshot.totalCpuCores(),
                 snapshot.totalRamMb(),
-                snapshot.totalGpuCount(),
                 snapshot.agentVersion(),
                 now
         );

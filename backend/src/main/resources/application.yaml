@@ -36,7 +36,6 @@ app:
       stale-timeout-sec: ${NOMAD_SYNC_STALE_TIMEOUT_SEC}
   pricing:
     base-cpu-rate-per-hour: ${BASE_CPU_RATE_PER_HOUR}
-    base-gpu-rate-per-hour: ${BASE_GPU_RATE_PER_HOUR}
     base-ram-rate-per-hour: ${BASE_RAM_RATE_PER_HOUR}
   security:
     cookie:

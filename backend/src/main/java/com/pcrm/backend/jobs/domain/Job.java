@@ -57,10 +57,6 @@ public class Job {
     @Column(name = "req_ram_gb", nullable = false)
     private Integer reqRamGb;
 
-    @Column(name = "req_gpu_count", nullable = false)
-    @Builder.Default
-    private Integer reqGpuCount = 0;
-
     @Column(name = "total_cost_credits", nullable = false)
     @Builder.Default
     private Long totalCostCredits = 0L;

@@ -155,7 +155,6 @@ export function NodeDetailsPanel({
           <CardContent>
             <FieldRow label="CPU Cores" value={node.totalCpuCores} />
             <FieldRow label="RAM" value={`${formatRamGb(node.totalRamMb)} GB`} />
-            <FieldRow label="GPU Count" value={node.totalGpuCount} />
             <FieldRow label="Agent Version" value={node.agentVersion} />
             <FieldRow label="Nomad Version" value={node.nomadVersion} />
             <FieldRow label="Docker Version" value={node.dockerVersion} />

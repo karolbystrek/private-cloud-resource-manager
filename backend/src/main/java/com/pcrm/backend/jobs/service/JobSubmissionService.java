@@ -82,7 +82,6 @@ public class JobSubmissionService {
                 .executionCommand(request.executionCommand())
                 .reqCpuCores(request.reqCpuCores())
                 .reqRamGb(request.reqRamGb())
-                .reqGpuCount(request.reqGpuCount())
                 .totalCostCredits(initialLeaseCost)
                 .build();
 

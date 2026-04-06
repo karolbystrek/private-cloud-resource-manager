@@ -25,10 +25,6 @@ public record JobSubmissionRequest(
         Integer reqRamGb,
 
         @NotNull
-        @Min(0)
-        Integer reqGpuCount,
-
-        @NotNull
         @ValidEnvironmentVariables
         Map<String, String> envVars
 ) {

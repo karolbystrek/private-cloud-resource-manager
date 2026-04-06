@@ -25,7 +25,6 @@ public record NodeDetailsResponse(
         Long nomadModifyIndex,
         int totalCpuCores,
         int totalRamMb,
-        int totalGpuCount,
         String agentVersion,
         OffsetDateTime lastHeartbeat,
         OffsetDateTime createdAt
@@ -51,7 +50,6 @@ public record NodeDetailsResponse(
                 node.getNomadModifyIndex(),
                 node.getTotalCpuCores(),
                 node.getTotalRamMb(),
-                node.getTotalGpuCount(),
                 node.getAgentVersion(),
                 node.getLastHeartbeat(),
                 node.getCreatedAt()

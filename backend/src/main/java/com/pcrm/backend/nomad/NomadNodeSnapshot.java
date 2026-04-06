@@ -20,7 +20,6 @@ public record NomadNodeSnapshot(
         Long nomadModifyIndex,
         int totalCpuCores,
         int totalRamMb,
-        int totalGpuCount,
         String agentVersion
 ) {
 }

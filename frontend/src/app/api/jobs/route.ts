@@ -6,7 +6,6 @@ type JobSubmissionBody = {
   executionCommand: string;
   reqCpuCores: number;
   reqRamGb: number;
-  reqGpuCount: number;
   envVars: Record<string, string>;
 };
 
@@ -40,7 +39,6 @@ const validFields = new Set([
   'executionCommand',
   'reqCpuCores',
   'reqRamGb',
-  'reqGpuCount',
   'envVars',
 ]);
 
@@ -91,7 +89,6 @@ function parseBody(rawBody: unknown): JobSubmissionBody | null {
   const body = rawBody as Record<string, unknown>;
   const reqCpuCores = toNumber(body.reqCpuCores);
   const reqRamGb = toNumber(body.reqRamGb);
-  const reqGpuCount = toNumber(body.reqGpuCount);
   const envVars = parseEnvVars(body.envVars);
 
   if (
@@ -99,7 +96,6 @@ function parseBody(rawBody: unknown): JobSubmissionBody | null {
     typeof body.executionCommand !== 'string' ||
     Number.isNaN(reqCpuCores) ||
     Number.isNaN(reqRamGb) ||
-    Number.isNaN(reqGpuCount) ||
     envVars === null
   ) {
     return null;
@@ -110,7 +106,6 @@ function parseBody(rawBody: unknown): JobSubmissionBody | null {
     executionCommand: body.executionCommand,
     reqCpuCores,
     reqRamGb,
-    reqGpuCount,
     envVars,
   };
 }

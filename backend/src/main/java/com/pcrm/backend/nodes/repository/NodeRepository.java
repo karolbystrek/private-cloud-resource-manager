@@ -34,7 +34,6 @@ public interface NodeRepository extends JpaRepository<Node, String> {
                 nomad_modify_index,
                 total_cpu_cores,
                 total_ram_mb,
-                total_gpu_count,
                 agent_version,
                 last_heartbeat
             ) VALUES (
@@ -55,7 +54,6 @@ public interface NodeRepository extends JpaRepository<Node, String> {
                 :nomadModifyIndex,
                 :totalCpuCores,
                 :totalRamMb,
-                :totalGpuCount,
                 :agentVersion,
                 :lastHeartbeat
             )
@@ -77,7 +75,6 @@ public interface NodeRepository extends JpaRepository<Node, String> {
                 nomad_modify_index = EXCLUDED.nomad_modify_index,
                 total_cpu_cores = EXCLUDED.total_cpu_cores,
                 total_ram_mb = EXCLUDED.total_ram_mb,
-                total_gpu_count = EXCLUDED.total_gpu_count,
                 agent_version = EXCLUDED.agent_version,
                 last_heartbeat = EXCLUDED.last_heartbeat
             """, nativeQuery = true)
@@ -99,7 +96,6 @@ public interface NodeRepository extends JpaRepository<Node, String> {
             @Param("nomadModifyIndex") Long nomadModifyIndex,
             @Param("totalCpuCores") int totalCpuCores,
             @Param("totalRamMb") int totalRamMb,
-            @Param("totalGpuCount") int totalGpuCount,
             @Param("agentVersion") String agentVersion,
             @Param("lastHeartbeat") OffsetDateTime lastHeartbeat
     );

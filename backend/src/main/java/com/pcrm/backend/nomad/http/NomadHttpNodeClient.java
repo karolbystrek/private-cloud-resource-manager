@@ -89,7 +89,6 @@ public class NomadHttpNodeClient implements NomadNodeClient {
         int ramMb = details.nodeResources() != null && details.nodeResources().memory() != null
                 ? Optional.ofNullable(details.nodeResources().memory().memoryMb()).orElse(1) : 1;
 
-        int gpuCount = resolveGpuCount(details.attributes());
         String dockerVersion = resolveDockerVersion(details.drivers());
 
         return new NomadNodeSnapshot(
@@ -110,7 +109,6 @@ public class NomadHttpNodeClient implements NomadNodeClient {
                 Optional.ofNullable(details.modifyIndex()).orElse(summary.modifyIndex()),
                 cpuCores,
                 ramMb,
-                gpuCount,
                 Optional.ofNullable(summary.version()).orElse(dockerVersion)
         );
     }
@@ -131,31 +129,6 @@ public class NomadHttpNodeClient implements NomadNodeClient {
 
         int separatorIndex = source.lastIndexOf(':');
         return separatorIndex > 0 ? source.substring(0, separatorIndex) : source;
-    }
-
-    private int resolveGpuCount(Map<String, String> attributes) {
-        if (attributes == null) return 0;
-
-        for (String key : List.of("resources.gpu", "gpu.count", "nvidia.gpu.count")) {
-            if (attributes.containsKey(key)) {
-                try {
-                    return Integer.parseInt(attributes.get(key));
-                } catch (NumberFormatException ignored) {
-                }
-            }
-        }
-
-        return attributes.entrySet().stream()
-                .filter(e -> e.getKey().toLowerCase().contains("gpu"))
-                .mapToInt(e -> {
-                    try {
-                        return Integer.parseInt(e.getValue());
-                    } catch (NumberFormatException ex) {
-                        return 0;
-                    }
-                })
-                .max()
-                .orElse(0);
     }
 
     private String resolveDockerVersion(Map<String, NomadDriver> drivers) {

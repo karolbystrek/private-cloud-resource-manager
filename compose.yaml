@@ -62,7 +62,6 @@ services:
       NOMAD_SKIP_DOCKER_IMAGE_WARN: "1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /tmp/pcrm-nomad:/tmp/pcrm-nomad
 
   backend:
     build:

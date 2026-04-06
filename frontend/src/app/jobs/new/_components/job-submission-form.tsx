@@ -19,7 +19,6 @@ type JobSubmissionPayload = {
   executionCommand: string;
   reqCpuCores: string;
   reqRamGb: string;
-  reqGpuCount: string;
 };
 
 type JobSubmissionFieldErrors = Record<string, string[] | undefined>;
@@ -35,7 +34,6 @@ const initialFormData: JobSubmissionPayload = {
   executionCommand: '',
   reqCpuCores: '1',
   reqRamGb: '1',
-  reqGpuCount: '0',
 };
 
 export function JobSubmissionForm() {
@@ -105,7 +103,6 @@ export function JobSubmissionForm() {
           executionCommand: formData.executionCommand,
           reqCpuCores: Number.parseInt(formData.reqCpuCores, 10),
           reqRamGb: Number.parseInt(formData.reqRamGb, 10),
-          reqGpuCount: Number.parseInt(formData.reqGpuCount, 10),
           envVars: toEnvVarsMap(envVarRows),
         }),
       });
@@ -171,7 +168,6 @@ export function JobSubmissionForm() {
         <JobResourceFields
           reqCpuCores={formData.reqCpuCores}
           reqRamGb={formData.reqRamGb}
-          reqGpuCount={formData.reqGpuCount}
           fieldErrors={fieldErrors}
           onChange={handleInputChange}
         />

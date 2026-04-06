@@ -14,7 +14,6 @@ public record NodeResponse(
         NodeStatus status,
         int totalCpuCores,
         int totalRamMb,
-        int totalGpuCount,
         OffsetDateTime lastHeartbeat
 ) {
 
@@ -27,7 +26,6 @@ public record NodeResponse(
                 node.getStatus(),
                 node.getTotalCpuCores(),
                 node.getTotalRamMb(),
-                node.getTotalGpuCount(),
                 node.getLastHeartbeat()
         );
     }

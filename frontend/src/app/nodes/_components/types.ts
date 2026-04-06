@@ -6,7 +6,6 @@ export type NodeSummary = {
   status: string;
   totalCpuCores: number;
   totalRamMb: number;
-  totalGpuCount: number;
   lastHeartbeat: string | null;
 };
 
@@ -29,7 +28,6 @@ export type NodeDetails = {
   nomadModifyIndex: number | null;
   totalCpuCores: number;
   totalRamMb: number;
-  totalGpuCount: number;
   agentVersion: string | null;
   lastHeartbeat: string | null;
   createdAt: string | null;

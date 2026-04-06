@@ -80,9 +80,6 @@ public class Node {
     @Column(name = "total_ram_mb", nullable = false)
     private Integer totalRamMb;
 
-    @Column(name = "total_gpu_count", nullable = false)
-    private Integer totalGpuCount;
-
     @Column(name = "agent_version", nullable = false, length = 50)
     private String agentVersion;
 
