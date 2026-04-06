@@ -4,13 +4,17 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   return (
     <div className="flex flex-1 items-center justify-center p-6 font-mono">
       <div className="max-w-xl space-y-4 text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Job Started</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Job Details</h1>
         <p className="text-muted-foreground">
-          Successfully captured job ID: <span className="text-primary font-mono">{id}</span>.
+          Job ID:
+          {' '}
+          <span className="text-primary font-mono">{id}</span>
+          .
         </p>
         <p className="bg-muted/30 border p-4 text-sm">
-          This is a placeholder page since the detailed job implementation is out-of-scope for the
-          current submission requirement.
+          This page is a placeholder.
+          {' '}
+          Detailed job information for `/jobs/&lt;job-id&gt;` will be added in a follow-up task.
         </p>
       </div>
     </div>
