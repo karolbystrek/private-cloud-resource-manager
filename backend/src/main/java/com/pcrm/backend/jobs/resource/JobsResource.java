@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,10 +27,12 @@ public class JobsResource {
     @PostMapping
     public ResponseEntity<JobSubmissionResponse> submitJob(
             @RequestBody @Valid JobSubmissionRequest request,
+            @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         log.info("Received job submission request from user {}", principal.user().getUsername());
-        var jobId = jobSubmissionService.submitJob(principal.user().getId(), request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(new JobSubmissionResponse(jobId));
+        var result = jobSubmissionService.submitJob(principal.user().getId(), request, idempotencyKey);
+        var status = result.replayed() ? HttpStatus.OK : HttpStatus.CREATED;
+        return ResponseEntity.status(status).body(new JobSubmissionResponse(result.jobId()));
     }
 }

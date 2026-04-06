@@ -55,7 +55,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function parseEnvVars(value: unknown): Record<string, string> | null {
-
   if (!isRecord(value)) {
     return null;
   }
@@ -92,11 +91,11 @@ function parseBody(rawBody: unknown): JobSubmissionBody | null {
   const envVars = parseEnvVars(body.envVars);
 
   if (
-    typeof body.dockerImage !== 'string' ||
-    typeof body.executionCommand !== 'string' ||
-    Number.isNaN(reqCpuCores) ||
-    Number.isNaN(reqRamGb) ||
-    envVars === null
+    typeof body.dockerImage !== 'string'
+    || typeof body.executionCommand !== 'string'
+    || Number.isNaN(reqCpuCores)
+    || Number.isNaN(reqRamGb)
+    || envVars === null
   ) {
     return null;
   }
@@ -171,6 +170,12 @@ function mapErrorResponse(status: number, problem: BrokerProblemDetail | null): 
     };
   }
 
+  if (status === 409) {
+    return {
+      error: problem?.detail ?? 'Submission key already used with a different payload.',
+    };
+  }
+
   return {
     error: problem?.detail ?? 'Failed to submit job. Please try again.',
   };
@@ -193,12 +198,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid job submission data.' }, { status: 400 });
   }
 
+  const idempotencyKey = request.headers.get('Idempotency-Key')?.trim();
+  if (!idempotencyKey) {
+    return NextResponse.json(
+      { error: 'Missing Idempotency-Key header.' },
+      { status: 400 },
+    );
+  }
+
   try {
     const backendResponse = await fetch(`${BACKEND_URL}/api/jobs`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${accessToken}`,
+        'Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify(parsedBody),
     });
@@ -213,7 +227,8 @@ export async function POST(request: Request) {
     }
 
     const data = (await backendResponse.json()) as JobSubmissionResponse;
-    return NextResponse.json({ jobId: data.jobId }, { status: 201 });
+    const status = backendResponse.status === 201 ? 201 : 200;
+    return NextResponse.json({ jobId: data.jobId }, { status });
   } catch {
     return NextResponse.json({ error: 'Unexpected error. Please try again.' }, { status: 500 });
   }

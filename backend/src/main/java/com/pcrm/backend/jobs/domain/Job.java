@@ -51,6 +51,12 @@ public class Job {
     @Column(name = "execution_command", nullable = false)
     private String executionCommand;
 
+    @Column(name = "idempotency_key", length = 64)
+    private String idempotencyKey;
+
+    @Column(name = "submission_fingerprint", length = 64)
+    private String submissionFingerprint;
+
     @Column(name = "req_cpu_cores", nullable = false)
     private Integer reqCpuCores;
 

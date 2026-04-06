@@ -36,6 +36,10 @@ const initialFormData: JobSubmissionPayload = {
   reqRamGb: '1',
 };
 
+function createIdempotencyKey() {
+  return crypto.randomUUID();
+}
+
 export function JobSubmissionForm() {
   const router = useRouter();
   const [formData, setFormData] = useState<JobSubmissionPayload>(initialFormData);
@@ -43,16 +47,23 @@ export function JobSubmissionForm() {
   const [envVarRows, setEnvVarRows] = useState<EnvVarRow[]>([createEnvVarRow()]);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => createIdempotencyKey());
+
+  function rotateIdempotencyKey() {
+    setIdempotencyKey(createIdempotencyKey());
+  }
 
   function handleInputChange(name: keyof JobSubmissionPayload, value: string) {
-    setFormData((previous) => ({
+    rotateIdempotencyKey();
+    setFormData(previous => ({
       ...previous,
       [name]: value,
     }));
   }
 
   function handleEnvVarChange(id: string, field: 'key' | 'value', value: string) {
-    setEnvVarRows((previous) =>
+    rotateIdempotencyKey();
+    setEnvVarRows(previous =>
       previous.map((row) => {
         if (row.id !== id) {
           return row;
@@ -66,12 +77,14 @@ export function JobSubmissionForm() {
   }
 
   function addEnvVarRow() {
-    setEnvVarRows((previous) => [createEnvVarRow(), ...previous]);
+    rotateIdempotencyKey();
+    setEnvVarRows(previous => [createEnvVarRow(), ...previous]);
   }
 
   function removeEnvVarRow(id: string) {
+    rotateIdempotencyKey();
     setEnvVarRows((previous) => {
-      const nextRows = previous.filter((row) => row.id !== id);
+      const nextRows = previous.filter(row => row.id !== id);
       if (nextRows.length > 0) {
         return nextRows;
       }
@@ -97,6 +110,7 @@ export function JobSubmissionForm() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify({
           dockerImage: formData.dockerImage,
@@ -146,9 +160,9 @@ export function JobSubmissionForm() {
           void submitJob();
         }}
       >
-        {errorMessage ? (
-          <div className="text-destructive text-sm font-medium">{errorMessage}</div>
-        ) : null}
+        {errorMessage
+          ? <div className="text-destructive text-sm font-medium">{errorMessage}</div>
+          : null}
 
         <JobCommandFields
           dockerImage={formData.dockerImage}
