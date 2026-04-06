@@ -4,7 +4,7 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY frontend/package.json ./frontend/
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 # ---- Stage 2: Development ----
 # Copies pre-installed deps, exposes port 3000, and starts the Next.js dev server.

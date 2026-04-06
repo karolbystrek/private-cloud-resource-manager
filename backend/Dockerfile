@@ -4,10 +4,10 @@ COPY mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
 # Cache dependencies
-RUN ./mvnw dependency:go-offline
+RUN --mount=type=cache,target=/root/.m2 ./mvnw dependency:go-offline
 
 COPY src src
-RUN ./mvnw package -DskipTests
+RUN --mount=type=cache,target=/root/.m2 ./mvnw package -DskipTests
 
 # NEW: Extract layers from the fat JAR
 RUN java -Djarmode=layertools -jar target/*.jar extract
@@ -27,8 +27,8 @@ COPY --from=builder /app/spring-boot-loader/ ./
 COPY --from=builder /app/snapshot-dependencies/ ./
 COPY --from=builder /app/application/ ./
 
-# 3. Efficiency: Enable Virtual Threads (Java 21+) and memory limits
-ENV JAVA_OPTS="-XX:+UseParallelGC -XX:MaxRAMPercentage=75.0"
+# 3. Efficiency: JVM reads JAVA_TOOL_OPTIONS automatically
+ENV JAVA_TOOL_OPTIONS="-XX:+UseParallelGC -XX:MaxRAMPercentage=60.0 -XX:InitialRAMPercentage=20.0"
 
 EXPOSE 8080
 

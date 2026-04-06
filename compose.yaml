@@ -54,7 +54,7 @@ services:
       - "${NOMAD_HTTP_PORT}:${NOMAD_HTTP_PORT}"
       - "${NOMAD_RPC_PORT}:${NOMAD_RPC_PORT}"
       - "${NOMAD_SERF_PORT}:${NOMAD_SERF_PORT}"
-    command: agent -server -client -bootstrap-expect=1 -data-dir=/tmp/nomad/data -bind 0.0.0.0 -network-interface eth0 -node=nomad-server -meta=private-cloud-resource-manager.node_id=local-node-01
+    command: agent -server -client -bootstrap-expect=1 -data-dir=/tmp/pcrm-nomad -bind 0.0.0.0 -network-interface eth0 -node=nomad-server -meta=private-cloud-resource-manager.node_id=local-node-01
     privileged: true
     cgroup: host
     environment:
@@ -62,7 +62,7 @@ services:
       NOMAD_SKIP_DOCKER_IMAGE_WARN: "1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /tmp/nomad/data:/tmp/nomad/data
+      - /tmp/pcrm-nomad:/tmp/pcrm-nomad
 
   backend:
     build:
@@ -74,6 +74,8 @@ services:
       - "${BACKEND_PORT}:${BACKEND_PORT}"
     env_file:
       - .env
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:+UseParallelGC -XX:MaxRAMPercentage=60.0 -XX:InitialRAMPercentage=20.0"
     volumes:
       - ./secrets:/app/secrets:ro
       - ./nomad:/app/nomad:ro
@@ -100,8 +102,12 @@ services:
       - "${FRONTEND_PORT}:${FRONTEND_PORT}"
     env_file:
       - .env
+    environment:
+      NODE_OPTIONS: --max-old-space-size=512
     volumes:
-      - ./:/app
+      - ./frontend:/app/frontend
+      - ./package.json:/app/package.json:ro
+      - ./package-lock.json:/app/package-lock.json:ro
       - /app/node_modules
     depends_on:
       backend:
