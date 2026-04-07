@@ -15,4 +15,6 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     Optional<Job> findByUser_IdAndIdempotencyKey(UUID userId, String idempotencyKey);
 
     Page<Job> findByUser_Id(UUID userId, Pageable pageable);
+
+    Optional<Job> findByIdAndUser_Id(UUID id, UUID userId);
 }

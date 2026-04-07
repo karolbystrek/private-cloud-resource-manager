@@ -1,8 +1,12 @@
 package com.pcrm.backend.jobs.service;
 
+import com.pcrm.backend.auth.domain.CustomUserDetails;
+import com.pcrm.backend.exception.ResourceNotFoundException;
+import com.pcrm.backend.jobs.dto.JobDetailsResponse;
 import com.pcrm.backend.jobs.dto.JobHistoryItemResponse;
 import com.pcrm.backend.jobs.dto.JobsPageResponse;
 import com.pcrm.backend.jobs.repository.JobRepository;
+import com.pcrm.backend.user.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -38,5 +42,15 @@ public class JobQueryService {
                 jobsPage.hasPrevious(),
                 sortDirection.name().toLowerCase(Locale.ROOT)
         );
+    }
+
+    @Transactional(readOnly = true)
+    public JobDetailsResponse getJobDetails(UUID jobId, CustomUserDetails principal) {
+        var job = principal.user().getRole() == UserRole.ADMIN
+                ? jobRepository.findById(jobId)
+                : jobRepository.findByIdAndUser_Id(jobId, principal.user().getId());
+
+        return job.map(JobDetailsResponse::from)
+                .orElseThrow(() -> new ResourceNotFoundException("Job", "id", jobId.toString()));
     }
 }

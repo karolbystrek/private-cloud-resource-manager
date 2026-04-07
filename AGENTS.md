@@ -36,17 +36,15 @@ The core invariant is **No Unbilled Compute**.
 
 ## 3. Directory Structure & Conventions
 
-- `apps/`: Monorepo root for all services.
-    - `broker/`: Java Spring Boot control plane. See `apps/broker/pom.xml`.
-    - `frontend/`: Next.js web dashboard. See `apps/frontend/README.md`.
+- `broker/`: Java Spring Boot control plane.
+- `frontend/`: Next.js web dashboard.
 - `docs/`: **Source of Truth**.
-- `db/init/`: SQL Schema definitions.
 - `compose.yaml`: Local development environment (Postgres, Redis, MinIO).
 
 ## 4. Development & Integration
 
 - **Database Changes**: Apply schema updates through versioned Flyway migrations in
-  `apps/broker/src/main/resources/db/migration/`.
+  `broker/src/main/resources/db/migration/`.
 - **Concurrency**:
     - **Java Broker**: Use Redis for distributed locking to prevent "Thundering Herd" on resource pools.
     - **Database**: Rely on Row-Level Locking for wallet consistency.
@@ -66,20 +64,17 @@ The core invariant is **No Unbilled Compute**.
   from client-side interactions (like a button click) without having to manually build an API endpoint. Do not use
   FormEvent type, use SubmitEvent instead.
 
-## 5. Common Patterns
-
-- **Ledger Entries**: Never update a ledger row. Always `INSERT` a new transaction (Debit/Credit/Refund).
-- **UUIDs**: Use `uuid-ossp` for all primary keys.
-
 ## 6. Version Control Workflow
 
 - **Branching Strategy**:
     - Default: Work directly on `main` branch.
     - Push: Push directly to `main` upon completion, unless instructed otherwise.
 - **Commit Convention**:
-    - **Style**: Strictly follow **Conventional Commits** (e.g., `feat:`, `fix:`, `chore:`, `docs:`).
+    - **Style**: Strictly follow **Conventional Commits**
     - **Atomicity**: Keep commits small and focused. Do not combine unrelated changes.
 - **Issue References**:
     - **Protocol**: Before committing, **ask the user** for a GitHub Issue Reference.
         - If provided: Include it in the commit footer or subject (e.g., `Ref: #123`).
         - If user says "no issue": Proceed without it.
+
+Do not run commands like `./mvnw test`, `npm run lint` to check for errors! User will check it manually.
