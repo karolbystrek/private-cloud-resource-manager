@@ -6,5 +6,6 @@ public enum JobStatus {
     COMPLETED,
     FAILED,
     OOM_KILLED,
-    LEASE_EXPIRED
+    LEASE_EXPIRED,
+    STOPPED
 }

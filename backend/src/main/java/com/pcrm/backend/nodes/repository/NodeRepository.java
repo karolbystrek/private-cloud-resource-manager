@@ -8,11 +8,14 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface NodeRepository extends JpaRepository<Node, String> {
 
     List<Node> findAllByOrderByHostnameAsc();
+
+    Optional<Node> findByNomadNodeId(UUID nomadNodeId);
 
     @Modifying
     @Query(value = """
