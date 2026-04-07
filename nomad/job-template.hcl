@@ -3,20 +3,6 @@ job "user#{{USER_ID}}-job#{{JOB_ID}}" {
 
   group "execution-group" {
 
-    # task "lease-enforcer" {
-    #   driver = "docker"
-    #   lifecycle {
-    #     hook    = "prestart"
-    #     sidecar = true
-    #   }
-    #   config {
-    #     image = "pcrm/lease-enforcer:latest"
-    #   }
-    #   env {
-    #     JOB_ID = "{{JOB_ID}}"
-    #   }
-    # }
-
     task "user-workload" {
       driver = "docker"
       config {
