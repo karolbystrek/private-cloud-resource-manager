@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import '@/app/globals.css';
 import { Header } from '@/components/header';
 import { ThemeProvider } from '@/components/theme-provider';
+import { isUserRole, type UserRole } from '@/lib/user-role';
 import { cn } from '@/lib/utils';
 
 const ibmPlexSans = IBM_Plex_Sans({
@@ -29,6 +30,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const hasSession = Boolean(
     cookieStore.get('access_token')?.value || cookieStore.get('refresh_token')?.value,
   );
+  const roleCookie = cookieStore.get('user_role')?.value;
+  const userRole: UserRole | null = isUserRole(roleCookie) ? roleCookie : null;
 
   return (
     <html
@@ -43,7 +46,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           enableSystem
           disableTransitionOnChange
         >
-          <Header hasSession={hasSession} />
+          <Header hasSession={hasSession} userRole={userRole} />
           <main className="w-full">{children}</main>
         </ThemeProvider>
       </body>

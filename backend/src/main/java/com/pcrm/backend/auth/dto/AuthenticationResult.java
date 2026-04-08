@@ -2,8 +2,8 @@ package com.pcrm.backend.auth.dto;
 
 import com.pcrm.backend.user.UserRole;
 
-public record AuthenticationResponse(
-        String accessToken,
+public record AuthenticationResult(
+        TokenPair tokens,
         UserRole role
 ) {
 }

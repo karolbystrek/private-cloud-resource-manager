@@ -1,9 +1,9 @@
 package com.pcrm.backend.auth.resource;
 
 import com.pcrm.backend.auth.dto.AuthenticationRequest;
+import com.pcrm.backend.auth.dto.AuthenticationResult;
 import com.pcrm.backend.auth.dto.AuthenticationResponse;
 import com.pcrm.backend.auth.dto.RegistrationRequest;
-import com.pcrm.backend.auth.dto.TokenPair;
 import com.pcrm.backend.auth.service.AuthenticationService;
 import com.pcrm.backend.auth.service.JwtService;
 import jakarta.validation.Valid;
@@ -33,14 +33,14 @@ public class AuthenticationResource {
 
     @PostMapping("/login")
     public ResponseEntity<AuthenticationResponse> authenticate(@RequestBody @Valid AuthenticationRequest authenticationRequest) {
-        TokenPair tokenPair = authenticationService.authenticate(authenticationRequest);
-        return buildResponseWithCookie(tokenPair);
+        AuthenticationResult authenticationResult = authenticationService.authenticate(authenticationRequest);
+        return buildResponseWithCookie(authenticationResult);
     }
 
     @PostMapping("/refresh")
     public ResponseEntity<AuthenticationResponse> refresh(@CookieValue(name = "refresh_token") String refreshToken) {
-        TokenPair tokenPair = authenticationService.refresh(refreshToken);
-        return buildResponseWithCookie(tokenPair);
+        AuthenticationResult authenticationResult = authenticationService.refresh(refreshToken);
+        return buildResponseWithCookie(authenticationResult);
     }
 
     @PostMapping("/logout")
@@ -71,8 +71,8 @@ public class AuthenticationResource {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-    private ResponseEntity<AuthenticationResponse> buildResponseWithCookie(TokenPair tokenPair) {
-        ResponseCookie cookie = ResponseCookie.from("refresh_token", tokenPair.refreshToken())
+    private ResponseEntity<AuthenticationResponse> buildResponseWithCookie(AuthenticationResult authenticationResult) {
+        ResponseCookie cookie = ResponseCookie.from("refresh_token", authenticationResult.tokens().refreshToken())
                 .httpOnly(true)
                 .secure(isSecureCookie)
                 .sameSite("Lax")
@@ -81,6 +81,6 @@ public class AuthenticationResource {
                 .build();
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(new AuthenticationResponse(tokenPair.accessToken()));
+                .body(new AuthenticationResponse(authenticationResult.tokens().accessToken(), authenticationResult.role()));
     }
 }

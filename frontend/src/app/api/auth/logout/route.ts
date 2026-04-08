@@ -10,7 +10,7 @@ export async function POST() {
 
     if (refreshToken) {
       // Notify Spring Boot to invalidate the token in the database/cache
-      await fetch(`${BACKEND_URL}/auth/logout`, {
+      await fetch(`${BACKEND_URL}/api/auth/logout`, {
         method: 'POST',
         headers: {
           Cookie: `refresh_token=${refreshToken}`,
@@ -22,6 +22,7 @@ export async function POST() {
 
     // Clear the Next.js access token cookie
     nextResponse.cookies.delete('access_token');
+    nextResponse.cookies.delete('user_role');
 
     // Clear the Spring Boot refresh token cookie by setting it to expire immediately
     nextResponse.cookies.set('refresh_token', '', {

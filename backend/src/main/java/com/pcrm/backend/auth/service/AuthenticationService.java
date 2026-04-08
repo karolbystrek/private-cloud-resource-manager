@@ -1,6 +1,7 @@
 package com.pcrm.backend.auth.service;
 
 import com.pcrm.backend.auth.domain.CustomUserDetails;
+import com.pcrm.backend.auth.dto.AuthenticationResult;
 import com.pcrm.backend.auth.dto.AuthenticationRequest;
 import com.pcrm.backend.auth.dto.RegistrationRequest;
 import com.pcrm.backend.auth.dto.TokenPair;
@@ -35,7 +36,7 @@ public class AuthenticationService {
     private final WalletService walletService;
 
     @Transactional
-    public TokenPair authenticate(AuthenticationRequest request) {
+    public AuthenticationResult authenticate(AuthenticationRequest request) {
         var authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.username(),
@@ -43,11 +44,11 @@ public class AuthenticationService {
                 )
         );
         var userDetails = (CustomUserDetails) authentication.getPrincipal();
-        return jwtService.issueTokenPair(userDetails);
+        return issueAuthenticationResult(userDetails);
     }
 
     @Transactional
-    public TokenPair refresh(String token) {
+    public AuthenticationResult refresh(String token) {
         var username = jwtService.extractUsername(token);
         var jti = jwtService.extractTokenId(token);
 
@@ -73,7 +74,7 @@ public class AuthenticationService {
             throw tokenRefreshException();
         }
 
-        return jwtService.issueTokenPair(userDetails);
+        return issueAuthenticationResult(userDetails);
     }
 
     @Transactional
@@ -105,5 +106,10 @@ public class AuthenticationService {
 
         userRepository.save(user);
         walletService.createWallet(user);
+    }
+
+    private AuthenticationResult issueAuthenticationResult(CustomUserDetails userDetails) {
+        TokenPair tokenPair = jwtService.issueTokenPair(userDetails);
+        return new AuthenticationResult(tokenPair, userDetails.user().getRole());
     }
 }
