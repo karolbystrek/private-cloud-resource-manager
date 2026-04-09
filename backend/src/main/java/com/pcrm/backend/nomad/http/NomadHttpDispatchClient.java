@@ -3,6 +3,7 @@ package com.pcrm.backend.nomad.http;
 import com.pcrm.backend.exception.NomadDispatchException;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.nomad.NomadDispatchClient;
+import com.pcrm.backend.storage.service.StorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -21,13 +22,16 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
 
     private final RestClient restClient;
     private final String hclTemplate;
+    private final StorageService storageService;
 
     public NomadHttpDispatchClient(
             @Value("${app.nomad.base-url}") String nomadBaseUrl,
-            @Value("${app.nomad.job-template}") String jobTemplatePath
+            @Value("${app.nomad.job-template}") String jobTemplatePath,
+            StorageService storageService
     ) throws IOException {
         this.restClient = RestClient.builder().baseUrl(nomadBaseUrl).build();
         this.hclTemplate = Files.readString(Path.of(jobTemplatePath));
+        this.storageService = storageService;
     }
 
     @Override
@@ -42,6 +46,9 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
                     .append("\"\n        "));
         }
 
+                String artifactObjectKey = storageService.buildArtifactObjectKey(userId, jobId);
+                String artifactUploadUrl = storageService.generatePresignedUploadUrl(userId, jobId);
+
         // 2. Inject dynamic resources, config, and env vars
         String renderedHcl = hclTemplate
                 .replace("{{USER_ID}}", userId.toString())
@@ -50,6 +57,8 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
                 .replace("{{EXECUTION_COMMAND}}", escapeHcl(request.executionCommand()))
                 .replace("{{CORES}}", request.reqCpuCores().toString())
                 .replace("{{MEMORY_MB}}", String.valueOf(request.reqRamGb() * 1024))
+                .replace("{{ARTIFACT_OBJECT_KEY}}", escapeHcl(artifactObjectKey))
+                .replace("{{ARTIFACT_UPLOAD_URL}}", escapeHcl(artifactUploadUrl))
                 .replace("{{ENV_VARS}}", envVars.toString());
 
         try {

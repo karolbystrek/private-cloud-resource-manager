@@ -53,4 +53,11 @@ public class JobQueryService {
         return job.map(JobDetailsResponse::from)
                 .orElseThrow(() -> new ResourceNotFoundException("Job", "id", jobId.toString()));
     }
+    
+    @Transactional(readOnly = true)
+    public UUID getJobOwnerId(UUID jobId) {
+        return jobRepository.findById(jobId)
+                .map(job -> job.getUser().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Job", "id", jobId.toString()));
+    }
 }

@@ -43,6 +43,18 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
 
+  storage:
+    s3:
+      endpoint: ${STORAGE_S3_ENDPOINT}
+      access-key: ${STORAGE_S3_ACCESS_KEY}
+      secret-key: ${STORAGE_S3_SECRET_KEY}
+      region: ${STORAGE_S3_REGION:us-east-1}
+      bucket: ${STORAGE_S3_BUCKET:job-artifacts}
+      path-style-access: ${STORAGE_S3_PATH_STYLE_ACCESS:true}
+      presign:
+        upload-ttl-sec: ${STORAGE_S3_PRESIGN_UPLOAD_TTL_SEC:900}
+        download-ttl-sec: ${STORAGE_S3_PRESIGN_DOWNLOAD_TTL_SEC:900}
+
 application:
   security:
     jwt:
