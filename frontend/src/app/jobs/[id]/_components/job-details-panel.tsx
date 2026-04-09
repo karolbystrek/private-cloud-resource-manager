@@ -1,7 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
-import { RiArrowLeftLine, RiFileCopyLine, RiRefreshLine } from '@remixicon/react';
+import { RiArrowLeftLine, RiDownloadLine, RiFileCopyLine, RiRefreshLine } from '@remixicon/react';
 import Link from 'next/link';
 import type { JobDetails, JobStatus } from '@/app/jobs/_components/types';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,10 @@ type JobDetailsPanelProps = {
 type FieldRowProps = {
   label: string;
   value: ReactNode;
+};
+
+type ArtifactDownloadPayload = {
+  url: string;
 };
 
 function formatCountdown(totalSeconds: number): string {
@@ -51,6 +55,8 @@ function FieldRow({ label, value }: FieldRowProps) {
 export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobDetailsPanelProps) {
   const [job, setJob] = useState<JobDetails>(initialJob);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date>(new Date(initialUpdatedAtIso));
+  const [artifactDownloadUrl, setArtifactDownloadUrl] = useState<string | null>(null);
+  const [isCheckingArtifact, setIsCheckingArtifact] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const isAutoRefreshEnabled = ACTIVE_STATUSES.has(job.status);
   const fullIntervalSeconds = Math.max(1, Math.floor(ACTIVE_POLL_INTERVAL_MS / 1000));
@@ -66,6 +72,32 @@ export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobD
       await navigator.clipboard.writeText(job.userId);
     } catch {
       setErrorMessage('Failed to copy owner ID.');
+    }
+  }
+
+  async function loadArtifactDownloadUrl() {
+    setIsCheckingArtifact(true);
+    try {
+      const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/artifact-download-url`, {
+        cache: 'no-store',
+      });
+
+      if (response.status === 401) {
+        window.location.href = `/login?next=${encodeURIComponent(`/jobs/${jobId}`)}`;
+        return;
+      }
+
+      if (!response.ok) {
+        setArtifactDownloadUrl(null);
+        return;
+      }
+
+      const payload = (await response.json()) as ArtifactDownloadPayload;
+      setArtifactDownloadUrl(payload.url ?? null);
+    } catch {
+      setArtifactDownloadUrl(null);
+    } finally {
+      setIsCheckingArtifact(false);
     }
   }
 
@@ -132,6 +164,16 @@ export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobD
     };
   }, [fullIntervalSeconds, isAutoRefreshEnabled, jobId]);
 
+  useEffect(() => {
+    if (isAutoRefreshEnabled) {
+      setArtifactDownloadUrl(null);
+      setIsCheckingArtifact(false);
+      return;
+    }
+
+    void loadArtifactDownloadUrl();
+  }, [isAutoRefreshEnabled, jobId, job.status]);
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -145,14 +187,29 @@ export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobD
           </Link>
           <h1 className="text-3xl font-semibold tracking-tight">Job Details</h1>
         </div>
-        <div className="text-muted-foreground flex flex-col gap-1 text-xs md:items-end">
-          {isAutoRefreshEnabled ? (
-            <p className="inline-flex items-center gap-1">
-              <RiRefreshLine aria-hidden="true" size={14} />
-              {formatCountdown(secondsUntilRefresh)}
-            </p>
+        <div className="flex flex-col gap-2 md:items-end">
+          {!isAutoRefreshEnabled && artifactDownloadUrl ? (
+            <Button asChild variant="outline" size="sm">
+              <a href={`/api/jobs/${encodeURIComponent(jobId)}/artifact-download`}>
+                <RiDownloadLine aria-hidden="true" size={14} />
+                Download Output
+              </a>
+            </Button>
           ) : null}
-          <p>Last update: {formatDateForUser(lastUpdatedAt, isClient)}</p>
+          <div className="text-muted-foreground flex flex-col gap-1 text-xs md:items-end">
+            {isAutoRefreshEnabled ? (
+              <p className="inline-flex items-center gap-1">
+                <RiRefreshLine aria-hidden="true" size={14} />
+                {formatCountdown(secondsUntilRefresh)}
+              </p>
+            ) : isCheckingArtifact ? (
+              <p className="inline-flex items-center gap-1">
+                <RiRefreshLine aria-hidden="true" size={14} />
+                Checking output...
+              </p>
+            ) : null}
+            <p>Last update: {formatDateForUser(lastUpdatedAt, isClient)}</p>
+          </div>
         </div>
       </div>
 
