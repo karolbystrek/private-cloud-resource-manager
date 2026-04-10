@@ -11,6 +11,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnTransformer;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -35,6 +36,7 @@ public class Node {
     private String hostname;
 
     @Column(name = "ip_address", nullable = false)
+    @ColumnTransformer(write = "CAST(? AS inet)")
     private String ipAddress;
 
     @Enumerated(EnumType.STRING)

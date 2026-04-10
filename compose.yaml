@@ -15,19 +15,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    restart: "no"
-    ports:
-      - "${REDIS_PORT}:${REDIS_PORT}"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 10s
-      retries: 5
-
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: minio
@@ -54,7 +41,7 @@ services:
       - "${NOMAD_HTTP_PORT}:${NOMAD_HTTP_PORT}"
       - "${NOMAD_RPC_PORT}:${NOMAD_RPC_PORT}"
       - "${NOMAD_SERF_PORT}:${NOMAD_SERF_PORT}"
-    command: agent -server -client -bootstrap-expect=1 -data-dir=/tmp/pcrm-nomad -bind 0.0.0.0 -network-interface eth0 -node=nomad-server -meta=private-cloud-resource-manager.node_id=local-node-01
+    command: agent -config=/etc/nomad.d/local-dev.hcl
     privileged: true
     cgroup: host
     environment:
@@ -63,6 +50,7 @@ services:
     tmpfs:
       - /tmp/pcrm-nomad
     volumes:
+      - ./nomad/local-dev.hcl:/etc/nomad.d/local-dev.hcl:ro
       - /var/run/docker.sock:/var/run/docker.sock
 
   backend:
@@ -82,8 +70,6 @@ services:
       - ./nomad:/app/nomad:ro
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/api/actuator/health" ]
@@ -116,8 +102,6 @@ services:
 
 volumes:
   postgres_data:
-    driver: local
-  redis_data:
     driver: local
   minio_data:
     driver: local
