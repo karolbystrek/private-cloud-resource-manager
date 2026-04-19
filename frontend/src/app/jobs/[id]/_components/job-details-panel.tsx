@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatLocalDateTime } from '@/lib/date-time';
 import { formatMinutesAsHoursAndMinutes } from '@/lib/duration';
+import { JobLogsPanel } from './job-logs-panel';
 
 const ACTIVE_POLL_INTERVAL_MS = 15000;
 const ACTIVE_STATUSES = new Set<JobStatus>(['QUEUED', 'PENDING', 'RUNNING']);
@@ -73,6 +74,14 @@ export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobD
       await navigator.clipboard.writeText(job.userId);
     } catch {
       setErrorMessage('Failed to copy owner ID.');
+    }
+  }
+
+  async function handleCopyExecutionCommand() {
+    try {
+      await navigator.clipboard.writeText(job.executionCommand);
+    } catch {
+      setErrorMessage('Failed to copy execution command.');
     }
   }
 
@@ -236,30 +245,15 @@ export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobD
           <CardContent>
             <FieldRow label="CPU (Cores)" value={job.reqCpuCores} />
             <FieldRow label="RAM (GB)" value={job.reqRamGb} />
-            <FieldRow label="Consumed Time" value={formatMinutesAsHoursAndMinutes(job.totalConsumedMinutes)} />
+            <FieldRow
+              label="Consumed Time"
+              value={formatMinutesAsHoursAndMinutes(job.totalConsumedMinutes)}
+            />
             <FieldRow
               label="Owner Username"
               value={
                 <span className="inline-flex items-center gap-2">
                   <span>{job.username}</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon-xs"
-                          aria-label="Copy user ID"
-                          onClick={() => void handleCopyOwnerId()}
-                        >
-                          <RiFileCopyLine aria-hidden="true" size={14} />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" sideOffset={6}>
-                        Copy user ID
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
                 </span>
               }
             />
@@ -272,11 +266,31 @@ export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobD
           <CardTitle>Execution Command</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="bg-muted rounded-none border p-3 font-mono text-sm break-all">
-            {job.executionCommand}
-          </p>
+          <div className="bg-muted flex items-start gap-2 rounded-none border p-3">
+            <p className="min-w-0 flex-1 font-mono text-sm break-all">{job.executionCommand}</p>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-xs"
+                    aria-label="Copy execution command"
+                    onClick={() => void handleCopyExecutionCommand()}
+                  >
+                    <RiFileCopyLine aria-hidden="true" size={14} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6}>
+                  Copy execution command
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </CardContent>
       </Card>
+
+      <JobLogsPanel jobId={jobId} isJobActive={isAutoRefreshEnabled} jobStatus={job.status} />
     </section>
   );
 }

@@ -2,6 +2,7 @@ package com.pcrm.backend.jobs.service;
 
 import com.pcrm.backend.auth.domain.CustomUserDetails;
 import com.pcrm.backend.exception.ResourceNotFoundException;
+import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.dto.JobDetailsResponse;
 import com.pcrm.backend.jobs.dto.JobHistoryItemResponse;
 import com.pcrm.backend.jobs.dto.JobsPageResponse;
@@ -13,6 +14,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -23,9 +25,17 @@ public class JobQueryService {
     private final JobRepository jobRepository;
 
     @Transactional(readOnly = true)
-    public JobsPageResponse listUserJobs(UUID userId, int page, int size, Sort.Direction sortDirection) {
+    public JobsPageResponse listUserJobs(
+            UUID userId,
+            int page,
+            int size,
+            Sort.Direction sortDirection,
+            List<JobStatus> statusFilters
+    ) {
         var pageable = PageRequest.of(page, size, Sort.by(sortDirection, "createdAt"));
-        var jobsPage = jobRepository.findByUser_Id(userId, pageable);
+        var jobsPage = statusFilters == null || statusFilters.isEmpty()
+                ? jobRepository.findByUser_Id(userId, pageable)
+                : jobRepository.findByUser_IdAndStatusIn(userId, statusFilters, pageable);
 
         var jobs = jobsPage.getContent()
                 .stream()

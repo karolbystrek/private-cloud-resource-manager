@@ -21,6 +21,10 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 
     Page<Job> findByUser_Id(UUID userId, Pageable pageable);
 
+    Page<Job> findByUser_IdAndStatus(UUID userId, JobStatus status, Pageable pageable);
+
+    Page<Job> findByUser_IdAndStatusIn(UUID userId, List<JobStatus> statuses, Pageable pageable);
+
     Optional<Job> findByIdAndUser_Id(UUID id, UUID userId);
 
     List<Job> findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus status);

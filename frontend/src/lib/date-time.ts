@@ -48,3 +48,15 @@ export function formatLocalDateTime(value: Date | string | null | undefined): st
     timeZoneName: 'short',
   }).format(date);
 }
+
+export function formatLocalMonthDay(value: Date | string | null | undefined): string {
+  const date = toDate(value);
+  if (!date) {
+    return '-';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: '2-digit',
+  }).format(date);
+}

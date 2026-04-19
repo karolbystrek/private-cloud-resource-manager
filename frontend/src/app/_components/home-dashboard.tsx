@@ -7,13 +7,14 @@ import {
   RiTimeLine,
 } from '@remixicon/react';
 import Link from 'next/link';
-import type { JobHistoryItem } from '@/app/jobs/_components/types';
+import type { JobHistoryItem, JobStatus } from '@/app/jobs/_components/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatUtcDateTime } from '@/lib/date-time';
+import { formatLocalMonthDay, formatUtcDateTime } from '@/lib/date-time';
 import { formatMinutesAsHoursAndMinutes } from '@/lib/duration';
 
-const FAILED_STATUSES = new Set(['FAILED', 'OOM_KILLED', 'LEASE_EXPIRED']);
+const FAILED_STATUSES = new Set<JobStatus>(['FAILED', 'OOM_KILLED', 'LEASE_EXPIRED']);
+const DEFAULT_HISTORY_PAGE_SIZE = 5;
 
 type HomeDashboardProps = {
   jobs: JobHistoryItem[];
@@ -56,8 +57,21 @@ function getQuotaBarSegments(quota: NonNullable<HomeDashboardProps['quota']>) {
   };
 }
 
+function buildJobsHistoryHref(statuses: JobStatus[] = []): string {
+  const params = new URLSearchParams({
+    page: '0',
+    size: String(DEFAULT_HISTORY_PAGE_SIZE),
+    sort: 'desc',
+  });
+
+  for (const status of statuses) {
+    params.append('status', status);
+  }
+
+  return `/jobs?${params.toString()}`;
+}
+
 export function HomeDashboard({ jobs, jobsError, quota, quotaError }: HomeDashboardProps) {
-  const totalRecent = jobs.length;
   const runningCount = jobs.filter((job) => job.status === 'RUNNING').length;
   const completedCount = jobs.filter((job) => job.status === 'COMPLETED').length;
   const failedCount = jobs.filter((job) => FAILED_STATUSES.has(job.status)).length;
@@ -72,27 +86,31 @@ export function HomeDashboard({ jobs, jobsError, quota, quotaError }: HomeDashbo
           <p className="text-muted-foreground text-sm">Overview of your recent workload and shortcuts.</p>
         </div>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <Card>
-            <CardHeader className="pb-2"><CardTitle>Total Recent</CardTitle></CardHeader>
-            <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{totalRecent}</p><RiArrowRightLine size={18} /></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle>Queued</CardTitle></CardHeader>
-            <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{queuedCount}</p><RiArrowRightLine size={18} /></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle>Running</CardTitle></CardHeader>
-            <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{runningCount}</p><RiPlayCircleLine size={18} /></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle>Completed</CardTitle></CardHeader>
-            <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{completedCount}</p><RiCheckboxCircleLine size={18} /></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle>Failed</CardTitle></CardHeader>
-            <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{failedCount}</p><RiCloseCircleLine size={18} /></CardContent>
-          </Card>
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Link href={buildJobsHistoryHref(['QUEUED'])}>
+            <Card className="hover:border-primary/60 transition-colors">
+              <CardHeader className="pb-2"><CardTitle>Queued</CardTitle></CardHeader>
+              <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{queuedCount}</p><RiArrowRightLine size={18} /></CardContent>
+            </Card>
+          </Link>
+          <Link href={buildJobsHistoryHref(['RUNNING'])}>
+            <Card className="hover:border-primary/60 transition-colors">
+              <CardHeader className="pb-2"><CardTitle>Running</CardTitle></CardHeader>
+              <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{runningCount}</p><RiPlayCircleLine size={18} /></CardContent>
+            </Card>
+          </Link>
+          <Link href={buildJobsHistoryHref(['COMPLETED'])}>
+            <Card className="hover:border-primary/60 transition-colors">
+              <CardHeader className="pb-2"><CardTitle>Completed</CardTitle></CardHeader>
+              <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{completedCount}</p><RiCheckboxCircleLine size={18} /></CardContent>
+            </Card>
+          </Link>
+          <Link href={buildJobsHistoryHref(['FAILED', 'OOM_KILLED', 'LEASE_EXPIRED'])}>
+            <Card className="hover:border-primary/60 transition-colors">
+              <CardHeader className="pb-2"><CardTitle>Failed</CardTitle></CardHeader>
+              <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{failedCount}</p><RiCloseCircleLine size={18} /></CardContent>
+            </Card>
+          </Link>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-3">
@@ -128,7 +146,7 @@ export function HomeDashboard({ jobs, jobsError, quota, quotaError }: HomeDashbo
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="h-full">
             <CardHeader>
               <CardTitle className="inline-flex items-center gap-2">
                 <RiFlashlightLine size={16} />
@@ -136,10 +154,10 @@ export function HomeDashboard({ jobs, jobsError, quota, quotaError }: HomeDashbo
               </CardTitle>
               <CardDescription>Monthly prepaid runtime budget.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="flex h-full flex-col gap-4">
               {quotaError ? <p className="text-destructive text-sm">{quotaError}</p> : null}
               {quota ? (
-                <div className="space-y-3">
+                <div className="flex flex-1 flex-col justify-between gap-3">
                   <div className="rounded-none border bg-muted/40 p-3">
                     <p className="text-muted-foreground text-xs uppercase tracking-wide">Remaining Runtime</p>
                     <p className="mt-1 text-2xl font-semibold">
@@ -161,7 +179,7 @@ export function HomeDashboard({ jobs, jobsError, quota, quotaError }: HomeDashbo
                         <RiTimeLine size={12} />
                         Resets
                         {' '}
-                        {formatUtcDateTime(quota.resetAt)}
+                        {formatLocalMonthDay(quota.resetAt)}
                       </div>
                     </div>
                     <div className="h-2.5 w-full overflow-hidden rounded-none border bg-muted">
@@ -197,8 +215,10 @@ export function HomeDashboard({ jobs, jobsError, quota, quotaError }: HomeDashbo
                   </div>
                 </div>
               ) : null}
-              <Button asChild className="w-full justify-between"><Link href="/jobs/new">Submit New Job<RiArrowRightLine size={14} /></Link></Button>
-              <Button asChild variant="outline" className="w-full justify-between"><Link href="/jobs">View Job History<RiArrowRightLine size={14} /></Link></Button>
+              <div className="mt-auto space-y-2">
+                <Button asChild className="w-full justify-between"><Link href="/jobs/new">Submit New Job<RiArrowRightLine size={14} /></Link></Button>
+                <Button asChild variant="outline" className="w-full justify-between"><Link href="/jobs">View Job History<RiArrowRightLine size={14} /></Link></Button>
+              </div>
             </CardContent>
           </Card>
         </section>
