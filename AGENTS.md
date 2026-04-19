@@ -1,80 +1,61 @@
 # AI Agent Guide: Private Cloud Resource Manager
 
-This document provides essential context for AI agents working on the Private Cloud Resource Manager.
+## Repository
+- GitHub: `karolbystrek/private-cloud-resource-manager`
 
-## Repository Coordinates
+## System In One View
+- Mission: on-prem batch cloud with strict prepaid billing.
+- Non-negotiable invariant: **No Unbilled Compute**.
+- Control Plane: `backend/` (Java Spring Boot) handles API, auth, billing, and Nomad integration.
+- Frontend: `frontend/` (Next.js + TypeScript + Shadcn UI).
+- Execution Plane: Nomad schedules Docker jobs; lease enforcer must terminate jobs when lease expires and cannot be renewed.
+- Storage/Infra: PostgreSQL (source of truth), Redis (distributed locks), MinIO (artifacts/logs), Nomad (orchestration).
 
-- **GitHub Repository**: `karolbystrek/private-cloud-resource-manager`
+## Core Billing + Lease Rules (Must Never Break)
+1. Job start deducts initial **15-minute lease** upfront.
+2. Lease renewals extend execution in 15-minute chunks.
+3. If renewal path fails (network partition / broker unreachable), job must be killed when current lease expires.
+4. Wallet operations must be pessimistic and atomic:
+   - lock wallet row with `SELECT ... FOR UPDATE`
+   - never allow negative balance (`wallets.balance_credits >= 0`)
+   - persist every credit move in append-only `credit_registry`
+5. On failed dispatch or early completion, refund unused prepaid credits through ledger entry.
 
-## 1. System Architecture & Components
+## Data + Concurrency Contracts
+- PostgreSQL is final authority for balances and job state.
+- Use row-level locks for wallet mutations; no read-modify-write without lock.
+- Use Redis mutexes for concurrent lease/resource allocation paths to avoid thundering herd and double-reservation.
+- Treat Broker as single authority for API contracts; frontend and lease enforcer are consumers.
 
-The system is a distributed on-premise cloud for batch jobs, enforcing strict billing via a "Pre-Paid Lease" mechanism.
+## Auth Contract
+- Hybrid JWT flow:
+  - Access token: returned in JSON response body; client stores in memory; sent as `Authorization: Bearer <token>`.
+  - Refresh token: `HttpOnly`, `Secure`, `SameSite=Lax` cookie (`refresh_token`).
 
-- **Control Plane (Broker)**: Java Spring Boot. Handles API, billing logic, and Nomad orchestration.
-- **Frontend**: Next.js + TypeScript. User dashboard and job submission.
-- **Data Plane (Worker Nodes)**:
-    - **Orchestrator**: HashiCorp Nomad (schedules Docker containers).
-    - **Proprietary Agent**: Python. Runs alongside Nomad on workers. **CRITICAL**: Enforces "hard-kill" if lease
-      expires.
-- **State**:
-    - **PostgreSQL**: Permanent store. **MUST** use pessimistic locking for wallet transactions.
-    - **Redis**: Distributed locks (mutex) for concurrent lease requests.
-    - **MinIO**: S3-compatible storage for job artifacts/logs.
+## Repository Map (High Signal)
+- `backend/`: Spring Boot broker/control plane.
+- `backend/src/main/resources/db/migration/`: Flyway migrations (all schema changes go here).
+- `frontend/`: Next.js app.
+- `nomad/`: Nomad config + job template.
+- `docs/`: project source of truth for architecture/roadmap.
+- `compose.yaml`: local stack (Postgres, Redis, MinIO, Nomad, backend, frontend).
 
-## 2. Critical Business Logic: The Lease Mechanism
+## Change Rules
+- Database changes only through versioned Flyway migrations.
+- Keep billing/lease logic strongly consistent before optimizing.
+- Preserve append-only ledger semantics.
+- Do not introduce paths that can execute compute without active prepaid lease.
 
-The core invariant is **No Unbilled Compute**.
+## Frontend Rules
+- Use Shadcn UI components for interactive/layout primitives.
+- Use TypeScript `type` aliases (not `interface`).
+- Keep modules small and SRP-focused; split files before they grow too large.
+- Prefer Server Actions for mutate-then-refresh flows.
+- Use `SubmitEvent`, not `FormEvent`.
+- Keep code self-explanatory; avoid comments.
 
-1. **Job Start**: Broker dedicates a 15-minute "Lease" of Compute Units (CUs) upfront.
-2. **Execution**: The Worker Agent periodically requests lease renewals from the Broker.
-3. **Partition Tolerance**: If the Agent cannot reach the Broker to renew, it **MUST** kill the container when the
-   current 15-minute lease expires.
-4. **Billing**:
-    - Use `SELECT ... FOR UPDATE` on `wallets` table.
-    - Record all moves in `cu_ledger` (Append-Only Event Sourcing).
-    - `balance_cu` cannot go below zero (`CHECK` constraint).
-
-## 3. Directory Structure & Conventions
-
-- `broker/`: Java Spring Boot control plane.
-- `frontend/`: Next.js web dashboard.
-- `docs/`: **Source of Truth**.
-- `compose.yaml`: Local development environment (Postgres, Redis, MinIO).
-
-## 4. Development & Integration
-
-- **Database Changes**: Apply schema updates through versioned Flyway migrations in
-  `broker/src/main/resources/db/migration/`.
-- **Concurrency**:
-    - **Java Broker**: Use Redis for distributed locking to prevent "Thundering Herd" on resource pools.
-    - **Database**: Rely on Row-Level Locking for wallet consistency.
-- **API Contracts**: Broker is the central authority. Agents and UI are consumers.
-- **Authentication**: The Broker uses a hybrid JWT authentication system. A short-lived Access Token is returned in the
-  JSON response body to be stored in memory by the client and sent in the Authorization header as a Bearer token. A
-  long-lived Refresh Token is issued securely as an `HttpOnly`, `Secure`, and `SameSite=Lax` cookie to protect against
-  XSS and CSRF.
-- **Frontend**: All interactive interfaces and structural layouts must utilize Shadcn UI components. Use
-  `npx shadcn@latest add <component>` to add required primitives to `apps/frontend/src/components/ui/`. Use 'npm'.
-  Always use TypeScript types instead of interfaces. Write modular code. It should
-  be split logically into files. Adhere to SRP and separation of concerns. The implementation must be clean, modular and
-  production grade. Use modern react and next.js features alongside shadcn ui components. Use clear and descriptive
-  naming conventions. Do not add comments to the code. The code should be self-explanatory and easy to read. Do not
-  write large files. If a file exceeds 200 lines, split it into smaller files. If you need to mutate data (like
-  submitting a form to your backend) and then re-fetch it, Server Actions allow you to call server-side code directly
-  from client-side interactions (like a button click) without having to manually build an API endpoint. Do not use
-  FormEvent type, use SubmitEvent instead.
-
-## 6. Version Control Workflow
-
-- **Branching Strategy**:
-    - Default: Work directly on `main` branch.
-    - Push: Push directly to `main` upon completion, unless instructed otherwise.
-- **Commit Convention**:
-    - **Style**: Strictly follow **Conventional Commits**
-    - **Atomicity**: Keep commits small and focused. Do not combine unrelated changes.
-- **Issue References**:
-    - **Protocol**: Before committing, **ask the user** for a GitHub Issue Reference.
-        - If provided: Include it in the commit footer or subject (e.g., `Ref: #123`).
-        - If user says "no issue": Proceed without it.
-
-Do not run commands like `./mvnw test`, `npm run lint` to check for errors! User will check it manually.
+## Workflow Rules
+- Branching default: work on `main`; push to `main` unless user says otherwise.
+- Commits: Conventional Commits, atomic/single-purpose.
+- Before commit: ask user for GitHub issue reference (`Ref: #<id>` if provided).
+- Do not run `./mvnw test` or `npm run lint` unless user explicitly asks.
