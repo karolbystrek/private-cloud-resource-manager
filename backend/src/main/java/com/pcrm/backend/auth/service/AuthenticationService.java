@@ -11,7 +11,6 @@ import com.pcrm.backend.exception.TokenRefreshException;
 import com.pcrm.backend.user.User;
 import com.pcrm.backend.user.UserRole;
 import com.pcrm.backend.user.repository.UserRepository;
-import com.pcrm.backend.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -33,7 +32,6 @@ public class AuthenticationService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final PasswordEncoder passwordEncoder;
-    private final WalletService walletService;
 
     @Transactional
     public AuthenticationResult authenticate(AuthenticationRequest request) {
@@ -105,7 +103,6 @@ public class AuthenticationService {
                 .build();
 
         userRepository.save(user);
-        walletService.createWallet(user);
     }
 
     private AuthenticationResult issueAuthenticationResult(CustomUserDetails userDetails) {

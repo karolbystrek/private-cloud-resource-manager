@@ -6,11 +6,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -31,7 +30,6 @@ import java.util.UUID;
 public class Job {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -63,11 +61,46 @@ public class Job {
     @Column(name = "req_ram_gb", nullable = false)
     private Integer reqRamGb;
 
-    @Column(name = "total_cost_credits", nullable = false)
+    @Column(name = "total_consumed_minutes", nullable = false)
     @Builder.Default
-    private Long totalCostCredits = 0L;
+    private Long totalConsumedMinutes = 0L;
+
+    @Column(name = "env_vars_json", nullable = false)
+    @Builder.Default
+    private String envVarsJson = "{}";
+
+    @Column(name = "queued_at")
+    private OffsetDateTime queuedAt;
+
+    @Column(name = "started_at")
+    private OffsetDateTime startedAt;
+
+    @Column(name = "finished_at")
+    private OffsetDateTime finishedAt;
+
+    @Column(name = "active_lease_expires_at")
+    private OffsetDateTime activeLeaseExpiresAt;
+
+    @Column(name = "current_lease_reserved_minutes", nullable = false)
+    @Builder.Default
+    private Long currentLeaseReservedMinutes = 0L;
+
+    @Column(name = "lease_sequence", nullable = false)
+    @Builder.Default
+    private Long leaseSequence = 0L;
+
+    @Column(name = "lease_settled", nullable = false)
+    @Builder.Default
+    private Boolean leaseSettled = false;
 
     @Column(name = "created_at", updatable = false)
     @Builder.Default
     private OffsetDateTime createdAt = OffsetDateTime.now();
+
+    @PrePersist
+    protected void ensureId() {
+        if (id == null) {
+            id = UUID.randomUUID();
+        }
+    }
 }

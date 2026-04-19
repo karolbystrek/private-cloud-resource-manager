@@ -1,39 +1,35 @@
 package com.pcrm.backend.jobs.service;
 
-import com.pcrm.backend.creditregistry.domain.CreditRegistryEntry;
-import com.pcrm.backend.creditregistry.repository.CreditRegistryRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pcrm.backend.exception.IdempotencyKeyConflictException;
-import com.pcrm.backend.exception.InsufficientFundsException;
 import com.pcrm.backend.exception.ResourceNotFoundException;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.jobs.repository.JobRepository;
+import com.pcrm.backend.quota.service.QuotaAccountingService;
 import com.pcrm.backend.user.User;
 import com.pcrm.backend.user.repository.UserRepository;
-import com.pcrm.backend.wallet.domain.Wallet;
-import com.pcrm.backend.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
-
-import static com.pcrm.backend.creditregistry.domain.TransactionType.LEASE_DEDUCTION;
-import static com.pcrm.backend.creditregistry.domain.TransactionType.LEASE_REFUND;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class JobSubmissionPersistenceService {
 
-    private final WalletRepository walletRepository;
     private final JobRepository jobRepository;
-    private final CreditRegistryRepository creditRegistryRepository;
     private final UserRepository userRepository;
-    private final PricingService pricingService;
+    private final QuotaAccountingService quotaAccountingService;
+    private final ObjectMapper objectMapper;
 
     public PreparedJobSubmission prepareSubmission(
             UUID userId,
@@ -43,40 +39,41 @@ public class JobSubmissionPersistenceService {
         var user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
 
-        var wallet = walletRepository.findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Wallet", "userId", userId.toString()));
-
         var replayedSubmission = findReplayedSubmission(userId, idempotency, user.getUsername());
         if (replayedSubmission.isPresent()) {
             return replayedSubmission.get();
         }
 
-        var initialLeaseCost = reserveInitialLeaseCost(wallet, request);
-        var savedJob = createJob(user, request, idempotency, initialLeaseCost);
+        var now = OffsetDateTime.now(ZoneOffset.UTC);
+        var savedJob = createQueuedJob(user, request, idempotency, now);
+        var initialReservedMinutes = quotaAccountingService.reserveInitialLease(
+                userId,
+                savedJob,
+                "Initial 15-minute lease reservation"
+        );
 
-        creditRegistryRepository.save(buildLeaseDeductionEntry(wallet, savedJob, initialLeaseCost));
-        walletRepository.save(wallet);
+        savedJob.setCurrentLeaseReservedMinutes(initialReservedMinutes);
+        savedJob.setActiveLeaseExpiresAt(now.plusMinutes(initialReservedMinutes));
+        jobRepository.save(savedJob);
 
-        log.debug("Prepared job submission for user {}: jobId#{}", user.getUsername(), savedJob.getId());
-        return PreparedJobSubmission.created(savedJob.getId(), userId, initialLeaseCost);
+        log.debug("Prepared queued job submission for user {}: jobId#{}", user.getUsername(), savedJob.getId());
+        return PreparedJobSubmission.created(savedJob.getId(), userId, initialReservedMinutes);
     }
 
     public void compensateFailedDispatch(PreparedJobSubmission preparedJobSubmission) {
-        var wallet = walletRepository.findByUserId(preparedJobSubmission.userId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Wallet",
-                        "userId",
-                        preparedJobSubmission.userId().toString()
-                ));
-
         var job = jobRepository.findById(preparedJobSubmission.jobId())
                 .orElseThrow(() -> new ResourceNotFoundException("Job", preparedJobSubmission.jobId()));
 
-        wallet.setBalance(wallet.getBalance() + preparedJobSubmission.initialLeaseCost());
-        job.setStatus(JobStatus.FAILED);
+        quotaAccountingService.refundLeaseReservation(
+                job,
+                preparedJobSubmission.initialReservedMinutes(),
+                "Nomad dispatch failed, initial lease refunded"
+        );
 
-        creditRegistryRepository.save(buildLeaseRefundEntry(wallet, job, preparedJobSubmission.initialLeaseCost()));
-        walletRepository.save(wallet);
+        job.setCurrentLeaseReservedMinutes(0L);
+        job.setLeaseSettled(true);
+        job.setStatus(JobStatus.FAILED);
+        job.setFinishedAt(OffsetDateTime.now(ZoneOffset.UTC));
         jobRepository.save(job);
 
         log.debug("Compensated failed dispatch for jobId#{}", preparedJobSubmission.jobId());
@@ -101,63 +98,41 @@ public class JobSubmissionPersistenceService {
         return Optional.of(PreparedJobSubmission.replayed(persistedJob.getId(), userId));
     }
 
-    private long reserveInitialLeaseCost(Wallet wallet, JobSubmissionRequest request) {
-        var initialLeaseCost = pricingService.calculateInitialLeaseCost(request);
-        if (wallet.getBalance() < initialLeaseCost) {
-            throw new InsufficientFundsException(wallet.getBalance(), initialLeaseCost);
-        }
-
-        wallet.setBalance(wallet.getBalance() - initialLeaseCost);
-        return initialLeaseCost;
-    }
-
-    private Job createJob(
+    private Job createQueuedJob(
             User user,
             JobSubmissionRequest request,
             JobSubmissionIdempotency idempotency,
-            long initialLeaseCost
+            OffsetDateTime now
     ) {
+        var leaseMinutes = quotaAccountingService.getLeaseMinutes();
         var job = Job.builder()
+                .id(UUID.randomUUID())
                 .user(user)
                 .nodeId(null)
-                .status(JobStatus.PENDING)
+                .status(JobStatus.QUEUED)
                 .dockerImage(request.dockerImage())
                 .executionCommand(request.executionCommand())
                 .idempotencyKey(idempotency.key())
                 .submissionFingerprint(idempotency.fingerprint())
                 .reqCpuCores(request.reqCpuCores())
                 .reqRamGb(request.reqRamGb())
-                .totalCostCredits(initialLeaseCost)
+                .envVarsJson(serializeEnvVars(request))
+                .queuedAt(now)
+                .activeLeaseExpiresAt(now.plusMinutes(leaseMinutes))
+                .currentLeaseReservedMinutes(0L)
+                .leaseSequence(1L)
+                .leaseSettled(false)
+                .totalConsumedMinutes(0L)
                 .build();
 
         return jobRepository.save(job);
     }
 
-    private CreditRegistryEntry buildLeaseDeductionEntry(
-            Wallet wallet,
-            Job job,
-            long initialLeaseCost
-    ) {
-        return CreditRegistryEntry.builder()
-                .wallet(wallet)
-                .job(job)
-                .transactionType(LEASE_DEDUCTION)
-                .amountCredits(-initialLeaseCost)
-                .description("Initial 15-minute lease deduction")
-                .build();
-    }
-
-    private CreditRegistryEntry buildLeaseRefundEntry(
-            Wallet wallet,
-            Job job,
-            long initialLeaseCost
-    ) {
-        return CreditRegistryEntry.builder()
-                .wallet(wallet)
-                .job(job)
-                .transactionType(LEASE_REFUND)
-                .amountCredits(initialLeaseCost)
-                .description("Nomad dispatch failed, initial lease refunded")
-                .build();
+    private String serializeEnvVars(JobSubmissionRequest request) {
+        try {
+            return objectMapper.writeValueAsString(request.envVars());
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Failed to serialize environment variables", ex);
+        }
     }
 }

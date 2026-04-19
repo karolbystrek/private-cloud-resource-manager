@@ -14,7 +14,7 @@ public record JobHistoryItemResponse(
         String executionCommand,
         int reqCpuCores,
         int reqRamGb,
-        long totalCostCredits,
+        long totalConsumedMinutes,
         OffsetDateTime createdAt
 ) {
 
@@ -27,7 +27,7 @@ public record JobHistoryItemResponse(
                 job.getExecutionCommand(),
                 job.getReqCpuCores(),
                 job.getReqRamGb(),
-                job.getTotalCostCredits(),
+                job.getTotalConsumedMinutes(),
                 job.getCreatedAt()
         );
     }

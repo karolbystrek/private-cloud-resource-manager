@@ -2,6 +2,7 @@ package com.pcrm.backend.nomad.stream;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.nodes.domain.Node;
@@ -9,6 +10,7 @@ import com.pcrm.backend.nodes.repository.NodeRepository;
 import com.pcrm.backend.nomad.stream.dto.NomadEvent;
 import com.pcrm.backend.nomad.stream.dto.NomadEventPayload;
 import com.pcrm.backend.nomad.stream.dto.NomadEventStreamResponse;
+import com.pcrm.backend.quota.service.QuotaAccountingService;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +24,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,6 +46,7 @@ public class NomadEventStreamListener {
     private final NomadStreamCursorRepository cursorRepository;
     private final JobRepository jobRepository;
     private final NodeRepository nodeRepository;
+    private final QuotaAccountingService quotaAccountingService;
     private final JsonMapper jsonMapper;
     private final TransactionTemplate transactionTemplate;
 
@@ -57,12 +62,14 @@ public class NomadEventStreamListener {
             NomadStreamCursorRepository cursorRepository,
             JobRepository jobRepository,
             NodeRepository nodeRepository,
+            QuotaAccountingService quotaAccountingService,
             JsonMapper jsonMapper,
             TransactionTemplate transactionTemplate) {
         this.nomadBaseUrl = nomadBaseUrl;
         this.cursorRepository = cursorRepository;
         this.jobRepository = jobRepository;
         this.nodeRepository = nodeRepository;
+        this.quotaAccountingService = quotaAccountingService;
         this.jsonMapper = jsonMapper;
         this.transactionTemplate = transactionTemplate;
         this.httpClient = HttpClient.newBuilder()
@@ -236,7 +243,15 @@ public class NomadEventStreamListener {
             JobStatus newStatus = determineJobStatus(alloc, currentStatus);
 
             if (currentStatus != newStatus) {
+                var now = OffsetDateTime.now(ZoneOffset.UTC);
                 job.setStatus(newStatus);
+                if (newStatus == JobStatus.RUNNING && job.getStartedAt() == null) {
+                    job.setStartedAt(now);
+                }
+                if (isTerminal(newStatus)) {
+                    job.setFinishedAt(now);
+                    settleCurrentLeaseIfNeeded(job, now, "Lease settled after terminal Nomad allocation event");
+                }
                 jobRepository.save(job);
                 log.info("Updated job {} status from {} to {}", jobUuid, currentStatus, newStatus);
             }
@@ -253,8 +268,14 @@ public class NomadEventStreamListener {
             boolean updated = false;
 
             if ("JobDeregistered".equals(eventType) || Boolean.TRUE.equals(eventJob.stop())) {
-                if (job.getStatus() != JobStatus.COMPLETED && job.getStatus() != JobStatus.FAILED && job.getStatus() != JobStatus.OOM_KILLED) {
+                if (job.getStatus() != JobStatus.COMPLETED
+                        && job.getStatus() != JobStatus.FAILED
+                        && job.getStatus() != JobStatus.OOM_KILLED
+                        && job.getStatus() != JobStatus.STOPPED) {
+                    var now = OffsetDateTime.now(ZoneOffset.UTC);
                     job.setStatus(JobStatus.STOPPED);
+                    job.setFinishedAt(now);
+                    settleCurrentLeaseIfNeeded(job, now, "Lease settled after Nomad stop event");
                     updated = true;
                 }
             }
@@ -320,6 +341,43 @@ public class NomadEventStreamListener {
             }
             default -> current;
         };
+    }
+
+    private boolean isTerminal(JobStatus status) {
+        return status == JobStatus.COMPLETED
+                || status == JobStatus.FAILED
+                || status == JobStatus.OOM_KILLED
+                || status == JobStatus.LEASE_EXPIRED
+                || status == JobStatus.STOPPED;
+    }
+
+    private void settleCurrentLeaseIfNeeded(Job job, OffsetDateTime now, String reason) {
+        if (Boolean.TRUE.equals(job.getLeaseSettled())) {
+            return;
+        }
+
+        long reservedMinutes = Math.max(0L, job.getCurrentLeaseReservedMinutes());
+        long consumedMinutes = calculateConsumedMinutes(job, now, reservedMinutes);
+
+        quotaAccountingService.settleLeaseMinutes(job, reservedMinutes, consumedMinutes, reason);
+        job.setTotalConsumedMinutes(job.getTotalConsumedMinutes() + consumedMinutes);
+        job.setCurrentLeaseReservedMinutes(0L);
+        job.setLeaseSettled(true);
+        job.setActiveLeaseExpiresAt(null);
+    }
+
+    private long calculateConsumedMinutes(Job job, OffsetDateTime now, long reservedMinutes) {
+        if (reservedMinutes <= 0 || job.getStartedAt() == null) {
+            return 0L;
+        }
+
+        var leaseStart = job.getActiveLeaseExpiresAt() != null
+                ? job.getActiveLeaseExpiresAt().minusMinutes(reservedMinutes)
+                : job.getStartedAt();
+        var effectiveStart = leaseStart.isAfter(job.getStartedAt()) ? leaseStart : job.getStartedAt();
+        long elapsedSeconds = Math.max(0L, Duration.between(effectiveStart, now).getSeconds());
+        long roundedUpMinutes = (elapsedSeconds + 59L) / 60L;
+        return Math.min(reservedMinutes, roundedUpMinutes);
     }
 
     protected Long getCursor() {

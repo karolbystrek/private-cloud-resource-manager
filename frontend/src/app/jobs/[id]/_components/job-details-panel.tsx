@@ -7,10 +7,11 @@ import type { JobDetails, JobStatus } from '@/app/jobs/_components/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { formatLocalDateTime, formatUtcDateTime } from '@/lib/date-time';
+import { formatLocalDateTime } from '@/lib/date-time';
+import { formatMinutesAsHoursAndMinutes } from '@/lib/duration';
 
 const ACTIVE_POLL_INTERVAL_MS = 15000;
-const ACTIVE_STATUSES = new Set<JobStatus>(['PENDING', 'RUNNING']);
+const ACTIVE_STATUSES = new Set<JobStatus>(['QUEUED', 'PENDING', 'RUNNING']);
 
 type JobDetailsPanelProps = {
   jobId: string;
@@ -38,7 +39,7 @@ function formatCountdown(totalSeconds: number): string {
 
 function formatDateForUser(value: Date | string | null | undefined, isClient: boolean): string {
   if (!isClient) {
-    return formatUtcDateTime(value);
+    return '-';
   }
   return formatLocalDateTime(value);
 }
@@ -230,12 +231,12 @@ export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobD
 
         <Card>
           <CardHeader>
-            <CardTitle>Resources and Billing</CardTitle>
+            <CardTitle>Resources and Quota</CardTitle>
           </CardHeader>
           <CardContent>
             <FieldRow label="CPU (Cores)" value={job.reqCpuCores} />
             <FieldRow label="RAM (GB)" value={job.reqRamGb} />
-            <FieldRow label="Total Cost" value={job.totalCostCredits} />
+            <FieldRow label="Consumed Time" value={formatMinutesAsHoursAndMinutes(job.totalConsumedMinutes)} />
             <FieldRow
               label="Owner Username"
               value={

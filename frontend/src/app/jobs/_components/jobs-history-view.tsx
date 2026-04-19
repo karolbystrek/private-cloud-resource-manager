@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { formatUtcDateTime } from '@/lib/date-time';
+import { formatMinutesAsHoursAndMinutes } from '@/lib/duration';
 import type { JobHistorySortDirection, JobsPageResponse } from './types';
 
 type JobsHistoryViewProps = {
@@ -81,11 +82,9 @@ export function JobsHistoryView({ jobsPage }: JobsHistoryViewProps) {
                     GB
                   </p>
                   <p>
-                    <span className="text-muted-foreground">Cost:</span>
+                    <span className="text-muted-foreground">Consumed:</span>
                     {' '}
-                    {job.totalCostCredits}
-                    {' '}
-                    credits
+                    {formatMinutesAsHoursAndMinutes(job.totalConsumedMinutes)}
                   </p>
                   <p>
                     <span className="text-muted-foreground">Node:</span>

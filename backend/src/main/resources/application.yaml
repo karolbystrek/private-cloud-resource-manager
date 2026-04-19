@@ -34,9 +34,13 @@ app:
       enabled: ${NOMAD_SYNC_ENABLED}
       interval-ms: ${NOMAD_SYNC_INTERVAL_MS}
       stale-timeout-sec: ${NOMAD_SYNC_STALE_TIMEOUT_SEC}
-  pricing:
-    base-cpu-rate-per-hour: ${BASE_CPU_RATE_PER_HOUR}
-    base-ram-rate-per-hour: ${BASE_RAM_RATE_PER_HOUR}
+  quota:
+    lease-minutes: ${QUOTA_LEASE_MINUTES:15}
+  scheduler:
+    dispatch:
+      interval-ms: ${SCHEDULER_DISPATCH_INTERVAL_MS:3000}
+      base-quantum: ${SCHEDULER_BASE_QUANTUM:25}
+      age-boost-per-minute: ${SCHEDULER_AGE_BOOST_PER_MINUTE:2}
   security:
     cookie:
       secure: true

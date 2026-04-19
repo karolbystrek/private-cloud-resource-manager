@@ -1,6 +1,7 @@
 package com.pcrm.backend.jobs.domain;
 
 public enum JobStatus {
+    QUEUED,
     PENDING,
     RUNNING,
     COMPLETED,

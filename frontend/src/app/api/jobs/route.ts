@@ -156,7 +156,7 @@ function mapErrorResponse(status: number, problem: BrokerProblemDetail | null): 
   }
 
   if (status === 402) {
-    return { error: problem?.detail ?? 'Insufficient balance to start this job.' };
+    return { error: problem?.detail ?? 'Insufficient quota to start this job.' };
   }
 
   if (status === 503) {

@@ -102,8 +102,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
-    @ExceptionHandler(InsufficientFundsException.class)
-    public ProblemDetail handleInsufficientFunds(InsufficientFundsException ex) {
+    @ExceptionHandler(InsufficientQuotaException.class)
+    public ProblemDetail handleInsufficientQuota(InsufficientQuotaException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.PAYMENT_REQUIRED, ex.getMessage());
         problem.setTitle("Payment Required");
