@@ -13,8 +13,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { formatLocalMonthDay, formatUtcDateTime } from '@/lib/date-time';
 import { formatMinutesAsHoursAndMinutes } from '@/lib/duration';
 
-const FAILED_STATUSES = new Set<JobStatus>(['FAILED', 'OOM_KILLED', 'LEASE_EXPIRED']);
 const DEFAULT_HISTORY_PAGE_SIZE = 5;
+
+type StatusCounts = {
+  queued: number;
+  running: number;
+  completed: number;
+  failed: number;
+};
 
 type HomeDashboardProps = {
   jobs: JobHistoryItem[];
@@ -28,6 +34,7 @@ type HomeDashboardProps = {
     resetAt: string;
   } | null;
   quotaError: string | null;
+  statusCounts: StatusCounts;
 };
 
 function clampPercentage(value: number): number {
@@ -71,11 +78,8 @@ function buildJobsHistoryHref(statuses: JobStatus[] = []): string {
   return `/jobs?${params.toString()}`;
 }
 
-export function HomeDashboard({ jobs, jobsError, quota, quotaError }: HomeDashboardProps) {
-  const runningCount = jobs.filter((job) => job.status === 'RUNNING').length;
-  const completedCount = jobs.filter((job) => job.status === 'COMPLETED').length;
-  const failedCount = jobs.filter((job) => FAILED_STATUSES.has(job.status)).length;
-  const queuedCount = jobs.filter((job) => job.status === 'QUEUED').length;
+export function HomeDashboard({ jobs, jobsError, quota, quotaError, statusCounts }: HomeDashboardProps) {
+  const { queued: queuedCount, running: runningCount, completed: completedCount, failed: failedCount } = statusCounts;
   const quotaSegments = quota ? getQuotaBarSegments(quota) : null;
 
   return (

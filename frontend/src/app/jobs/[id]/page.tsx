@@ -49,11 +49,7 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
   return (
     <div className="bg-background/50 min-h-[calc(100vh-3.5rem)] w-full py-8">
       <div className="container mx-auto max-w-6xl px-4 md:px-6">
-        <JobDetailsPanel
-          jobId={id}
-          initialJob={job}
-          initialUpdatedAtIso={new Date().toISOString()}
-        />
+        <JobDetailsPanel jobId={id} initialJob={job} />
       </div>
     </div>
   );

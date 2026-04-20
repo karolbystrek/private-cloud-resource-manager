@@ -11,13 +11,11 @@ import { formatLocalDateTime } from '@/lib/date-time';
 import { formatMinutesAsHoursAndMinutes } from '@/lib/duration';
 import { JobLogsPanel } from './job-logs-panel';
 
-const ACTIVE_POLL_INTERVAL_MS = 15000;
 const ACTIVE_STATUSES = new Set<JobStatus>(['QUEUED', 'PENDING', 'RUNNING']);
 
 type JobDetailsPanelProps = {
   jobId: string;
   initialJob: JobDetails;
-  initialUpdatedAtIso: string;
 };
 
 type FieldRowProps = {
@@ -28,15 +26,6 @@ type FieldRowProps = {
 type ArtifactDownloadPayload = {
   url: string;
 };
-
-function formatCountdown(totalSeconds: number): string {
-  const seconds = Math.max(0, totalSeconds);
-  const minutesPart = Math.floor(seconds / 60)
-    .toString()
-    .padStart(2, '0');
-  const secondsPart = (seconds % 60).toString().padStart(2, '0');
-  return `${minutesPart}:${secondsPart}`;
-}
 
 function formatDateForUser(value: Date | string | null | undefined, isClient: boolean): string {
   if (!isClient) {
@@ -54,28 +43,17 @@ function FieldRow({ label, value }: FieldRowProps) {
   );
 }
 
-export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobDetailsPanelProps) {
-  const [job, setJob] = useState<JobDetails>(initialJob);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date>(new Date(initialUpdatedAtIso));
+export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
+  const [job] = useState<JobDetails>(initialJob);
   const [artifactDownloadUrl, setArtifactDownloadUrl] = useState<string | null>(null);
   const [isCheckingArtifact, setIsCheckingArtifact] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const isAutoRefreshEnabled = ACTIVE_STATUSES.has(job.status);
-  const fullIntervalSeconds = Math.max(1, Math.floor(ACTIVE_POLL_INTERVAL_MS / 1000));
-  const [secondsUntilRefresh, setSecondsUntilRefresh] = useState<number>(fullIntervalSeconds);
+  const isJobActive = ACTIVE_STATUSES.has(job.status);
   const isClient = useSyncExternalStore(
     () => () => {},
     () => true,
     () => false,
   );
-
-  async function handleCopyOwnerId() {
-    try {
-      await navigator.clipboard.writeText(job.userId);
-    } catch {
-      setErrorMessage('Failed to copy owner ID.');
-    }
-  }
 
   async function handleCopyExecutionCommand() {
     try {
@@ -85,108 +63,60 @@ export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobD
     }
   }
 
-  async function loadArtifactDownloadUrl() {
-    setIsCheckingArtifact(true);
-    try {
-      const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/artifact-download-url`, {
-        cache: 'no-store',
-      });
-
-      if (response.status === 401) {
-        window.location.href = `/login?next=${encodeURIComponent(`/jobs/${jobId}`)}`;
-        return;
-      }
-
-      if (!response.ok) {
-        setArtifactDownloadUrl(null);
-        return;
-      }
-
-      const payload = (await response.json()) as ArtifactDownloadPayload;
-      setArtifactDownloadUrl(payload.url ?? null);
-    } catch {
-      setArtifactDownloadUrl(null);
-    } finally {
-      setIsCheckingArtifact(false);
-    }
-  }
-
   useEffect(() => {
-    if (!isAutoRefreshEnabled) {
+    if (isJobActive) {
+      setArtifactDownloadUrl(null);
+      setIsCheckingArtifact(false);
       return;
     }
 
     let isActive = true;
 
-    const refreshJob = async () => {
+    const loadArtifactDownloadUrl = async () => {
+      setIsCheckingArtifact(true);
       try {
-        const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
-          cache: 'no-store',
-        });
+        const response = await fetch(
+          `/api/jobs/${encodeURIComponent(jobId)}/artifact-download-url`,
+          { cache: 'no-store' },
+        );
 
         if (response.status === 401) {
           window.location.href = `/login?next=${encodeURIComponent(`/jobs/${jobId}`)}`;
           return;
         }
 
-        if (response.status === 404) {
-          window.location.href = '/jobs';
-          return;
-        }
-
-        if (!response.ok) {
-          if (isActive) {
-            setErrorMessage('Failed to refresh job details.');
-          }
-          return;
-        }
-
-        const payload = (await response.json()) as JobDetails;
         if (!isActive) {
           return;
         }
 
-        setJob(payload);
-        setLastUpdatedAt(new Date());
-        setSecondsUntilRefresh(fullIntervalSeconds);
-        setErrorMessage('');
+        if (!response.ok) {
+          setArtifactDownloadUrl(null);
+          return;
+        }
+
+        const payload = (await response.json()) as ArtifactDownloadPayload;
+        setArtifactDownloadUrl(payload.url ?? null);
       } catch {
         if (isActive) {
-          setErrorMessage('Failed to refresh job details.');
+          setArtifactDownloadUrl(null);
+        }
+      } finally {
+        if (isActive) {
+          setIsCheckingArtifact(false);
         }
       }
     };
 
-    const timerId = window.setInterval(() => {
-      void refreshJob();
-    }, ACTIVE_POLL_INTERVAL_MS);
-
-    const countdownId = window.setInterval(() => {
-      setSecondsUntilRefresh((current) =>
-        current <= 1 || current > fullIntervalSeconds ? fullIntervalSeconds : current - 1,
-      );
-    }, 1000);
+    void loadArtifactDownloadUrl();
 
     return () => {
       isActive = false;
-      window.clearInterval(timerId);
-      window.clearInterval(countdownId);
     };
-  }, [fullIntervalSeconds, isAutoRefreshEnabled, jobId]);
-
-  useEffect(() => {
-    if (isAutoRefreshEnabled) {
-      setArtifactDownloadUrl(null);
-      setIsCheckingArtifact(false);
-      return;
-    }
-
-    void loadArtifactDownloadUrl();
-  }, [isAutoRefreshEnabled, jobId, job.status]);
+  }, [isJobActive, jobId, job.status]);
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <Link
             href="/jobs"
@@ -197,29 +127,20 @@ export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobD
           </Link>
           <h1 className="text-3xl font-semibold tracking-tight">Job Details</h1>
         </div>
-        <div className="flex flex-col gap-2 md:items-end">
-          {!isAutoRefreshEnabled && artifactDownloadUrl ? (
-            <Button asChild variant="outline" size="sm">
+        <div className="flex items-center md:justify-end">
+          {!isJobActive && artifactDownloadUrl ? (
+            <Button asChild variant="default" size="lg" className="h-11 px-5 text-base">
               <a href={`/api/jobs/${encodeURIComponent(jobId)}/artifact-download`}>
-                <RiDownloadLine aria-hidden="true" size={14} />
+                <RiDownloadLine aria-hidden="true" size={18} />
                 Download Output
               </a>
             </Button>
+          ) : !isJobActive && isCheckingArtifact ? (
+            <p className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+              <RiRefreshLine aria-hidden="true" size={14} />
+              Checking output...
+            </p>
           ) : null}
-          <div className="text-muted-foreground flex flex-col gap-1 text-xs md:items-end">
-            {isAutoRefreshEnabled ? (
-              <p className="inline-flex items-center gap-1">
-                <RiRefreshLine aria-hidden="true" size={14} />
-                {formatCountdown(secondsUntilRefresh)}
-              </p>
-            ) : isCheckingArtifact ? (
-              <p className="inline-flex items-center gap-1">
-                <RiRefreshLine aria-hidden="true" size={14} />
-                Checking output...
-              </p>
-            ) : null}
-            <p>Last update: {formatDateForUser(lastUpdatedAt, isClient)}</p>
-          </div>
         </div>
       </div>
 
@@ -290,7 +211,7 @@ export function JobDetailsPanel({ jobId, initialJob, initialUpdatedAtIso }: JobD
         </CardContent>
       </Card>
 
-      <JobLogsPanel jobId={jobId} isJobActive={isAutoRefreshEnabled} jobStatus={job.status} />
+      <JobLogsPanel jobId={jobId} isJobActive={isJobActive} jobStatus={job.status} />
     </section>
   );
 }

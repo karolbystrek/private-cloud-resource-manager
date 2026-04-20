@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RiFlashlightLine } from '@remixicon/react';
 
 function StatCardSkeleton() {
   return (
@@ -21,13 +22,12 @@ export function HomeDashboardSkeleton() {
   return (
     <div className="bg-background/50 min-h-[calc(100vh-5.5rem)] w-full py-8">
       <div className="container mx-auto max-w-6xl space-y-6 px-4 md:px-6">
-        <div className="space-y-2">
-          <Skeleton className="h-9 w-44" />
-          <Skeleton className="h-4 w-80 max-w-full" />
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground text-sm">Overview of your recent workload and shortcuts.</p>
         </div>
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <StatCardSkeleton />
           <StatCardSkeleton />
           <StatCardSkeleton />
           <StatCardSkeleton />
@@ -36,30 +36,26 @@ export function HomeDashboardSkeleton() {
 
         <section className="grid gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>
-                <Skeleton className="h-6 w-32" />
-              </CardTitle>
-              <CardDescription>
-                <Skeleton className="h-4 w-72 max-w-full" />
-              </CardDescription>
+            <CardHeader >
+              <CardTitle>Recent Jobs</CardTitle>
+              <CardDescription>Latest submitted jobs with status and resources.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <Skeleton className="h-6 w-20" />
+          <Card className="h-full">
+          <CardHeader>
+              <CardTitle className="inline-flex items-center gap-2">
+                <RiFlashlightLine size={16} />
+                Quota
               </CardTitle>
-              <CardDescription>
-                <Skeleton className="h-4 w-56 max-w-full" />
-              </CardDescription>
+              <CardDescription>Monthly prepaid runtime budget.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="rounded-none border bg-muted/40 p-3 space-y-2">

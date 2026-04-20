@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { HomeDashboard } from '@/app/_components/home-dashboard';
-import type { JobHistoryItem, JobsPageResponse } from '@/app/jobs/_components/types';
+import type { JobHistoryItem, JobsPageResponse, JobStatus } from '@/app/jobs/_components/types';
 
 export const metadata: Metadata = {
   title: 'Dashboard - Private Cloud Resource Manager',
@@ -47,6 +47,40 @@ async function fetchRecentJobs(accessToken: string): Promise<JobsResult> {
   return { jobs: data.jobs ?? [], error: null };
 }
 
+const FAILED_STATUSES: JobStatus[] = ['FAILED', 'OOM_KILLED', 'LEASE_EXPIRED'];
+
+async function fetchStatusCount(accessToken: string, statuses: JobStatus[]): Promise<number> {
+  const params = new URLSearchParams({ page: '0', size: '1', sort: 'desc' });
+  for (const status of statuses) {
+    params.append('status', status);
+  }
+
+  const response = await fetch(`${BACKEND_URL}/api/jobs?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
+  });
+
+  if (response.status === 401) {
+    redirect('/login?next=/');
+  }
+  if (!response.ok) {
+    return 0;
+  }
+
+  const data = (await response.json()) as JobsPageResponse;
+  return data.totalElements ?? 0;
+}
+
+async function fetchStatusCounts(accessToken: string) {
+  const [queued, running, completed, failed] = await Promise.all([
+    fetchStatusCount(accessToken, ['QUEUED']),
+    fetchStatusCount(accessToken, ['RUNNING']),
+    fetchStatusCount(accessToken, ['COMPLETED']),
+    fetchStatusCount(accessToken, FAILED_STATUSES),
+  ]);
+  return { queued, running, completed, failed };
+}
+
 async function fetchQuotaSummary(accessToken: string): Promise<QuotaResult> {
   const response = await fetch(`${BACKEND_URL}/api/quota/me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -76,10 +110,19 @@ export default async function Home() {
     redirect('/login?next=/');
   }
 
-  const [{ jobs, error: jobsError }, { quota, error: quotaError }] = await Promise.all([
+  const [{ jobs, error: jobsError }, { quota, error: quotaError }, statusCounts] = await Promise.all([
     fetchRecentJobs(accessToken),
     fetchQuotaSummary(accessToken),
+    fetchStatusCounts(accessToken),
   ]);
 
-  return <HomeDashboard jobs={jobs} jobsError={jobsError} quota={quota} quotaError={quotaError} />;
+  return (
+    <HomeDashboard
+      jobs={jobs}
+      jobsError={jobsError}
+      quota={quota}
+      quotaError={quotaError}
+      statusCounts={statusCounts}
+    />
+  );
 }

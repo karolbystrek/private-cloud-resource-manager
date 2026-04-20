@@ -61,20 +61,19 @@ export function Header({ hasSession, userRole }: HeaderProps) {
 
   return (
     <header className="bg-card sticky top-0 z-50 border-b">
-      <div className="flex h-14 w-full items-center justify-between gap-3 px-4 sm:px-6">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <Link href="/" className="font-heading shrink-0 text-sm font-semibold tracking-wide">
-            Private Cloud Resource Manager
-          </Link>
-          <nav className="flex min-w-0 items-center gap-1.5 overflow-x-auto py-1">
-            <Button asChild variant={isDashboardRoute ? 'default' : 'outline'} size="sm">
+      <div className="flex h-14 w-full items-center gap-3 px-4 sm:px-6">
+        <Link href="/" className="font-heading shrink-0 text-sm font-semibold tracking-wide">
+          Private Cloud Resource Manager
+        </Link>
+        <nav className="ml-auto flex min-w-0 items-center justify-end gap-1.5 overflow-x-auto py-1">
+            <Button asChild variant={isDashboardRoute ? 'default' : 'outline'} size="default">
               <Link href="/">
                 <RiDashboardLine size={14} />
                 Dashboard
               </Link>
             </Button>
             {showAdmin ? (
-              <Button asChild variant={isAdminRoute ? 'default' : 'outline'} size="sm">
+              <Button asChild variant={isAdminRoute ? 'default' : 'outline'} size="default">
                 <Link href="/admin">
                   <RiAdminLine size={14} />
                   Admin
@@ -83,13 +82,13 @@ export function Header({ hasSession, userRole }: HeaderProps) {
             ) : null}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant={isJobsRoute ? 'default' : 'outline'} size="sm">
+                <Button variant={isJobsRoute ? 'default' : 'outline'} size="default">
                   <RiPlayList2Line size={14} />
                   Jobs
                   <RiArrowDownSLine size={14} />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-[11rem]">
+              <DropdownMenuContent align="end" className="min-w-[11rem]">
                 <DropdownMenuItem asChild>
                   <Link href="/jobs">
                     <RiHistoryLine size={14} />
@@ -107,13 +106,13 @@ export function Header({ hasSession, userRole }: HeaderProps) {
             {showNodes ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant={isNodesRoute ? 'default' : 'outline'} size="sm">
+                  <Button variant={isNodesRoute ? 'default' : 'outline'} size="default">
                     <RiServerLine size={14} />
                     Nodes
                     <RiArrowDownSLine size={14} />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-[11rem]">
+                <DropdownMenuContent align="end" className="min-w-[11rem]">
                   <DropdownMenuItem asChild>
                     <Link href="/nodes">
                       <RiServerLine size={14} />
@@ -124,7 +123,6 @@ export function Header({ hasSession, userRole }: HeaderProps) {
               </DropdownMenu>
             ) : null}
           </nav>
-        </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <ThemeToggle />
           <LogoutButton />

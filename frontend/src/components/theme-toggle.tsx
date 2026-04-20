@@ -37,7 +37,7 @@ export default function ThemeToggle() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="icon" aria-label="Theme">
-          {isDarkMode ? <RiMoonLine size={18} /> : <RiSunLine size={18} />}
+          {isDarkMode ? <RiMoonLine size={14} /> : <RiSunLine size={18} />}
           <span className="sr-only">Toggle theme</span>
         </Button>
       </DropdownMenuTrigger>
