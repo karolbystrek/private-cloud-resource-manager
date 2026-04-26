@@ -2,6 +2,10 @@
 
 This system is a distributed on-premise cloud for batch jobs, enforcing strict billing via a "Prepaid Lease" mechanism.
 
+## Architecture planning
+
+- [Architecture implementation plan](docs/architecture-implementation-plan/README.md)
+
 ## How to run the project locally
 
 1. **Environment Setup**: Copy the example environment file to `.env`:
