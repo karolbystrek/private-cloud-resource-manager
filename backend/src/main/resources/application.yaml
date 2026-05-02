@@ -42,6 +42,14 @@ app:
       interval-ms: ${SCHEDULER_DISPATCH_INTERVAL_MS:3000}
       base-quantum: ${SCHEDULER_BASE_QUANTUM:25}
       age-boost-per-minute: ${SCHEDULER_AGE_BOOST_PER_MINUTE:2}
+  events:
+    outbox:
+      enabled: ${EVENTS_OUTBOX_ENABLED:true}
+      poll-interval-ms: ${EVENTS_OUTBOX_POLL_INTERVAL_MS:1000}
+      batch-size: ${EVENTS_OUTBOX_BATCH_SIZE:25}
+      claim-timeout-ms: ${EVENTS_OUTBOX_CLAIM_TIMEOUT_MS:60000}
+      retry-delay-ms: ${EVENTS_OUTBOX_RETRY_DELAY_MS:5000}
+      worker-name: ${EVENTS_OUTBOX_WORKER_NAME:}
   security:
     cookie:
       secure: true
