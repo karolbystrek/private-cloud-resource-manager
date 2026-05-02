@@ -35,7 +35,7 @@ DB-backed state machine
 
 ## Recommended Implementation Order
 
-1. [State Machine, Domain Events, and Outbox Foundation](01-state-machine-events-outbox.md)
+1. [x] [State Machine, Domain Events, and Outbox Foundation](01-state-machine-events-outbox.md)
    - Add the durable event log, outbox, aggregate sequence rules, consumer dedupe, and projection update contract.
 
 2. [Idempotent User-Intent API](02-idempotent-job-intent-api.md)
@@ -86,7 +86,7 @@ DB-backed state machine
 
 | Area | Current state | Target direction |
 | --- | --- | --- |
-| Events | `quota_ledger` exists, but no general `domain_events` or `outbox`. | Add immutable domain events and outbox as the common write path. |
+| Events | `domain_events`, `outbox`, aggregate sequences, and consumer dedupe foundation exist; legacy flows do not emit events yet. | Migrate submission, quota, dispatch, Nomad stream, artifacts, and reconciliation onto the event/outbox path. |
 | Job model | `jobs` stores both intent and execution state. | Split into `jobs`, `runs`, `run_attempts`, and current projections. |
 | Idempotency | Submission idempotency is stored on `jobs`. | Add reusable `idempotency_records` scoped by actor/workflow/key/fingerprint. |
 | Quota | Monthly policy/override/window/ledger exists. | Add grants, explicit reservations, resource multipliers, usage ledger corrections. |
@@ -95,4 +95,3 @@ DB-backed state machine
 | MinIO | Presigned upload/download for `output.zip`. | Per-run prefixes, spec object, manifests, artifact metadata, manifest verification. |
 | Reconciliation | No dedicated reconciler. | Periodic repair workers append correction events and update projections. |
 | Realtime | SSE logs exist. | Add state/quota/artifact realtime notifications sourced from event projections. |
-

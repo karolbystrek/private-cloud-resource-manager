@@ -23,6 +23,9 @@ app:
       enabled: false
       interval-ms: 60000
       stale-timeout-sec: 300
+  events:
+    outbox:
+      enabled: false
   security:
     supabase:
       jwt-secret: test-test-test-test-test-test-test-test-test-test-test
