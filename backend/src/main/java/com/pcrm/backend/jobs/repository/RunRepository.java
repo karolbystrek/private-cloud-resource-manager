@@ -2,8 +2,10 @@ package com.pcrm.backend.jobs.repository;
 
 import com.pcrm.backend.jobs.domain.Run;
 import com.pcrm.backend.jobs.domain.RunStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -27,6 +29,15 @@ public interface RunRepository extends JpaRepository<Run, UUID> {
 
     @EntityGraph(attributePaths = {"job", "job.user", "user"})
     Optional<Run> findFirstByJob_IdOrderByRunNumberDesc(UUID jobId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"job", "job.user", "user"})
+    @Query("""
+            SELECT run
+            FROM Run run
+            WHERE run.id = :runId
+            """)
+    Optional<Run> findByIdForUpdate(@Param("runId") UUID runId);
 
     @Modifying
     @Query("""

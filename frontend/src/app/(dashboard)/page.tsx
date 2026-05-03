@@ -74,7 +74,7 @@ async function fetchStatusCount(accessToken: string, statuses: JobStatus[]): Pro
 
 async function fetchStatusCounts(accessToken: string) {
   const [queued, running, completed, failed] = await Promise.all([
-    fetchStatusCount(accessToken, ['QUEUED']),
+    fetchStatusCount(accessToken, ['SUBMITTED', 'QUEUED']),
     fetchStatusCount(accessToken, RUNNING_STATUSES),
     fetchStatusCount(accessToken, ['SUCCEEDED']),
     fetchStatusCount(accessToken, FAILED_STATUSES),

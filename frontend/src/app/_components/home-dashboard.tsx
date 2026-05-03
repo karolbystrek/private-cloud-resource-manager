@@ -91,7 +91,7 @@ export function HomeDashboard({ jobs, jobsError, quota, quotaError, statusCounts
         </div>
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Link href={buildJobsHistoryHref(['QUEUED'])}>
+          <Link href={buildJobsHistoryHref(['SUBMITTED', 'QUEUED'])}>
             <Card className="hover:border-primary/60 transition-colors">
               <CardHeader className="pb-2"><CardTitle>Queued</CardTitle></CardHeader>
               <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{queuedCount}</p><RiArrowRightLine size={18} /></CardContent>

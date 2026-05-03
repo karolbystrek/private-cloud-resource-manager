@@ -11,7 +11,7 @@ import { formatLocalDateTime } from '@/lib/date-time';
 import { formatMinutesAsHoursAndMinutes } from '@/lib/duration';
 import { JobLogsPanel } from './job-logs-panel';
 
-const ACTIVE_STATUSES = new Set<JobStatus>(['QUEUED', 'DISPATCHING', 'SCHEDULING', 'RUNNING']);
+const ACTIVE_STATUSES = new Set<JobStatus>(['SUBMITTED', 'QUEUED', 'DISPATCHING', 'SCHEDULING', 'RUNNING']);
 
 type JobDetailsPanelProps = {
   jobId: string;

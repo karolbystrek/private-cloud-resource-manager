@@ -13,6 +13,7 @@ const DEFAULT_PAGE = 0;
 const DEFAULT_SIZE = 5;
 const MAX_SIZE = 50;
 const STATUS_OPTIONS: JobStatus[] = [
+  'SUBMITTED',
   'QUEUED',
   'DISPATCHING',
   'SCHEDULING',

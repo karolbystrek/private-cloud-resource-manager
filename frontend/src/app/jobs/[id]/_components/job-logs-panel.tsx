@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const MAX_LOG_LINES = 2000;
-const WAITING_STATUSES = new Set<JobStatus>(['QUEUED', 'DISPATCHING', 'SCHEDULING']);
+const WAITING_STATUSES = new Set<JobStatus>(['SUBMITTED', 'QUEUED', 'DISPATCHING', 'SCHEDULING']);
 
 type LogStream = 'stdout' | 'stderr';
 type ConnectionState =

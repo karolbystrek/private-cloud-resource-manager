@@ -3,6 +3,7 @@ package com.pcrm.backend.jobs.service;
 import com.pcrm.backend.events.service.AggregateIds;
 import com.pcrm.backend.events.service.DomainEventAppendRequest;
 import com.pcrm.backend.events.service.DomainEventAppender;
+import com.pcrm.backend.events.service.EventTopics;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.Run;
 import lombok.RequiredArgsConstructor;
@@ -38,15 +39,31 @@ public class JobRunEventPublisher {
                 "USER",
                 actorId,
                 idempotencyKey,
-                correlationId
+                correlationId,
+                List.of(EventTopics.JOB_SUBMITTED)
         );
+    }
+
+    public void runSubmitted(Run run, UUID correlationId) {
+        runEvent("RunSubmitted", run, Map.of(), SOURCE_BACKEND, correlationId, List.of(EventTopics.RUN_SUBMITTED));
+    }
+
+    public void runEvent(String eventType, Run run, Map<String, ?> extraPayload, String source, UUID correlationId) {
+        runEvent(eventType, run, extraPayload, source, correlationId, List.of(eventType));
     }
 
     public void runEvent(String eventType, Run run, UUID correlationId) {
         runEvent(eventType, run, Map.of(), SOURCE_BACKEND, correlationId);
     }
 
-    public void runEvent(String eventType, Run run, Map<String, ?> extraPayload, String source, UUID correlationId) {
+    private void runEvent(
+            String eventType,
+            Run run,
+            Map<String, ?> extraPayload,
+            String source,
+            UUID correlationId,
+            List<String> topics
+    ) {
         var payload = new java.util.LinkedHashMap<String, Object>();
         payload.put("runId", run.getId());
         payload.put("jobId", run.getJob().getId());
@@ -80,7 +97,7 @@ public class JobRunEventPublisher {
                 null,
                 OffsetDateTime.now(ZoneOffset.UTC),
                 1,
-                List.of(eventType)
+                topics
         ));
     }
 
@@ -91,7 +108,8 @@ public class JobRunEventPublisher {
             String actorType,
             String actorId,
             String idempotencyKey,
-            UUID correlationId
+            UUID correlationId,
+            List<String> topics
     ) {
         domainEventAppender.append(new DomainEventAppendRequest(
                 eventType,
@@ -109,7 +127,7 @@ public class JobRunEventPublisher {
                 idempotencyKey,
                 OffsetDateTime.now(ZoneOffset.UTC),
                 1,
-                List.of(eventType)
+                topics
         ));
     }
 }

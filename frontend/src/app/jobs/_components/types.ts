@@ -1,6 +1,7 @@
 export type JobHistorySortDirection = 'asc' | 'desc';
 
 export type JobStatus =
+  | 'SUBMITTED'
   | 'QUEUED'
   | 'DISPATCHING'
   | 'SCHEDULING'

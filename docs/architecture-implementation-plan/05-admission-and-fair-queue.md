@@ -16,7 +16,8 @@ RunSubmitted
 
 ## Current Repository Baseline
 
-- `JobSubmissionPersistenceService` creates a `QUEUED` job and reserves the first 15-minute lease in the submission transaction.
+- `JobSubmissionPersistenceService` creates a `QUEUED` job and reserves the first 15-minute lease in the submission
+  transaction.
 - `FairQueueDispatcherService` polls `QUEUED` jobs and dispatches directly.
 - This already protects against unreserved compute, but it mixes request handling, admission, and queueing.
 
@@ -36,14 +37,14 @@ Admission worker:
 2. Locks run row and quota balance.
 3. Calculates max reservation from timeout and resource class multiplier.
 4. If quota is available:
-   - creates `quota_reservation`
-   - appends `QuotaReserved`
-   - appends `RunQueued`
-   - updates projections
+    - creates `quota_reservation`
+    - appends `QuotaReserved`
+    - appends `RunQueued`
+    - updates projections
 5. If quota is unavailable:
-   - appends `QuotaRejected`
-   - appends `RunFailed`
-   - updates projections
+    - appends `QuotaRejected`
+    - appends `RunFailed`
+    - updates projections
 
 ## Database Needs
 
@@ -71,30 +72,31 @@ Optional but recommended:
 1. Create `RunAdmissionWorker`.
 2. Subscribe through outbox polling to `run.submitted`.
 3. Add a claim pattern:
-   - select run by ID `FOR UPDATE`
-   - skip if run already admitted/rejected
-   - set transient claim metadata if workers can run concurrently
+    - select run by ID `FOR UPDATE`
+    - skip if run already admitted/rejected
+    - set transient claim metadata if workers can run concurrently
 4. Validate run can still be admitted:
-   - user exists and is active
-   - job/run not canceled
-   - requested resources are within configured maximums
-   - timeout is within product policy
+    - user exists and is active
+    - job/run not canceled
+    - requested resources are within configured maximums
+    - timeout is within product policy
 5. Resolve resource class:
-   - start with `cpu` for existing forms
-   - map GPU/high-memory later from request fields
+    - start with `cpu` for existing forms
+    - map GPU/high-memory later from request fields
 6. Reserve quota:
-   - call the new quota reservation service
-   - lock current balance
-   - write reservation and events in the same transaction
+    - call the new quota reservation service
+    - lock current balance
+    - write reservation and events in the same transaction
 7. Queue admitted run:
-   - status `QUEUED`
-   - append `RunQueued`
-   - update queue projection
+    - status `QUEUED`
+    - append `RunQueued`
+    - update queue projection
 8. Reject unaffordable run:
-   - status `FAILED`
-   - terminal reason `INSUFFICIENT_QUOTA`
-   - append `QuotaRejected` and `RunFailed`
-   - return clear problem detail to the UI when submission waits for admission, or show rejected state when admission is async
+    - status `FAILED`
+    - terminal reason `INSUFFICIENT_QUOTA`
+    - append `QuotaRejected` and `RunFailed`
+    - return clear problem detail to the UI when submission waits for admission, or show rejected state when admission
+      is async
 
 ## Fair Queue Integration
 
@@ -126,15 +128,6 @@ Compatibility option:
 - Keep returning `201 Created`, but do not imply dispatch has happened.
 
 Do not dispatch directly in request path.
-
-## Tests
-
-- Submitted run becomes queued when quota is sufficient.
-- Submitted run becomes failed/rejected when quota is insufficient.
-- Concurrent admission workers cannot reserve the same balance twice.
-- Cancel before admission prevents reservation.
-- Admission is idempotent when the same `RunSubmitted` event is processed twice.
-- Fair queue selection still excludes resource-impossible runs.
 
 ## Acceptance Criteria
 

@@ -85,7 +85,7 @@ public class JobsResource {
     ) {
         log.info("Received job submission request from user {}", principal.user().getUsername());
         var result = jobSubmissionService.submitJob(principal.user().getId(), request, idempotencyKey);
-        var status = result.replayed() ? HttpStatus.OK : HttpStatus.CREATED;
+        var status = result.replayed() ? HttpStatus.OK : HttpStatus.ACCEPTED;
         return ResponseEntity.status(status).body(new JobSubmissionResponse(result.jobId(), result.runId()));
     }
 
