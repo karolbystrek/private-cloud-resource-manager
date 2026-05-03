@@ -6,7 +6,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "echo \"No frontend tests yet\" && exit 0"
   },
   "dependencies": {
     "@phosphor-icons/react": "2.1.10",
