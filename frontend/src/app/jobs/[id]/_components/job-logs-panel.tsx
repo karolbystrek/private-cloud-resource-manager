@@ -1,5 +1,6 @@
 'use client';
 
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RiPulseLine, RiRefreshLine, RiTerminalBoxLine } from '@remixicon/react';
 import type { JobStatus } from '@/app/jobs/_components/types';
@@ -10,7 +11,13 @@ const MAX_LOG_LINES = 2000;
 const WAITING_STATUSES = new Set<JobStatus>(['QUEUED', 'PENDING']);
 
 type LogStream = 'stdout' | 'stderr';
-type ConnectionState = 'connecting' | 'streaming' | 'disconnected' | 'idle' | 'unavailable' | 'waiting';
+type ConnectionState =
+  | 'connecting'
+  | 'streaming'
+  | 'disconnected'
+  | 'idle'
+  | 'unavailable'
+  | 'waiting';
 
 type JobLogsPanelProps = {
   jobId: string;
@@ -67,9 +74,7 @@ function getConnectionBadgeClassName(connectionState: ConnectionState): string {
     case 'unavailable':
       return 'bg-orange-500/20 text-orange-700 border-orange-500/40';
     case 'waiting':
-      return 'bg-muted text-muted-foreground border-border';
     case 'idle':
-      return 'bg-muted text-muted-foreground border-border';
     default:
       return 'bg-muted text-muted-foreground border-border';
   }
@@ -112,7 +117,8 @@ export function JobLogsPanel({ jobId, isJobActive, jobStatus }: JobLogsPanelProp
 
   const openStream = useCallback(() => {
     closeSource();
-    if (!shouldReconnectRef.current && connectionState === 'unavailable') {
+
+    if (!shouldReconnectRef.current) {
       return;
     }
 
@@ -203,7 +209,7 @@ export function JobLogsPanel({ jobId, isJobActive, jobStatus }: JobLogsPanelProp
   useEffect(() => {
     shouldReconnectRef.current = true;
     lastOffsetRef.current = 0;
-    setLogText('');
+
     if (WAITING_STATUSES.has(jobStatus)) {
       closeSource();
       shouldReconnectRef.current = false;
@@ -218,6 +224,16 @@ export function JobLogsPanel({ jobId, isJobActive, jobStatus }: JobLogsPanelProp
       closeSource();
     };
   }, [closeSource, jobId, jobStatus, openStream, selectedStream]);
+
+  function handleSelectStream(stream: LogStream) {
+    if (selectedStream === stream) {
+      return;
+    }
+
+    lastOffsetRef.current = 0;
+    setLogText('');
+    setSelectedStream(stream);
+  }
 
   return (
     <Card>
@@ -257,7 +273,7 @@ export function JobLogsPanel({ jobId, isJobActive, jobStatus }: JobLogsPanelProp
               type="button"
               size="sm"
               variant={selectedStream === 'stdout' ? 'default' : 'outline'}
-              onClick={() => setSelectedStream('stdout')}
+              onClick={() => handleSelectStream('stdout')}
             >
               stdout
             </Button>
@@ -265,7 +281,7 @@ export function JobLogsPanel({ jobId, isJobActive, jobStatus }: JobLogsPanelProp
               type="button"
               size="sm"
               variant={selectedStream === 'stderr' ? 'default' : 'outline'}
-              onClick={() => setSelectedStream('stderr')}
+              onClick={() => handleSelectStream('stderr')}
             >
               stderr
             </Button>

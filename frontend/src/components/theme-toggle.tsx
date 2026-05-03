@@ -1,9 +1,8 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { RiMoonLine, RiSunLine } from '@remixicon/react';
 import { useTheme } from 'next-themes';
-import { useEffect, useMemo, useState } from 'react';
-
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,6 +20,7 @@ export default function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

@@ -211,7 +211,7 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
         </CardContent>
       </Card>
 
-      <JobLogsPanel jobId={jobId} isJobActive={isJobActive} jobStatus={job.status} />
+      <JobLogsPanel key={jobId} jobId={jobId} isJobActive={isJobActive} jobStatus={job.status} />
     </section>
   );
 }

@@ -28,10 +28,7 @@ export async function POST(request: Request) {
 
     const data = (await backendResponse.json()) as AuthenticationResponse;
     if (!isUserRole(data.role) || typeof data.accessToken !== 'string') {
-      return NextResponse.json(
-        { error: 'Invalid authentication response.' },
-        { status: 502 },
-      );
+      return NextResponse.json({ error: 'Invalid authentication response.' }, { status: 502 });
     }
 
     const backendSetCookie = backendResponse.headers.get('set-cookie');
@@ -58,10 +55,7 @@ export async function POST(request: Request) {
     });
 
     return response;
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 },
-    );
+  } catch {
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
