@@ -21,16 +21,17 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Entity
-@Table(name = "quota_ledger")
+@Table(name = "quota_usage_ledger")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class QuotaLedgerEntry {
+public class QuotaUsageLedgerEntry {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -48,21 +49,30 @@ public class QuotaLedgerEntry {
     @JoinColumn(name = "run_id")
     private Run run;
 
-    @Column(name = "lease_seq", nullable = false)
-    @Builder.Default
-    private Long leaseSequence = 0L;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "quota_reservation_id")
+    private QuotaReservation quotaReservation;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "entry_type", nullable = false, length = 40)
-    private QuotaLedgerEntryType entryType;
+    @Column(name = "entry_type", nullable = false, length = 60)
+    private QuotaUsageLedgerEntryType entryType;
+
+    @Column(name = "raw_runtime_seconds")
+    private Long rawRuntimeSeconds;
+
+    @Column(name = "compute_minutes", nullable = false)
+    private Long computeMinutes;
 
     @Column(nullable = false)
-    private Long minutes;
+    private Integer multiplier;
 
-    @Column
-    private String reason;
+    @Column(name = "reason_code", length = 80)
+    private String reasonCode;
+
+    @Column(name = "correlation_id", nullable = false)
+    private UUID correlationId;
 
     @Column(name = "created_at", updatable = false, nullable = false)
     @Builder.Default
-    private OffsetDateTime createdAt = OffsetDateTime.now();
+    private OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);
 }

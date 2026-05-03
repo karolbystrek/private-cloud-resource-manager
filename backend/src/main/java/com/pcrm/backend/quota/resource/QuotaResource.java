@@ -1,8 +1,8 @@
 package com.pcrm.backend.quota.resource;
 
 import com.pcrm.backend.auth.domain.CustomUserDetails;
-import com.pcrm.backend.quota.dto.QuotaLedgerEntryResponse;
 import com.pcrm.backend.quota.dto.QuotaSummaryResponse;
+import com.pcrm.backend.quota.dto.QuotaUsageLedgerEntryResponse;
 import com.pcrm.backend.quota.service.QuotaAccountingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,13 +29,13 @@ public class QuotaResource {
         return quotaAccountingService.getQuotaSummary(principal.user().getId());
     }
 
-    @GetMapping("/ledger")
-    public List<QuotaLedgerEntryResponse> getMyQuotaLedger(
+    @GetMapping("/usage-ledger")
+    public List<QuotaUsageLedgerEntryResponse> getMyQuotaUsageLedger(
             @AuthenticationPrincipal CustomUserDetails principal,
             @RequestParam(name = "window", required = false) String window
     ) {
         var parsedWindow = parseWindow(window);
-        return quotaAccountingService.getQuotaLedger(principal.user().getId(), parsedWindow);
+        return quotaAccountingService.getQuotaUsageLedger(principal.user().getId(), parsedWindow);
     }
 
     private YearMonth parseWindow(String window) {

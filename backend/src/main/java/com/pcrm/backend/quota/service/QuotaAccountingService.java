@@ -5,15 +5,23 @@ import com.pcrm.backend.exception.ResourceNotFoundException;
 import com.pcrm.backend.events.service.AggregateIds;
 import com.pcrm.backend.events.service.DomainEventAppendRequest;
 import com.pcrm.backend.events.service.DomainEventAppender;
-import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.Run;
-import com.pcrm.backend.quota.domain.QuotaLedgerEntry;
-import com.pcrm.backend.quota.domain.QuotaLedgerEntryType;
-import com.pcrm.backend.quota.domain.QuotaWindow;
-import com.pcrm.backend.quota.dto.QuotaLedgerEntryResponse;
+import com.pcrm.backend.quota.domain.QuotaGrant;
+import com.pcrm.backend.quota.domain.QuotaGrantStatus;
+import com.pcrm.backend.quota.domain.QuotaGrantType;
+import com.pcrm.backend.quota.domain.QuotaReservation;
+import com.pcrm.backend.quota.domain.QuotaReservationStatus;
+import com.pcrm.backend.quota.domain.QuotaUsageLedgerEntry;
+import com.pcrm.backend.quota.domain.QuotaUsageLedgerEntryType;
+import com.pcrm.backend.quota.domain.UserQuotaBalanceCurrent;
 import com.pcrm.backend.quota.dto.QuotaSummaryResponse;
-import com.pcrm.backend.quota.repository.QuotaLedgerRepository;
-import com.pcrm.backend.quota.repository.QuotaWindowRepository;
+import com.pcrm.backend.quota.dto.QuotaUsageLedgerEntryResponse;
+import com.pcrm.backend.quota.dto.admin.AdminQuotaGrantRequest;
+import com.pcrm.backend.quota.dto.admin.AdminQuotaGrantResponse;
+import com.pcrm.backend.quota.repository.QuotaGrantRepository;
+import com.pcrm.backend.quota.repository.QuotaReservationRepository;
+import com.pcrm.backend.quota.repository.QuotaUsageLedgerRepository;
+import com.pcrm.backend.quota.repository.UserQuotaBalanceCurrentRepository;
 import com.pcrm.backend.user.User;
 import com.pcrm.backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,17 +33,22 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class QuotaAccountingService {
 
+    private static final String COMPUTE_RESOURCE_CLASS = "compute";
+    private static final int DEFAULT_MULTIPLIER = 1;
+
     private final UserRepository userRepository;
-    private final QuotaWindowRepository quotaWindowRepository;
-    private final QuotaLedgerRepository quotaLedgerRepository;
+    private final QuotaGrantRepository quotaGrantRepository;
+    private final QuotaReservationRepository quotaReservationRepository;
+    private final QuotaUsageLedgerRepository quotaUsageLedgerRepository;
+    private final UserQuotaBalanceCurrentRepository userQuotaBalanceCurrentRepository;
     private final QuotaPolicyResolverService quotaPolicyResolverService;
     private final DomainEventAppender domainEventAppender;
 
@@ -43,60 +56,45 @@ public class QuotaAccountingService {
     private long leaseMinutes;
 
     @Transactional
-    public long reserveInitialLease(UUID userId, Job job, String reason) {
-        if (job.getCurrentRun() != null) {
-            return reserveInitialLease(userId, job.getCurrentRun(), reason);
-        }
-
-        var user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        var now = OffsetDateTime.now(ZoneOffset.UTC);
-        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, now);
-        var bounds = resolveBounds(now);
-        var window = getOrCreateWindowForUpdate(user, bounds, effectivePolicy, now);
-
-        var remaining = calculateRemainingMinutes(window);
-        if (!effectivePolicy.unlimited() && remaining < leaseMinutes) {
-            throw new InsufficientQuotaException(remaining, leaseMinutes);
-        }
-
-        window.setReservedMinutes(window.getReservedMinutes() + leaseMinutes);
-        bumpVersionAndUpdatedAt(window, now);
-        quotaWindowRepository.save(window);
-        quotaLedgerRepository.save(buildLedgerEntry(user, job, null, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_RESERVE, leaseMinutes, reason, now));
-        appendQuotaEvent("QuotaReserved", user, job, null, QuotaLedgerEntryType.LEASE_RESERVE, leaseMinutes, reason, now);
-        return leaseMinutes;
-    }
-
-    @Transactional
     public long reserveInitialLease(UUID userId, Run run, String reason) {
+        var existingReservation = quotaReservationRepository
+                .findByRunIdAndStatusForUpdate(run.getId(), QuotaReservationStatus.ACTIVE);
+        if (existingReservation.isPresent()) {
+            run.setQuotaReservationId(existingReservation.get().getId());
+            return existingReservation.get().getReservedComputeMinutes();
+        }
+
         var user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, now);
         var bounds = resolveBounds(now);
-        var window = getOrCreateWindowForUpdate(user, bounds, effectivePolicy, now);
+        var balance = getOrCreateBalanceForUpdate(user, bounds, effectivePolicy, now);
+        var computeMinutes = normalizeComputeMinutes(leaseMinutes, DEFAULT_MULTIPLIER);
 
-        var remaining = calculateRemainingMinutes(window);
-        if (!effectivePolicy.unlimited() && remaining < leaseMinutes) {
-            throw new InsufficientQuotaException(remaining, leaseMinutes);
+        if (!effectivePolicy.unlimited() && balance.getAvailableMinutes() < computeMinutes) {
+            throw new InsufficientQuotaException(balance.getAvailableMinutes(), computeMinutes);
         }
 
-        window.setReservedMinutes(window.getReservedMinutes() + leaseMinutes);
-        bumpVersionAndUpdatedAt(window, now);
-        quotaWindowRepository.save(window);
-        quotaLedgerRepository.save(buildLedgerEntry(user, run.getJob(), run, run.getLeaseSequence(), QuotaLedgerEntryType.LEASE_RESERVE, leaseMinutes, reason, now));
-        appendQuotaEvent("QuotaReserved", user, run.getJob(), run, QuotaLedgerEntryType.LEASE_RESERVE, leaseMinutes, reason, now);
-        return leaseMinutes;
-    }
+        var reservation = quotaReservationRepository.save(QuotaReservation.builder()
+                .user(user)
+                .job(run.getJob())
+                .run(run)
+                .intervalStart(bounds.start())
+                .intervalEnd(bounds.end())
+                .reservedComputeMinutes(computeMinutes)
+                .consumedComputeMinutes(0L)
+                .releasedComputeMinutes(0L)
+                .expiresAt(now.plusMinutes(computeMinutes))
+                .status(QuotaReservationStatus.ACTIVE)
+                .createdAt(now)
+                .updatedAt(now)
+                .build());
+        run.setQuotaReservationId(reservation.getId());
 
-    @Transactional
-    public void refundLeaseReservation(Job job, long minutes, String reason) {
-        if (job.getCurrentRun() != null) {
-            refundLeaseReservation(job.getCurrentRun(), minutes, reason);
-            return;
-        }
-        settleLeaseMinutes(job, minutes, 0L, reason);
+        reserveBalanceMinutes(balance, computeMinutes, now);
+        appendQuotaEvent("QuotaReserved", user, run, reservation, "RESERVATION_CREATED", computeMinutes, reason, now);
+        return computeMinutes;
     }
 
     @Transactional
@@ -105,70 +103,40 @@ public class QuotaAccountingService {
     }
 
     @Transactional
-    public void settleLeaseMinutes(Job job, long reservedMinutes, long consumedMinutes, String reason) {
-        if (job.getCurrentRun() != null) {
-            settleLeaseMinutes(job.getCurrentRun(), reservedMinutes, consumedMinutes, reason);
-            return;
-        }
-
-        var user = userRepository.findById(job.getUser().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", job.getUser().getId()));
-
-        var referenceTime = job.getQueuedAt() != null ? job.getQueuedAt() : job.getCreatedAt();
-        var referencePoint = referenceTime != null ? referenceTime : OffsetDateTime.now(ZoneOffset.UTC);
-        var bounds = resolveBounds(referencePoint);
-        var now = OffsetDateTime.now(ZoneOffset.UTC);
-        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, referencePoint);
-        var window = getOrCreateWindowForUpdate(user, bounds, effectivePolicy, now);
-
-        long releasableMinutes = Math.min(Math.max(0L, reservedMinutes), window.getReservedMinutes());
-        long consumed = Math.min(Math.max(0L, consumedMinutes), releasableMinutes);
-        long refunded = releasableMinutes - consumed;
-
-        window.setReservedMinutes(window.getReservedMinutes() - releasableMinutes);
-        window.setConsumedMinutes(window.getConsumedMinutes() + consumed);
-        bumpVersionAndUpdatedAt(window, now);
-        quotaWindowRepository.save(window);
-
-        if (consumed > 0) {
-            quotaLedgerRepository.save(buildLedgerEntry(user, job, null, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_CONSUME, consumed, reason, now));
-            appendQuotaEvent("QuotaConsumed", user, job, null, QuotaLedgerEntryType.LEASE_CONSUME, consumed, reason, now);
-        }
-        if (refunded > 0) {
-            quotaLedgerRepository.save(buildLedgerEntry(user, job, null, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_REFUND, refunded, reason, now));
-            appendQuotaEvent("QuotaReleased", user, job, null, QuotaLedgerEntryType.LEASE_REFUND, refunded, reason, now);
-        }
-    }
-
-    @Transactional
     public void settleLeaseMinutes(Run run, long reservedMinutes, long consumedMinutes, String reason) {
         var user = userRepository.findById(run.getUser().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", run.getUser().getId()));
-
-        var referenceTime = run.getQueuedAt() != null ? run.getQueuedAt() : run.getCreatedAt();
-        var referencePoint = referenceTime != null ? referenceTime : OffsetDateTime.now(ZoneOffset.UTC);
-        var bounds = resolveBounds(referencePoint);
+        var referencePoint = resolveRunReferencePoint(run);
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, referencePoint);
-        var window = getOrCreateWindowForUpdate(user, bounds, effectivePolicy, now);
+        var bounds = resolveBounds(referencePoint);
+        var balance = getOrCreateBalanceForUpdate(user, bounds, effectivePolicy, now);
+        var reservation = findReservationForSettlement(run);
 
-        long releasableMinutes = Math.min(Math.max(0L, reservedMinutes), window.getReservedMinutes());
-        long consumed = Math.min(Math.max(0L, consumedMinutes), releasableMinutes);
-        long refunded = releasableMinutes - consumed;
-
-        window.setReservedMinutes(window.getReservedMinutes() - releasableMinutes);
-        window.setConsumedMinutes(window.getConsumedMinutes() + consumed);
-        bumpVersionAndUpdatedAt(window, now);
-        quotaWindowRepository.save(window);
-
-        if (consumed > 0) {
-            quotaLedgerRepository.save(buildLedgerEntry(user, run.getJob(), run, run.getLeaseSequence(), QuotaLedgerEntryType.LEASE_CONSUME, consumed, reason, now));
-            appendQuotaEvent("QuotaConsumed", user, run.getJob(), run, QuotaLedgerEntryType.LEASE_CONSUME, consumed, reason, now);
+        if (reservation == null) {
+            var settlement = settleBalanceMinutes(balance, Math.max(0L, reservedMinutes), Math.max(0L, consumedMinutes), now);
+            appendSettlementFacts(user, run, null, settlement, reason, now);
+            return;
         }
-        if (refunded > 0) {
-            quotaLedgerRepository.save(buildLedgerEntry(user, run.getJob(), run, run.getLeaseSequence(), QuotaLedgerEntryType.LEASE_REFUND, refunded, reason, now));
-            appendQuotaEvent("QuotaReleased", user, run.getJob(), run, QuotaLedgerEntryType.LEASE_REFUND, refunded, reason, now);
-        }
+
+        var unsettledReservationMinutes = Math.max(
+                0L,
+                reservation.getReservedComputeMinutes()
+                        - reservation.getConsumedComputeMinutes()
+                        - reservation.getReleasedComputeMinutes()
+        );
+        var releasableMinutes = Math.min(Math.max(0L, reservedMinutes), unsettledReservationMinutes);
+        var consumed = Math.min(Math.max(0L, consumedMinutes), releasableMinutes);
+        var released = releasableMinutes - consumed;
+
+        reservation.setConsumedComputeMinutes(reservation.getConsumedComputeMinutes() + consumed);
+        reservation.setReleasedComputeMinutes(reservation.getReleasedComputeMinutes() + released);
+        reservation.setStatus(resolveReservationStatus(reservation));
+        reservation.setUpdatedAt(now);
+        quotaReservationRepository.save(reservation);
+
+        var settlement = settleBalanceMinutes(balance, releasableMinutes, consumed, now);
+        appendSettlementFacts(user, run, reservation, settlement, reason, now);
     }
 
     @Transactional(readOnly = true)
@@ -177,10 +145,11 @@ public class QuotaAccountingService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
         var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, at);
         var bounds = resolveBounds(at);
-        var existingWindow = quotaWindowRepository.findByUser_IdAndWindowStart(userId, bounds.start());
+        var existingBalance = userQuotaBalanceCurrentRepository.findByUser_IdAndIntervalStart(userId, bounds.start());
 
-        long allocatedMinutes = effectivePolicy.monthlyMinutes();
-        long consumedMinutes = existingWindow.map(QuotaWindow::getConsumedMinutes).orElse(0L);
+        long allocatedMinutes = existingBalance.map(UserQuotaBalanceCurrent::getGrantedMinutes)
+                .orElse(effectivePolicy.monthlyMinutes());
+        long consumedMinutes = existingBalance.map(UserQuotaBalanceCurrent::getConsumedMinutes).orElse(0L);
 
         return new QuotaFairnessSnapshot(
                 allocatedMinutes,
@@ -190,28 +159,24 @@ public class QuotaAccountingService {
         );
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public QuotaSummaryResponse getQuotaSummary(UUID userId) {
         var user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, now);
         var bounds = resolveBounds(now);
-
-        var existingWindow = quotaWindowRepository.findByUser_IdAndWindowStart(userId, bounds.start());
-        long allocated = existingWindow.map(QuotaWindow::getAllocatedMinutes).orElse(effectivePolicy.monthlyMinutes());
-        long reserved = existingWindow.map(QuotaWindow::getReservedMinutes).orElse(0L);
-        long consumed = existingWindow.map(QuotaWindow::getConsumedMinutes).orElse(0L);
+        var balance = getOrCreateBalanceForUpdate(user, bounds, effectivePolicy, now);
 
         long remaining = effectivePolicy.unlimited()
                 ? Long.MAX_VALUE
-                : Math.max(0L, allocated - reserved - consumed);
+                : balance.getAvailableMinutes();
 
         return new QuotaSummaryResponse(
                 user.getRole(),
-                allocated,
-                reserved,
-                consumed,
+                balance.getGrantedMinutes(),
+                balance.getReservedMinutes(),
+                balance.getConsumedMinutes(),
                 remaining,
                 effectivePolicy.unlimited(),
                 effectivePolicy.roleWeight(),
@@ -222,85 +187,223 @@ public class QuotaAccountingService {
     }
 
     @Transactional(readOnly = true)
-    public List<QuotaLedgerEntryResponse> getQuotaLedger(UUID userId, YearMonth window) {
+    public List<QuotaUsageLedgerEntryResponse> getQuotaUsageLedger(UUID userId, YearMonth window) {
         var start = OffsetDateTime.of(window.getYear(), window.getMonthValue(), 1, 0, 0, 0, 0, ZoneOffset.UTC);
         var end = start.plusMonths(1);
 
-        return quotaLedgerRepository
+        return quotaUsageLedgerRepository
                 .findByUser_IdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(userId, start, end)
                 .stream()
-                .map(QuotaLedgerEntryResponse::from)
+                .map(QuotaUsageLedgerEntryResponse::from)
                 .toList();
+    }
+
+    @Transactional
+    public AdminQuotaGrantResponse addAdminGrant(
+            UUID actorId,
+            AdminQuotaGrantRequest request,
+            QuotaIntervalBounds bounds,
+            String idempotencyKey
+    ) {
+        var user = userRepository.findById(request.userId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", request.userId()));
+        var actor = userRepository.findById(actorId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", actorId));
+        var now = OffsetDateTime.now(ZoneOffset.UTC);
+        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, bounds.start());
+        var balance = getOrCreateBalanceForUpdate(user, bounds, effectivePolicy, now);
+        var minutes = Math.max(0L, request.minutes());
+
+        var grant = quotaGrantRepository.save(QuotaGrant.builder()
+                .user(user)
+                .intervalStart(bounds.start())
+                .intervalEnd(bounds.end())
+                .grantType(QuotaGrantType.ADMIN_BONUS)
+                .minutes(minutes)
+                .remainingMinutes(minutes)
+                .status(QuotaGrantStatus.ACTIVE)
+                .actor(actor)
+                .reason(request.reason())
+                .createdAt(now)
+                .updatedAt(now)
+                .build());
+
+        balance.setGrantedMinutes(balance.getGrantedMinutes() + minutes);
+        recalculateAvailable(balance);
+        bumpVersionAndUpdatedAt(balance, now);
+        userQuotaBalanceCurrentRepository.save(balance);
+
+        appendGrantEvent("QuotaGrantAdded", grant, balance, actor, idempotencyKey, now);
+        return AdminQuotaGrantResponse.from(
+                grant,
+                balance.getGrantedMinutes(),
+                balance.getReservedMinutes(),
+                balance.getConsumedMinutes(),
+                balance.getAvailableMinutes()
+        );
     }
 
     public long getLeaseMinutes() {
         return leaseMinutes;
     }
 
-    private QuotaWindow getOrCreateWindowForUpdate(
-            User user,
-            QuotaWindowBounds bounds,
-            EffectiveQuotaPolicy effectivePolicy,
-            OffsetDateTime now
-    ) {
-        return quotaWindowRepository.findByUserIdAndWindowStartForUpdate(user.getId(), bounds.start())
-                .orElseGet(() -> createAndLockWindow(user, bounds, effectivePolicy, now));
+    public QuotaIntervalBounds resolveMonthlyBounds(OffsetDateTime at) {
+        return resolveBounds(at);
     }
 
-    private QuotaWindow createAndLockWindow(
+    private UserQuotaBalanceCurrent getOrCreateBalanceForUpdate(
             User user,
-            QuotaWindowBounds bounds,
+            QuotaIntervalBounds bounds,
             EffectiveQuotaPolicy effectivePolicy,
             OffsetDateTime now
     ) {
-        var newWindow = QuotaWindow.builder()
+        return userQuotaBalanceCurrentRepository.findByUserIdAndIntervalStartForUpdate(user.getId(), bounds.start())
+                .orElseGet(() -> createAndLockBalance(user, bounds, effectivePolicy, now));
+    }
+
+    private UserQuotaBalanceCurrent createAndLockBalance(
+            User user,
+            QuotaIntervalBounds bounds,
+            EffectiveQuotaPolicy effectivePolicy,
+            OffsetDateTime now
+    ) {
+        var monthlyMinutes = Math.max(0L, effectivePolicy.monthlyMinutes());
+        var newBalance = UserQuotaBalanceCurrent.builder()
                 .user(user)
-                .windowStart(bounds.start())
-                .windowEnd(bounds.end())
-                .allocatedMinutes(effectivePolicy.monthlyMinutes())
+                .intervalStart(bounds.start())
+                .intervalEnd(bounds.end())
+                .grantedMinutes(monthlyMinutes)
                 .reservedMinutes(0L)
                 .consumedMinutes(0L)
+                .availableMinutes(monthlyMinutes)
                 .updatedAt(now)
                 .version(0L)
                 .build();
 
         try {
-            quotaWindowRepository.saveAndFlush(newWindow);
-            quotaLedgerRepository.save(buildLedgerEntry(
-                    user,
-                    null,
-                    null,
-                    0L,
-                    QuotaLedgerEntryType.WINDOW_ALLOCATION,
-                    effectivePolicy.monthlyMinutes(),
-                    "Monthly quota allocation",
-                    now
-            ));
+            userQuotaBalanceCurrentRepository.saveAndFlush(newBalance);
+            if (monthlyMinutes > 0) {
+                var grant = quotaGrantRepository.save(QuotaGrant.builder()
+                        .user(user)
+                        .intervalStart(bounds.start())
+                        .intervalEnd(bounds.end())
+                        .grantType(QuotaGrantType.ROLE_GRANT)
+                        .minutes(monthlyMinutes)
+                        .remainingMinutes(monthlyMinutes)
+                        .status(QuotaGrantStatus.ACTIVE)
+                        .reason("Monthly role quota grant")
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build());
+                appendGrantEvent("QuotaGrantAdded", grant, newBalance, null, null, now);
+            }
         } catch (DataIntegrityViolationException ignored) {
         }
 
-        return quotaWindowRepository.findByUserIdAndWindowStartForUpdate(user.getId(), bounds.start())
-                .orElseThrow(() -> new ResourceNotFoundException("QuotaWindow", "userId", user.getId().toString()));
+        return userQuotaBalanceCurrentRepository.findByUserIdAndIntervalStartForUpdate(user.getId(), bounds.start())
+                .orElseThrow(() -> new ResourceNotFoundException("UserQuotaBalanceCurrent", "userId", user.getId().toString()));
     }
 
-    private QuotaLedgerEntry buildLedgerEntry(
+    private void reserveBalanceMinutes(UserQuotaBalanceCurrent balance, long minutes, OffsetDateTime now) {
+        balance.setReservedMinutes(balance.getReservedMinutes() + minutes);
+        recalculateAvailable(balance);
+        bumpVersionAndUpdatedAt(balance, now);
+        userQuotaBalanceCurrentRepository.save(balance);
+    }
+
+    private BalanceSettlement settleBalanceMinutes(
+            UserQuotaBalanceCurrent balance,
+            long reservedMinutes,
+            long consumedMinutes,
+            OffsetDateTime now
+    ) {
+        long releasedReservedMinutes = Math.min(reservedMinutes, balance.getReservedMinutes());
+        long consumed = Math.min(consumedMinutes, releasedReservedMinutes);
+        long refunded = releasedReservedMinutes - consumed;
+
+        balance.setReservedMinutes(balance.getReservedMinutes() - releasedReservedMinutes);
+        balance.setConsumedMinutes(balance.getConsumedMinutes() + consumed);
+        recalculateAvailable(balance);
+        bumpVersionAndUpdatedAt(balance, now);
+        userQuotaBalanceCurrentRepository.save(balance);
+
+        return new BalanceSettlement(releasedReservedMinutes, consumed, refunded);
+    }
+
+    private QuotaReservation findReservationForSettlement(Run run) {
+        if (run.getQuotaReservationId() != null) {
+            return quotaReservationRepository.findByIdForUpdate(run.getQuotaReservationId()).orElse(null);
+        }
+        return quotaReservationRepository
+                .findByRunIdAndStatusForUpdate(run.getId(), QuotaReservationStatus.ACTIVE)
+                .orElse(null);
+    }
+
+    private QuotaReservationStatus resolveReservationStatus(QuotaReservation reservation) {
+        var settled = reservation.getConsumedComputeMinutes() + reservation.getReleasedComputeMinutes();
+        if (settled < reservation.getReservedComputeMinutes()) {
+            return QuotaReservationStatus.ACTIVE;
+        }
+        if (reservation.getConsumedComputeMinutes().equals(reservation.getReservedComputeMinutes())) {
+            return QuotaReservationStatus.CONSUMED;
+        }
+        return QuotaReservationStatus.RELEASED;
+    }
+
+    private void appendSettlementFacts(
             User user,
-            Job job,
             Run run,
-            long leaseSequence,
-            QuotaLedgerEntryType type,
-            long minutes,
+            QuotaReservation reservation,
+            BalanceSettlement settlement,
+            String reason,
+            OffsetDateTime now
+    ) {
+        if (settlement.consumedMinutes() > 0) {
+            quotaUsageLedgerRepository.save(buildUsageLedgerEntry(
+                    user,
+                    run,
+                    reservation,
+                    QuotaUsageLedgerEntryType.USAGE_DEBITED,
+                    settlement.consumedMinutes(),
+                    reason,
+                    now
+            ));
+            appendQuotaEvent("QuotaConsumed", user, run, reservation, QuotaUsageLedgerEntryType.USAGE_DEBITED.name(), settlement.consumedMinutes(), reason, now);
+        }
+        if (settlement.refundedMinutes() > 0) {
+            quotaUsageLedgerRepository.save(buildUsageLedgerEntry(
+                    user,
+                    run,
+                    reservation,
+                    QuotaUsageLedgerEntryType.USAGE_RELEASED,
+                    settlement.refundedMinutes(),
+                    reason,
+                    now
+            ));
+            appendQuotaEvent("QuotaReleased", user, run, reservation, QuotaUsageLedgerEntryType.USAGE_RELEASED.name(), settlement.refundedMinutes(), reason, now);
+        }
+    }
+
+    private QuotaUsageLedgerEntry buildUsageLedgerEntry(
+            User user,
+            Run run,
+            QuotaReservation reservation,
+            QuotaUsageLedgerEntryType type,
+            long computeMinutes,
             String reason,
             OffsetDateTime createdAt
     ) {
-        return QuotaLedgerEntry.builder()
+        return QuotaUsageLedgerEntry.builder()
                 .user(user)
-                .job(job)
+                .job(run.getJob())
                 .run(run)
-                .leaseSequence(Math.max(0L, leaseSequence))
+                .quotaReservation(reservation)
                 .entryType(type)
-                .minutes(Math.max(0L, minutes))
-                .reason(reason)
+                .rawRuntimeSeconds(null)
+                .computeMinutes(Math.max(0L, computeMinutes))
+                .multiplier(DEFAULT_MULTIPLIER)
+                .reasonCode(truncate(reason, 80))
+                .correlationId(UUID.randomUUID())
                 .createdAt(createdAt)
                 .build();
     }
@@ -308,24 +411,25 @@ public class QuotaAccountingService {
     private void appendQuotaEvent(
             String eventType,
             User user,
-            Job job,
             Run run,
-            QuotaLedgerEntryType entryType,
+            QuotaReservation reservation,
+            String factType,
             long minutes,
             String reason,
             OffsetDateTime occurredAt
     ) {
         var reference = occurredAt == null ? OffsetDateTime.now(ZoneOffset.UTC) : occurredAt;
-        var aggregateId = AggregateIds.quotaBalance(user.getId(), resolveBounds(reference).start(), "compute");
+        var aggregateId = AggregateIds.quotaBalance(user.getId(), resolveBounds(reference).start(), COMPUTE_RESOURCE_CLASS);
         domainEventAppender.append(new DomainEventAppendRequest(
                 eventType,
                 AggregateIds.QUOTA_BALANCE,
                 aggregateId,
                 Map.of(
                         "userId", user.getId(),
-                        "jobId", job == null ? "" : job.getId(),
-                        "runId", run == null ? "" : run.getId(),
-                        "entryType", entryType.name(),
+                        "jobId", run.getJob().getId(),
+                        "runId", run.getId(),
+                        "quotaReservationId", reservation == null ? "" : reservation.getId(),
+                        "factType", factType,
                         "minutes", Math.max(0L, minutes),
                         "reason", reason == null ? "" : reason
                 ),
@@ -334,7 +438,7 @@ public class QuotaAccountingService {
                 "SYSTEM",
                 "quota-accounting",
                 user.getId(),
-                job == null ? null : job.getId(),
+                run.getJob().getId(),
                 null,
                 UUID.randomUUID(),
                 null,
@@ -344,19 +448,85 @@ public class QuotaAccountingService {
         ));
     }
 
-    private long calculateRemainingMinutes(QuotaWindow window) {
-        return Math.max(0L, window.getAllocatedMinutes() - window.getReservedMinutes() - window.getConsumedMinutes());
+    private void appendGrantEvent(
+            String eventType,
+            QuotaGrant grant,
+            UserQuotaBalanceCurrent balance,
+            User actor,
+            String idempotencyKey,
+            OffsetDateTime occurredAt
+    ) {
+        var aggregateId = AggregateIds.quotaBalance(grant.getUser().getId(), grant.getIntervalStart(), COMPUTE_RESOURCE_CLASS);
+        domainEventAppender.append(new DomainEventAppendRequest(
+                eventType,
+                AggregateIds.QUOTA_BALANCE,
+                aggregateId,
+                Map.of(
+                        "userId", grant.getUser().getId(),
+                        "quotaGrantId", grant.getId(),
+                        "grantType", grant.getGrantType().name(),
+                        "minutes", grant.getMinutes(),
+                        "remainingMinutes", grant.getRemainingMinutes(),
+                        "intervalStart", grant.getIntervalStart(),
+                        "intervalEnd", grant.getIntervalEnd(),
+                        "grantedMinutes", balance.getGrantedMinutes(),
+                        "availableMinutes", balance.getAvailableMinutes(),
+                        "reason", grant.getReason() == null ? "" : grant.getReason()
+                ),
+                Map.of(),
+                "backend",
+                actor == null ? "SYSTEM" : "USER",
+                actor == null ? "quota-accounting" : actor.getId().toString(),
+                grant.getUser().getId(),
+                null,
+                null,
+                UUID.randomUUID(),
+                idempotencyKey,
+                occurredAt,
+                1,
+                List.of(eventType)
+        ));
     }
 
-    private void bumpVersionAndUpdatedAt(QuotaWindow window, OffsetDateTime now) {
-        window.setUpdatedAt(now);
-        window.setVersion(window.getVersion() + 1L);
+    private void recalculateAvailable(UserQuotaBalanceCurrent balance) {
+        balance.setAvailableMinutes(Math.max(
+                0L,
+                balance.getGrantedMinutes() - balance.getReservedMinutes() - balance.getConsumedMinutes()
+        ));
     }
 
-    private QuotaWindowBounds resolveBounds(OffsetDateTime at) {
+    private void bumpVersionAndUpdatedAt(UserQuotaBalanceCurrent balance, OffsetDateTime now) {
+        balance.setUpdatedAt(now);
+        balance.setVersion(balance.getVersion() + 1L);
+    }
+
+    private OffsetDateTime resolveRunReferencePoint(Run run) {
+        var referenceTime = run.getQueuedAt() != null ? run.getQueuedAt() : run.getCreatedAt();
+        return referenceTime != null ? referenceTime : OffsetDateTime.now(ZoneOffset.UTC);
+    }
+
+    private long normalizeComputeMinutes(long requestedMinutes, int multiplier) {
+        return Math.max(0L, requestedMinutes) * Math.max(1, multiplier);
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
+    }
+
+    private QuotaIntervalBounds resolveBounds(OffsetDateTime at) {
         var utc = at.withOffsetSameInstant(ZoneOffset.UTC);
         var start = OffsetDateTime.of(utc.getYear(), utc.getMonthValue(), 1, 0, 0, 0, 0, ZoneOffset.UTC);
         var end = start.plusMonths(1);
-        return new QuotaWindowBounds(start, end);
+        return new QuotaIntervalBounds(start, end);
+    }
+
+    private record BalanceSettlement(
+            long releasedReservedMinutes,
+            long consumedMinutes,
+            long refundedMinutes
+    ) {
     }
 }

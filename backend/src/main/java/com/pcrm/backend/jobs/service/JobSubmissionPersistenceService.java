@@ -76,27 +76,20 @@ public class JobSubmissionPersistenceService {
         var job = jobRepository.findById(preparedJobSubmission.jobId())
                 .orElseThrow(() -> new ResourceNotFoundException("Job", preparedJobSubmission.jobId()));
 
-        var run = runRepository.findById(preparedJobSubmission.runId()).orElse(job.getCurrentRun());
-        if (run != null) {
-            quotaAccountingService.refundLeaseReservation(
-                    run,
-                    preparedJobSubmission.initialReservedMinutes(),
-                    "Nomad dispatch failed, initial lease refunded"
-            );
-            run.setCurrentLeaseReservedMinutes(0L);
-            run.setLeaseSettled(true);
-            run.setStatus(RunStatus.INFRA_FAILED);
-            run.setTerminalReason("NOMAD_DISPATCH_FAILED");
-            run.setProcessFinishedAt(OffsetDateTime.now(ZoneOffset.UTC));
-            runRepository.save(run);
-            eventPublisher.runEvent("RunInfraFailed", run, UUID.randomUUID());
-        } else {
-            quotaAccountingService.refundLeaseReservation(
-                    job,
-                    preparedJobSubmission.initialReservedMinutes(),
-                    "Nomad dispatch failed, initial lease refunded"
-            );
-        }
+        var run = runRepository.findById(preparedJobSubmission.runId())
+                .orElseThrow(() -> new ResourceNotFoundException("Run", preparedJobSubmission.runId()));
+        quotaAccountingService.refundLeaseReservation(
+                run,
+                preparedJobSubmission.initialReservedMinutes(),
+                "Nomad dispatch failed, initial lease refunded"
+        );
+        run.setCurrentLeaseReservedMinutes(0L);
+        run.setLeaseSettled(true);
+        run.setStatus(RunStatus.INFRA_FAILED);
+        run.setTerminalReason("NOMAD_DISPATCH_FAILED");
+        run.setProcessFinishedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        runRepository.save(run);
+        eventPublisher.runEvent("RunInfraFailed", run, UUID.randomUUID());
 
         job.setCurrentLeaseReservedMinutes(0L);
         job.setLeaseSettled(true);

@@ -17,16 +17,17 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Entity
-@Table(name = "quota_window")
+@Table(name = "user_quota_balance_current")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class QuotaWindow {
+public class UserQuotaBalanceCurrent {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -36,14 +37,14 @@ public class QuotaWindow {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "window_start", nullable = false)
-    private OffsetDateTime windowStart;
+    @Column(name = "interval_start", nullable = false)
+    private OffsetDateTime intervalStart;
 
-    @Column(name = "window_end", nullable = false)
-    private OffsetDateTime windowEnd;
+    @Column(name = "interval_end", nullable = false)
+    private OffsetDateTime intervalEnd;
 
-    @Column(name = "allocated_minutes", nullable = false)
-    private Long allocatedMinutes;
+    @Column(name = "granted_minutes", nullable = false)
+    private Long grantedMinutes;
 
     @Column(name = "reserved_minutes", nullable = false)
     private Long reservedMinutes;
@@ -51,9 +52,12 @@ public class QuotaWindow {
     @Column(name = "consumed_minutes", nullable = false)
     private Long consumedMinutes;
 
+    @Column(name = "available_minutes", nullable = false)
+    private Long availableMinutes;
+
     @Column(name = "updated_at", nullable = false)
     @Builder.Default
-    private OffsetDateTime updatedAt = OffsetDateTime.now();
+    private OffsetDateTime updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
     @Column(nullable = false)
     @Builder.Default
