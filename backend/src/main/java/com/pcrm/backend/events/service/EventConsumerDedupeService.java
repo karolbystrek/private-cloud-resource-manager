@@ -14,12 +14,22 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class EventConsumerDedupeService {
 
+    public static final String LOCAL_SOURCE = "backend";
+
     private final JdbcTemplate jdbcTemplate;
 
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean tryStartProcessing(String consumerName, UUID eventId) {
+        return tryStartProcessing(consumerName, LOCAL_SOURCE, eventId);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean tryStartProcessing(String consumerName, String source, UUID eventId) {
         if (consumerName == null || consumerName.isBlank()) {
             throw new IllegalArgumentException("consumerName is required");
+        }
+        if (source == null || source.isBlank()) {
+            throw new IllegalArgumentException("source is required");
         }
         if (eventId == null) {
             throw new IllegalArgumentException("eventId is required");
@@ -27,11 +37,12 @@ public class EventConsumerDedupeService {
 
         var rows = jdbcTemplate.update(
                 """
-                        INSERT INTO event_consumer_dedupe (consumer_name, event_id, processed_at)
-                        VALUES (?, ?, ?)
-                        ON CONFLICT (consumer_name, event_id) DO NOTHING
+                        INSERT INTO event_consumer_dedupe (consumer_name, source, event_id, processed_at)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT (consumer_name, source, event_id) DO NOTHING
                         """,
                 consumerName,
+                source,
                 eventId,
                 OffsetDateTime.now(ZoneOffset.UTC)
         );
@@ -40,7 +51,12 @@ public class EventConsumerDedupeService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean runOnce(String consumerName, UUID eventId, Runnable action) {
-        if (!tryStartProcessing(consumerName, eventId)) {
+        return runOnce(consumerName, LOCAL_SOURCE, eventId, action);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean runOnce(String consumerName, String source, UUID eventId, Runnable action) {
+        if (!tryStartProcessing(consumerName, source, eventId)) {
             return false;
         }
         action.run();

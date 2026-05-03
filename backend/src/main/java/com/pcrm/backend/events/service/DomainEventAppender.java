@@ -27,22 +27,26 @@ public class DomainEventAppender {
         validate(request);
 
         var sequenceNumber = aggregateSequenceService.allocateNext(request.aggregateType(), request.aggregateId());
+        var now = OffsetDateTime.now(ZoneOffset.UTC);
         var event = DomainEvent.builder()
                 .id(UUID.randomUUID())
                 .eventType(request.eventType())
                 .aggregateType(request.aggregateType())
                 .aggregateId(request.aggregateId())
                 .sequenceNumber(sequenceNumber)
-                .occurredAt(OffsetDateTime.now(ZoneOffset.UTC))
+                .occurredAt(request.occurredAt() == null ? now : request.occurredAt())
+                .createdAt(now)
+                .schemaVersion(request.schemaVersion() == null ? 1 : request.schemaVersion())
                 .actorType(blankToNull(request.actorType()))
-                .actorId(request.actorId())
+                .actorId(blankToNull(request.actorId()))
                 .userId(request.userId())
                 .jobId(request.jobId())
                 .causationId(request.causationId())
                 .correlationId(request.correlationId())
                 .idempotencyKey(blankToNull(request.idempotencyKey()))
                 .source(request.source())
-                .payload(toPayload(request.payload()))
+                .metadata(toJson(request.metadata()))
+                .payload(toJson(request.payload()))
                 .build();
 
         var savedEvent = domainEventRepository.save(event);
@@ -61,6 +65,9 @@ public class DomainEventAppender {
         if (request.correlationId() == null) {
             throw new IllegalArgumentException("correlationId is required");
         }
+        if (request.schemaVersion() != null && request.schemaVersion() < 1) {
+            throw new IllegalArgumentException("schemaVersion must be positive");
+        }
     }
 
     private void requireText(String value, String fieldName) {
@@ -69,11 +76,11 @@ public class DomainEventAppender {
         }
     }
 
-    private JsonNode toPayload(Object payload) {
-        if (payload == null) {
+    private JsonNode toJson(Object value) {
+        if (value == null) {
             return objectMapper.createObjectNode();
         }
-        return objectMapper.valueToTree(payload);
+        return objectMapper.valueToTree(value);
     }
 
     private List<String> resolveTopics(DomainEventAppendRequest request) {

@@ -51,6 +51,7 @@ public class OutboxClaimRepository {
                                   outbox_message.event_id,
                                   outbox_message.topic,
                                   outbox_message.payload::text AS payload,
+                                  outbox_message.headers::text AS headers,
                                   outbox_message.available_at,
                                   outbox_message.published_at,
                                   outbox_message.claimed_at,
@@ -107,7 +108,8 @@ public class OutboxClaimRepository {
                 .id(resultSet.getObject("id", UUID.class))
                 .eventId(resultSet.getObject("event_id", UUID.class))
                 .topic(resultSet.getString("topic"))
-                .payload(readPayload(resultSet.getString("payload")))
+                .payload(readJson(resultSet.getString("payload"), "payload"))
+                .headers(readJson(resultSet.getString("headers"), "headers"))
                 .availableAt(resultSet.getObject("available_at", OffsetDateTime.class))
                 .publishedAt(resultSet.getObject("published_at", OffsetDateTime.class))
                 .claimedAt(resultSet.getObject("claimed_at", OffsetDateTime.class))
@@ -118,11 +120,11 @@ public class OutboxClaimRepository {
                 .build();
     }
 
-    private JsonNode readPayload(String payload) throws SQLException {
+    private JsonNode readJson(String json, String fieldName) throws SQLException {
         try {
-            return jsonMapper.readTree(payload);
+            return jsonMapper.readTree(json);
         } catch (JsonProcessingException ex) {
-            throw new SQLException("Failed to deserialize outbox payload", ex);
+            throw new SQLException("Failed to deserialize outbox " + fieldName, ex);
         }
     }
 }

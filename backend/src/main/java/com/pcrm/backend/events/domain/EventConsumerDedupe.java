@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,10 +31,21 @@ public class EventConsumerDedupe {
     private String consumerName;
 
     @Id
+    @Column(nullable = false, length = 120)
+    private String source;
+
+    @Id
     @Column(name = "event_id", nullable = false)
     private UUID eventId;
 
     @Column(name = "processed_at", nullable = false)
     @Builder.Default
     private OffsetDateTime processedAt = OffsetDateTime.now(ZoneOffset.UTC);
+
+    @PrePersist
+    protected void ensureDefaults() {
+        if (processedAt == null) {
+            processedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        }
+    }
 }
