@@ -1,6 +1,7 @@
 package com.pcrm.backend.events.domain;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -46,11 +47,19 @@ public class DomainEvent {
     @Builder.Default
     private OffsetDateTime occurredAt = OffsetDateTime.now(ZoneOffset.UTC);
 
+    @Column(name = "created_at", nullable = false, updatable = false)
+    @Builder.Default
+    private OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);
+
+    @Column(name = "schema_version", nullable = false)
+    @Builder.Default
+    private Integer schemaVersion = 1;
+
     @Column(name = "actor_type", length = 40)
     private String actorType;
 
-    @Column(name = "actor_id")
-    private UUID actorId;
+    @Column(name = "actor_id", length = 255)
+    private String actorId;
 
     @Column(name = "user_id")
     private UUID userId;
@@ -72,6 +81,11 @@ public class DomainEvent {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "jsonb")
+    @Builder.Default
+    private JsonNode metadata = JsonNodeFactory.instance.objectNode();
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
     private JsonNode payload;
 
     @PrePersist
@@ -81,6 +95,15 @@ public class DomainEvent {
         }
         if (occurredAt == null) {
             occurredAt = OffsetDateTime.now(ZoneOffset.UTC);
+        }
+        if (createdAt == null) {
+            createdAt = OffsetDateTime.now(ZoneOffset.UTC);
+        }
+        if (schemaVersion == null) {
+            schemaVersion = 1;
+        }
+        if (metadata == null) {
+            metadata = JsonNodeFactory.instance.objectNode();
         }
     }
 }

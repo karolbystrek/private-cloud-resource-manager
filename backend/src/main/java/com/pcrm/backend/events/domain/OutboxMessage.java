@@ -1,6 +1,7 @@
 package com.pcrm.backend.events.domain;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -40,6 +41,11 @@ public class OutboxMessage {
     @Column(nullable = false, columnDefinition = "jsonb")
     private JsonNode payload;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
+    @Builder.Default
+    private JsonNode headers = JsonNodeFactory.instance.objectNode();
+
     @Column(name = "available_at", nullable = false)
     private OffsetDateTime availableAt;
 
@@ -76,6 +82,9 @@ public class OutboxMessage {
         }
         if (attemptCount == null) {
             attemptCount = 0;
+        }
+        if (headers == null) {
+            headers = JsonNodeFactory.instance.objectNode();
         }
     }
 }

@@ -17,5 +17,6 @@ import java.util.UUID;
 public class EventConsumerDedupeId implements Serializable {
 
     private String consumerName;
+    private String source;
     private UUID eventId;
 }
