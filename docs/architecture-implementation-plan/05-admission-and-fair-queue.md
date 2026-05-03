@@ -70,7 +70,7 @@ Optional but recommended:
 ## Backend Steps
 
 1. Create `RunAdmissionWorker`.
-2. Subscribe through outbox polling to `run.submitted`.
+2. Subscribe through outbox polling to `RunSubmitted`.
 3. Add a claim pattern:
     - select run by ID `FOR UPDATE`
     - skip if run already admitted/rejected

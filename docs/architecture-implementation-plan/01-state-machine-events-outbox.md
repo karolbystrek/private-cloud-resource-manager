@@ -135,18 +135,19 @@ Do not calculate sequence numbers by `MAX(sequence_number) + 1` without a lock.
     - Insert one or more `outbox` rows for topics derived from event type.
 
 3. Define event topic mapping:
-    - `job.submitted`
-    - `run.queued`
-    - `run.dispatch.requested`
-    - `run.dispatched`
-    - `run.started`
-    - `run.finished`
-    - `run.finalized`
-    - `quota.reserved`
-    - `quota.consumed`
-    - `quota.released`
-    - `artifact.finalized`
-    - `nomad.signal.received`
+    - `JobSubmitted`
+    - `RunSubmitted`
+    - `RunQueued`
+    - `RunDispatchRequested`
+    - `RunDispatched`
+    - `RunStarted`
+    - `RunFinished`
+    - `RunFinalized`
+    - `QuotaReserved`
+    - `QuotaConsumed`
+    - `QuotaReleased`
+    - `ArtifactFinalized`
+    - `NomadSignalReceived`
 
 4. Add an `OutboxPoller`:
     - Poll unpublished rows with `FOR UPDATE SKIP LOCKED`.
