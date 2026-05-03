@@ -109,7 +109,8 @@ Recommended:
 - `jobs_current`
 - `runs_current`
 
-If keeping current JPA entities on `jobs`/`runs`, document that these are mutable projections backed by immutable domain events.
+If keeping current JPA entities on `jobs`/`runs`, document that these are mutable projections backed by immutable domain
+events.
 
 ## State Model
 
@@ -182,52 +183,29 @@ For run aggregate:
 
 1. Add JPA entities/repositories for `Run` and optionally `RunAttempt`.
 2. Update submission transaction:
-   - create `Job`
-   - create first `Run`
-   - append `JobSubmitted`
-   - append `RunSubmitted`
-   - write outbox
+    - create `Job`
+    - create first `Run`
+    - append `JobSubmitted`
+    - append `RunSubmitted`
+    - write outbox
 3. Update query services:
-   - job list shows latest/current run summary
-   - job details returns job plus current run
+    - job list shows latest/current run summary
+    - job details returns job plus current run
 4. Update dispatcher:
-   - selects runs, not jobs
-   - writes Nomad mapping to run
+    - selects runs, not jobs
+    - writes Nomad mapping to run
 5. Update Nomad listener:
-   - resolves run by `nomad_job_id` or allocation ID
-   - appends run events
-   - updates run projection
+    - resolves run by `nomad_job_id` or allocation ID
+    - appends run events
+    - updates run projection
 6. Update frontend DTOs:
-   - include `runId`
-   - display run status instead of old job-only status
-   - keep existing URLs compatible by resolving current run for a job
-
-## Migration Strategy
-
-1. Add `runs` table.
-2. Backfill one run per existing job:
-   - `run_number = 1`
-   - copy timestamps/status/resource fields
-   - set `jobs.current_run_id`
-3. Update backend writes to create/update runs.
-4. Keep read compatibility for old job detail endpoints.
-5. After all flows use runs, remove execution fields from `jobs` in a cleanup release.
+    - include `runId`
+    - display run status instead of old job-only status
+    - keep existing URLs compatible by resolving current run for a job
 
 ## Tests
 
-Backend:
-
-- Submitting a job creates exactly one job and one run.
-- Retrying a terminal job creates a second run and does not mutate the first run history.
-- Current job status derives from current run status.
-- Backfill migration maps existing jobs safely.
-- Invalid state transitions are rejected or ignored idempotently.
-
-Frontend:
-
-- Job list still works after response includes current run.
-- Job detail shows current run lifecycle accurately.
-- Retry/cancel controls use run-aware state.
+Do not add any automated tests.
 
 ## Acceptance Criteria
 

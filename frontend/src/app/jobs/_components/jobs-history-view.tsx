@@ -24,13 +24,15 @@ type JobsHistoryViewProps = {
 
 const STATUS_OPTIONS: JobStatus[] = [
   'QUEUED',
-  'PENDING',
+  'DISPATCHING',
+  'SCHEDULING',
   'RUNNING',
-  'COMPLETED',
+  'FINALIZING',
+  'SUCCEEDED',
   'FAILED',
-  'OOM_KILLED',
-  'LEASE_EXPIRED',
-  'STOPPED',
+  'CANCELED',
+  'TIMED_OUT',
+  'INFRA_FAILED',
 ];
 
 function buildJobsHref(

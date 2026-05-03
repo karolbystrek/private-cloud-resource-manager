@@ -25,6 +25,7 @@ type JobSubmissionFieldErrors = Record<string, string[] | undefined>;
 
 type JobSubmissionResponse = {
   jobId?: string;
+  runId?: string;
   error?: string;
   fieldErrors?: JobSubmissionFieldErrors;
 };

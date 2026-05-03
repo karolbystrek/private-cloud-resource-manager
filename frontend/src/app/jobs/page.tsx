@@ -14,13 +14,15 @@ const DEFAULT_SIZE = 5;
 const MAX_SIZE = 50;
 const STATUS_OPTIONS: JobStatus[] = [
   'QUEUED',
-  'PENDING',
+  'DISPATCHING',
+  'SCHEDULING',
   'RUNNING',
-  'COMPLETED',
+  'FINALIZING',
+  'SUCCEEDED',
   'FAILED',
-  'OOM_KILLED',
-  'LEASE_EXPIRED',
-  'STOPPED',
+  'CANCELED',
+  'TIMED_OUT',
+  'INFRA_FAILED',
 ];
 
 type JobsPageSearchParams = Promise<{

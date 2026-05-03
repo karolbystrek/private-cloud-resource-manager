@@ -2,7 +2,11 @@ package com.pcrm.backend.quota.service;
 
 import com.pcrm.backend.exception.InsufficientQuotaException;
 import com.pcrm.backend.exception.ResourceNotFoundException;
+import com.pcrm.backend.events.service.AggregateIds;
+import com.pcrm.backend.events.service.DomainEventAppendRequest;
+import com.pcrm.backend.events.service.DomainEventAppender;
 import com.pcrm.backend.jobs.domain.Job;
+import com.pcrm.backend.jobs.domain.Run;
 import com.pcrm.backend.quota.domain.QuotaLedgerEntry;
 import com.pcrm.backend.quota.domain.QuotaLedgerEntryType;
 import com.pcrm.backend.quota.domain.QuotaWindow;
@@ -21,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 
@@ -32,12 +37,17 @@ public class QuotaAccountingService {
     private final QuotaWindowRepository quotaWindowRepository;
     private final QuotaLedgerRepository quotaLedgerRepository;
     private final QuotaPolicyResolverService quotaPolicyResolverService;
+    private final DomainEventAppender domainEventAppender;
 
     @Value("${app.quota.lease-minutes:15}")
     private long leaseMinutes;
 
     @Transactional
     public long reserveInitialLease(UUID userId, Job job, String reason) {
+        if (job.getCurrentRun() != null) {
+            return reserveInitialLease(userId, job.getCurrentRun(), reason);
+        }
+
         var user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
         var now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -53,17 +63,54 @@ public class QuotaAccountingService {
         window.setReservedMinutes(window.getReservedMinutes() + leaseMinutes);
         bumpVersionAndUpdatedAt(window, now);
         quotaWindowRepository.save(window);
-        quotaLedgerRepository.save(buildLedgerEntry(user, job, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_RESERVE, leaseMinutes, reason, now));
+        quotaLedgerRepository.save(buildLedgerEntry(user, job, null, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_RESERVE, leaseMinutes, reason, now));
+        appendQuotaEvent("QuotaReserved", user, job, null, QuotaLedgerEntryType.LEASE_RESERVE, leaseMinutes, reason, now);
+        return leaseMinutes;
+    }
+
+    @Transactional
+    public long reserveInitialLease(UUID userId, Run run, String reason) {
+        var user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        var now = OffsetDateTime.now(ZoneOffset.UTC);
+        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, now);
+        var bounds = resolveBounds(now);
+        var window = getOrCreateWindowForUpdate(user, bounds, effectivePolicy, now);
+
+        var remaining = calculateRemainingMinutes(window);
+        if (!effectivePolicy.unlimited() && remaining < leaseMinutes) {
+            throw new InsufficientQuotaException(remaining, leaseMinutes);
+        }
+
+        window.setReservedMinutes(window.getReservedMinutes() + leaseMinutes);
+        bumpVersionAndUpdatedAt(window, now);
+        quotaWindowRepository.save(window);
+        quotaLedgerRepository.save(buildLedgerEntry(user, run.getJob(), run, run.getLeaseSequence(), QuotaLedgerEntryType.LEASE_RESERVE, leaseMinutes, reason, now));
+        appendQuotaEvent("QuotaReserved", user, run.getJob(), run, QuotaLedgerEntryType.LEASE_RESERVE, leaseMinutes, reason, now);
         return leaseMinutes;
     }
 
     @Transactional
     public void refundLeaseReservation(Job job, long minutes, String reason) {
+        if (job.getCurrentRun() != null) {
+            refundLeaseReservation(job.getCurrentRun(), minutes, reason);
+            return;
+        }
         settleLeaseMinutes(job, minutes, 0L, reason);
     }
 
     @Transactional
+    public void refundLeaseReservation(Run run, long minutes, String reason) {
+        settleLeaseMinutes(run, minutes, 0L, reason);
+    }
+
+    @Transactional
     public void settleLeaseMinutes(Job job, long reservedMinutes, long consumedMinutes, String reason) {
+        if (job.getCurrentRun() != null) {
+            settleLeaseMinutes(job.getCurrentRun(), reservedMinutes, consumedMinutes, reason);
+            return;
+        }
+
         var user = userRepository.findById(job.getUser().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", job.getUser().getId()));
 
@@ -84,10 +131,43 @@ public class QuotaAccountingService {
         quotaWindowRepository.save(window);
 
         if (consumed > 0) {
-            quotaLedgerRepository.save(buildLedgerEntry(user, job, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_CONSUME, consumed, reason, now));
+            quotaLedgerRepository.save(buildLedgerEntry(user, job, null, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_CONSUME, consumed, reason, now));
+            appendQuotaEvent("QuotaConsumed", user, job, null, QuotaLedgerEntryType.LEASE_CONSUME, consumed, reason, now);
         }
         if (refunded > 0) {
-            quotaLedgerRepository.save(buildLedgerEntry(user, job, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_REFUND, refunded, reason, now));
+            quotaLedgerRepository.save(buildLedgerEntry(user, job, null, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_REFUND, refunded, reason, now));
+            appendQuotaEvent("QuotaReleased", user, job, null, QuotaLedgerEntryType.LEASE_REFUND, refunded, reason, now);
+        }
+    }
+
+    @Transactional
+    public void settleLeaseMinutes(Run run, long reservedMinutes, long consumedMinutes, String reason) {
+        var user = userRepository.findById(run.getUser().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", run.getUser().getId()));
+
+        var referenceTime = run.getQueuedAt() != null ? run.getQueuedAt() : run.getCreatedAt();
+        var referencePoint = referenceTime != null ? referenceTime : OffsetDateTime.now(ZoneOffset.UTC);
+        var bounds = resolveBounds(referencePoint);
+        var now = OffsetDateTime.now(ZoneOffset.UTC);
+        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, referencePoint);
+        var window = getOrCreateWindowForUpdate(user, bounds, effectivePolicy, now);
+
+        long releasableMinutes = Math.min(Math.max(0L, reservedMinutes), window.getReservedMinutes());
+        long consumed = Math.min(Math.max(0L, consumedMinutes), releasableMinutes);
+        long refunded = releasableMinutes - consumed;
+
+        window.setReservedMinutes(window.getReservedMinutes() - releasableMinutes);
+        window.setConsumedMinutes(window.getConsumedMinutes() + consumed);
+        bumpVersionAndUpdatedAt(window, now);
+        quotaWindowRepository.save(window);
+
+        if (consumed > 0) {
+            quotaLedgerRepository.save(buildLedgerEntry(user, run.getJob(), run, run.getLeaseSequence(), QuotaLedgerEntryType.LEASE_CONSUME, consumed, reason, now));
+            appendQuotaEvent("QuotaConsumed", user, run.getJob(), run, QuotaLedgerEntryType.LEASE_CONSUME, consumed, reason, now);
+        }
+        if (refunded > 0) {
+            quotaLedgerRepository.save(buildLedgerEntry(user, run.getJob(), run, run.getLeaseSequence(), QuotaLedgerEntryType.LEASE_REFUND, refunded, reason, now));
+            appendQuotaEvent("QuotaReleased", user, run.getJob(), run, QuotaLedgerEntryType.LEASE_REFUND, refunded, reason, now);
         }
     }
 
@@ -189,6 +269,7 @@ public class QuotaAccountingService {
             quotaLedgerRepository.save(buildLedgerEntry(
                     user,
                     null,
+                    null,
                     0L,
                     QuotaLedgerEntryType.WINDOW_ALLOCATION,
                     effectivePolicy.monthlyMinutes(),
@@ -205,6 +286,7 @@ public class QuotaAccountingService {
     private QuotaLedgerEntry buildLedgerEntry(
             User user,
             Job job,
+            Run run,
             long leaseSequence,
             QuotaLedgerEntryType type,
             long minutes,
@@ -214,12 +296,52 @@ public class QuotaAccountingService {
         return QuotaLedgerEntry.builder()
                 .user(user)
                 .job(job)
+                .run(run)
                 .leaseSequence(Math.max(0L, leaseSequence))
                 .entryType(type)
                 .minutes(Math.max(0L, minutes))
                 .reason(reason)
                 .createdAt(createdAt)
                 .build();
+    }
+
+    private void appendQuotaEvent(
+            String eventType,
+            User user,
+            Job job,
+            Run run,
+            QuotaLedgerEntryType entryType,
+            long minutes,
+            String reason,
+            OffsetDateTime occurredAt
+    ) {
+        var reference = occurredAt == null ? OffsetDateTime.now(ZoneOffset.UTC) : occurredAt;
+        var aggregateId = AggregateIds.quotaBalance(user.getId(), resolveBounds(reference).start(), "compute");
+        domainEventAppender.append(new DomainEventAppendRequest(
+                eventType,
+                AggregateIds.QUOTA_BALANCE,
+                aggregateId,
+                Map.of(
+                        "userId", user.getId(),
+                        "jobId", job == null ? "" : job.getId(),
+                        "runId", run == null ? "" : run.getId(),
+                        "entryType", entryType.name(),
+                        "minutes", Math.max(0L, minutes),
+                        "reason", reason == null ? "" : reason
+                ),
+                Map.of(),
+                "backend",
+                "SYSTEM",
+                "quota-accounting",
+                user.getId(),
+                job == null ? null : job.getId(),
+                null,
+                UUID.randomUUID(),
+                null,
+                occurredAt,
+                1,
+                List.of(eventType)
+        ));
     }
 
     private long calculateRemainingMinutes(QuotaWindow window) {

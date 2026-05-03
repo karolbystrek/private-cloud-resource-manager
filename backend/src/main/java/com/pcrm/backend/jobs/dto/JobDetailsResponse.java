@@ -1,14 +1,15 @@
 package com.pcrm.backend.jobs.dto;
 
 import com.pcrm.backend.jobs.domain.Job;
-import com.pcrm.backend.jobs.domain.JobStatus;
+import com.pcrm.backend.jobs.domain.RunStatus;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 public record JobDetailsResponse(
         UUID id,
-        JobStatus status,
+        UUID runId,
+        RunStatus status,
         String dockerImage,
         String executionCommand,
         int reqCpuCores,
@@ -23,6 +24,7 @@ public record JobDetailsResponse(
     public static JobDetailsResponse from(Job job) {
         return new JobDetailsResponse(
                 job.getId(),
+                job.getCurrentRun() == null ? null : job.getCurrentRun().getId(),
                 job.getStatus(),
                 job.getDockerImage(),
                 job.getExecutionCommand(),

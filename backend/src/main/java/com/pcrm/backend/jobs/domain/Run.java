@@ -19,65 +19,71 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Entity
-@Table(name = "jobs")
+@Table(name = "runs")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Job {
+public class Run {
 
     @Id
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_id", nullable = false)
+    private Job job;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "node_id")
-    private String nodeId;
+    @Column(name = "run_number", nullable = false)
+    private Integer runNumber;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
     private RunStatus status;
 
-    @Column(name = "docker_image", nullable = false)
-    private String dockerImage;
+    @Column(name = "resource_class", length = 60)
+    private String resourceClass;
 
-    @Column(name = "execution_command", nullable = false)
-    private String executionCommand;
+    @Column(name = "requested_timeout_minutes")
+    private Long requestedTimeoutMinutes;
 
-    @Column(name = "idempotency_key", length = 64)
-    private String idempotencyKey;
+    @Column(name = "quota_reservation_id")
+    private UUID quotaReservationId;
 
-    @Column(name = "submission_fingerprint", length = 64)
-    private String submissionFingerprint;
+    @Column(name = "nomad_job_id", length = 180)
+    private String nomadJobId;
 
-    @Column(name = "req_cpu_cores", nullable = false)
-    private Integer reqCpuCores;
+    @Column(name = "nomad_eval_id", length = 180)
+    private String nomadEvalId;
 
-    @Column(name = "req_ram_gb", nullable = false)
-    private Integer reqRamGb;
-
-    @Column(name = "total_consumed_minutes", nullable = false)
-    @Builder.Default
-    private Long totalConsumedMinutes = 0L;
-
-    @Column(name = "env_vars_json", nullable = false)
-    @Builder.Default
-    private String envVarsJson = "{}";
+    @Column(name = "nomad_allocation_id", length = 180)
+    private String nomadAllocationId;
 
     @Column(name = "queued_at")
     private OffsetDateTime queuedAt;
 
+    @Column(name = "dispatch_requested_at")
+    private OffsetDateTime dispatchRequestedAt;
+
+    @Column(name = "dispatched_at")
+    private OffsetDateTime dispatchedAt;
+
     @Column(name = "started_at")
     private OffsetDateTime startedAt;
 
-    @Column(name = "finished_at")
-    private OffsetDateTime finishedAt;
+    @Column(name = "process_finished_at")
+    private OffsetDateTime processFinishedAt;
+
+    @Column(name = "finalized_at")
+    private OffsetDateTime finalizedAt;
 
     @Column(name = "active_lease_expires_at")
     private OffsetDateTime activeLeaseExpiresAt;
@@ -94,27 +100,37 @@ public class Job {
     @Builder.Default
     private Boolean leaseSettled = false;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "current_run_id")
-    private Run currentRun;
-
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "total_consumed_minutes", nullable = false)
     @Builder.Default
-    private OffsetDateTime createdAt = OffsetDateTime.now();
+    private Long totalConsumedMinutes = 0L;
+
+    @Column(name = "terminal_reason", length = 120)
+    private String terminalReason;
+
+    @Column(name = "created_at", updatable = false, nullable = false)
+    @Builder.Default
+    private OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);
 
     @Column(name = "updated_at", nullable = false)
     @Builder.Default
-    private OffsetDateTime updatedAt = OffsetDateTime.now();
+    private OffsetDateTime updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
     @PrePersist
-    protected void ensureId() {
+    protected void ensureNewDefaults() {
+        var now = OffsetDateTime.now(ZoneOffset.UTC);
         if (id == null) {
             id = UUID.randomUUID();
+        }
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
         }
     }
 
     @PreUpdate
     protected void updateTimestamp() {
-        updatedAt = OffsetDateTime.now();
+        updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
     }
 }

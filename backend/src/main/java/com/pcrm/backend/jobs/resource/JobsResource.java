@@ -5,7 +5,7 @@ import com.pcrm.backend.jobs.dto.JobDetailsResponse;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.jobs.dto.JobSubmissionResponse;
 import com.pcrm.backend.jobs.dto.JobsPageResponse;
-import com.pcrm.backend.jobs.domain.JobStatus;
+import com.pcrm.backend.jobs.domain.RunStatus;
 import com.pcrm.backend.jobs.service.JobLogStreamType;
 import com.pcrm.backend.jobs.service.JobLogsService;
 import com.pcrm.backend.jobs.service.JobQueryService;
@@ -51,7 +51,7 @@ public class JobsResource {
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "5") @Min(1) @Max(100) int size,
             @RequestParam(defaultValue = "desc") String sort,
-            @RequestParam(name = "status", required = false) List<JobStatus> statuses,
+            @RequestParam(name = "status", required = false) List<RunStatus> statuses,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         var sortDirection = parseSortDirection(sort);
@@ -86,7 +86,7 @@ public class JobsResource {
         log.info("Received job submission request from user {}", principal.user().getUsername());
         var result = jobSubmissionService.submitJob(principal.user().getId(), request, idempotencyKey);
         var status = result.replayed() ? HttpStatus.OK : HttpStatus.CREATED;
-        return ResponseEntity.status(status).body(new JobSubmissionResponse(result.jobId()));
+        return ResponseEntity.status(status).body(new JobSubmissionResponse(result.jobId(), result.runId()));
     }
 
     private Sort.Direction parseSortDirection(String sort) {

@@ -1,9 +1,20 @@
 export type JobHistorySortDirection = 'asc' | 'desc';
 
-export type JobStatus = 'QUEUED' | 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'OOM_KILLED' | 'LEASE_EXPIRED' | 'STOPPED';
+export type JobStatus =
+  | 'QUEUED'
+  | 'DISPATCHING'
+  | 'SCHEDULING'
+  | 'RUNNING'
+  | 'FINALIZING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCELED'
+  | 'TIMED_OUT'
+  | 'INFRA_FAILED';
 
 export type JobHistoryItem = {
   id: string;
+  runId: string | null;
   nodeId: string | null;
   status: JobStatus;
   dockerImage: string;
@@ -27,6 +38,7 @@ export type JobsPageResponse = {
 
 export type JobDetails = {
   id: string;
+  runId: string | null;
   status: JobStatus;
   dockerImage: string;
   executionCommand: string;
