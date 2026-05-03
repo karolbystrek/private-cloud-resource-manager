@@ -151,7 +151,7 @@ public class RunAdmissionWorker implements OutboxMessageHandler {
     private UUID extractRunId(OutboxMessage message) {
         var rawRunId = message.getPayload().path("runId").asText(null);
         if (rawRunId == null || rawRunId.isBlank()) {
-            throw new IllegalArgumentException("run.submitted payload is missing runId");
+            throw new IllegalArgumentException(EventTopics.RUN_SUBMITTED + " payload is missing runId");
         }
         return UUID.fromString(rawRunId);
     }

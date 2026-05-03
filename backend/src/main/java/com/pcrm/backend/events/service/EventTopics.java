@@ -5,31 +5,31 @@ import java.util.Set;
 
 public final class EventTopics {
 
-    public static final String JOB_SUBMITTED = "job.submitted";
-    public static final String RUN_SUBMITTED = "run.submitted";
-    public static final String RUN_CREATED = "run.created";
-    public static final String RUN_LEASE_RESERVED = "run.lease.reserved";
-    public static final String JOB_QUEUED = "job.queued";
-    public static final String RUN_QUEUED = "run.queued";
-    public static final String RUN_DISPATCH_REQUESTED = "run.dispatch.requested";
-    public static final String RUN_DISPATCHED = "run.dispatched";
-    public static final String RUN_STARTED = "run.started";
-    public static final String RUN_PROCESS_SUCCEEDED = "run.process.succeeded";
-    public static final String RUN_PROCESS_FAILED = "run.process.failed";
-    public static final String RUN_FINALIZING = "run.finalizing";
-    public static final String RUN_FAILED = "run.failed";
-    public static final String RUN_CANCELED = "run.canceled";
-    public static final String RUN_TIMED_OUT = "run.timed_out";
-    public static final String RUN_INFRA_FAILED = "run.infra_failed";
-    public static final String JOB_DISPATCH_REQUESTED = "job.dispatch.requested";
-    public static final String JOB_DISPATCHED = "job.dispatched";
-    public static final String JOB_STARTED = "job.started";
-    public static final String JOB_FINISHED = "job.finished";
-    public static final String QUOTA_RESERVED = "quota.reserved";
-    public static final String QUOTA_REJECTED = "quota.rejected";
-    public static final String QUOTA_CONSUMED = "quota.consumed";
-    public static final String QUOTA_RELEASED = "quota.released";
-    public static final String NOMAD_SIGNAL_RECEIVED = "nomad.signal.received";
+    public static final String JOB_SUBMITTED = "JobSubmitted";
+    public static final String RUN_SUBMITTED = "RunSubmitted";
+    public static final String RUN_CREATED = "RunCreated";
+    public static final String RUN_LEASE_RESERVED = "RunLeaseReserved";
+    public static final String JOB_QUEUED = "JobQueued";
+    public static final String RUN_QUEUED = "RunQueued";
+    public static final String RUN_DISPATCH_REQUESTED = "RunDispatchRequested";
+    public static final String RUN_DISPATCHED = "RunDispatched";
+    public static final String RUN_STARTED = "RunStarted";
+    public static final String RUN_PROCESS_SUCCEEDED = "RunProcessSucceeded";
+    public static final String RUN_PROCESS_FAILED = "RunProcessFailed";
+    public static final String RUN_FINALIZING = "RunFinalizing";
+    public static final String RUN_FAILED = "RunFailed";
+    public static final String RUN_CANCELED = "RunCanceled";
+    public static final String RUN_TIMED_OUT = "RunTimedOut";
+    public static final String RUN_INFRA_FAILED = "RunInfraFailed";
+    public static final String JOB_DISPATCH_REQUESTED = "JobDispatchRequested";
+    public static final String JOB_DISPATCHED = "JobDispatched";
+    public static final String JOB_STARTED = "JobStarted";
+    public static final String JOB_FINISHED = "JobFinished";
+    public static final String QUOTA_RESERVED = "QuotaReserved";
+    public static final String QUOTA_REJECTED = "QuotaRejected";
+    public static final String QUOTA_CONSUMED = "QuotaConsumed";
+    public static final String QUOTA_RELEASED = "QuotaReleased";
+    public static final String NOMAD_SIGNAL_RECEIVED = "NomadSignalReceived";
 
     public static final Set<String> CURRENT_SERVICE_TOPICS = Set.of(
             JOB_SUBMITTED,
