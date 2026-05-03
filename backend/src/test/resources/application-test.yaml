@@ -22,7 +22,7 @@ app:
 application:
   security:
     jwt:
-      public-key: src/test/resources/secrets/public.pem
-      private-key: src/test/resources/secrets/private.pem
+      public-key: src/test/resources/jwt/test-public.pem
+      private-key: src/test/resources/jwt/test-private.pem
       expiration: 900000
       refresh-expiration: 604800000
