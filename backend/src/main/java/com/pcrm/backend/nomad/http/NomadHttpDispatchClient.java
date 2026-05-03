@@ -5,8 +5,6 @@ import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.nomad.NomadDispatchClient;
 import com.pcrm.backend.storage.service.StorageService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -17,7 +15,6 @@ import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
-@Service
 public class NomadHttpDispatchClient implements NomadDispatchClient {
 
     private final RestClient restClient;
@@ -25,8 +22,8 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
     private final StorageService storageService;
 
     public NomadHttpDispatchClient(
-            @Value("${app.nomad.base-url}") String nomadBaseUrl,
-            @Value("${app.nomad.job-template}") String jobTemplatePath,
+            String nomadBaseUrl,
+            String jobTemplatePath,
             StorageService storageService
     ) throws IOException {
         this.restClient = RestClient.builder().baseUrl(nomadBaseUrl).build();

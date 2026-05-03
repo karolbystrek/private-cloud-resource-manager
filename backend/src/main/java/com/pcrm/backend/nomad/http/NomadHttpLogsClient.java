@@ -9,9 +9,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.pcrm.backend.nomad.NomadLogsClient;
 import com.pcrm.backend.nomad.NomadLogsUnavailableException;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -29,7 +27,6 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 @Slf4j
-@Service
 public class NomadHttpLogsClient implements NomadLogsClient {
 
     private final RestClient restClient;
@@ -37,7 +34,7 @@ public class NomadHttpLogsClient implements NomadLogsClient {
     private final JsonMapper jsonMapper;
     private final String nomadBaseUrl;
 
-    public NomadHttpLogsClient(@Value("${app.nomad.base-url}") String nomadBaseUrl, JsonMapper jsonMapper) {
+    public NomadHttpLogsClient(String nomadBaseUrl, JsonMapper jsonMapper) {
         this.restClient = RestClient.builder().baseUrl(nomadBaseUrl).build();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))

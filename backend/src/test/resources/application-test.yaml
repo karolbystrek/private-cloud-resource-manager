@@ -5,14 +5,20 @@ spring:
     password: ""
     driver-class-name: org.h2.Driver
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
+    open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
 
   flyway:
     enabled: false
 
 app:
+  nomad:
+    enabled: false
+    sync:
+      enabled: false
+      interval-ms: 60000
+      stale-timeout-sec: 300
   security:
     cookie:
       secure: false

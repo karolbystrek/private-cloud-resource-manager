@@ -13,10 +13,8 @@ import com.pcrm.backend.nomad.stream.dto.NomadEventStreamResponse;
 import com.pcrm.backend.quota.service.QuotaAccountingService;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.net.URI;
@@ -37,7 +35,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 @Slf4j
-@Service
 public class NomadEventStreamListener {
 
     private static final String META_NODE_ID_KEY = "private-cloud-resource-manager.node_id";
@@ -58,7 +55,7 @@ public class NomadEventStreamListener {
     private CompletableFuture<Void> streamFuture;
 
     public NomadEventStreamListener(
-            @Value("${app.nomad.base-url}") String nomadBaseUrl,
+            String nomadBaseUrl,
             NomadStreamCursorRepository cursorRepository,
             JobRepository jobRepository,
             NodeRepository nodeRepository,

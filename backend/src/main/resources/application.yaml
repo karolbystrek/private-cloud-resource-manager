@@ -28,6 +28,7 @@ springdoc:
 
 app:
   nomad:
+    enabled: ${NOMAD_ENABLED:true}
     base-url: ${NOMAD_BASE_URL}
     job-template: ${NOMAD_WORKLOAD_TEMPLATE_PATH}
     sync:
