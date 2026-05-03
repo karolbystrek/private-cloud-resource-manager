@@ -1,34 +1,27 @@
 package com.pcrm.backend.jobs.resource;
 
 import com.pcrm.backend.auth.domain.CustomUserDetails;
+import com.pcrm.backend.jobs.domain.RunStatus;
 import com.pcrm.backend.jobs.dto.JobDetailsResponse;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.jobs.dto.JobSubmissionResponse;
 import com.pcrm.backend.jobs.dto.JobsPageResponse;
-import com.pcrm.backend.jobs.domain.RunStatus;
 import com.pcrm.backend.jobs.service.JobLogStreamType;
 import com.pcrm.backend.jobs.service.JobLogsService;
 import com.pcrm.backend.jobs.service.JobQueryService;
 import com.pcrm.backend.jobs.service.JobSubmissionService;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -83,9 +76,9 @@ public class JobsResource {
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        log.info("Received job submission request from user {}", principal.email());
+        log.info("Received job submission request from user {}", principal.id());
         var result = jobSubmissionService.submitJob(principal.id(), request, idempotencyKey);
-        var status = result.replayed() ? HttpStatus.OK : HttpStatus.CREATED;
+        var status = result.replayed() ? HttpStatus.OK : HttpStatus.ACCEPTED;
         return ResponseEntity.status(status).body(new JobSubmissionResponse(result.jobId(), result.runId()));
     }
 

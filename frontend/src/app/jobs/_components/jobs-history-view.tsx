@@ -23,6 +23,7 @@ type JobsHistoryViewProps = {
 };
 
 const STATUS_OPTIONS: JobStatus[] = [
+  'SUBMITTED',
   'QUEUED',
   'DISPATCHING',
   'SCHEDULING',

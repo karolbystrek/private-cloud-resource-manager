@@ -70,7 +70,7 @@ public class FairQueueDispatcherService {
         if (candidate.isEmpty()) {
             return;
         }
-        cycleDeficits.forEach(userDeficits::put);
+        userDeficits.putAll(cycleDeficits);
 
         var selected = candidate.get();
         var claimed = transactionTemplate.execute(status ->
@@ -90,7 +90,7 @@ public class FairQueueDispatcherService {
                     selected.run().getId(),
                     jobRequest
             );
-            transactionTemplate.executeWithoutResult(_ -> markDispatched(selected.run().getId(), dispatchResult.nomadJobId(), dispatchResult.nomadEvalId()));
+            transactionTemplate.executeWithoutResult(_ -> markDispatchAccepted(selected.run().getId(), dispatchResult.nomadJobId(), dispatchResult.nomadEvalId()));
             userDeficits.compute(selected.job().getProfile().getId(), (_, value) ->
                     (value == null ? 0.0d : value) - selected.cost());
         } catch (NomadDispatchException ex) {
@@ -106,11 +106,19 @@ public class FairQueueDispatcherService {
             Map<UUID, Double> cycleDeficits
     ) {
         return queuedRuns.stream()
+                .filter(run -> hasDispatchableReservation(run, now))
                 .filter(run -> isRunnable(run.getJob(), clusterCapacity))
                 .map(run -> scoreCandidate(run, clusterCapacity, now, cycleDeficits))
                 .max(Comparator
                         .comparingDouble(CandidateJob::score)
                         .thenComparingLong(CandidateJob::queueAgeMinutes));
+    }
+
+    private boolean hasDispatchableReservation(Run run, OffsetDateTime now) {
+        return run.getQuotaReservationId() != null
+                && run.getCurrentLeaseReservedMinutes() > 0
+                && run.getActiveLeaseExpiresAt() != null
+                && run.getActiveLeaseExpiresAt().isAfter(now);
     }
 
     private CandidateJob scoreCandidate(
@@ -189,26 +197,34 @@ public class FairQueueDispatcherService {
     }
 
     private void markDispatchRequested(UUID runId) {
-        var run = runRepository.findById(runId).orElseThrow();
+        var run = runRepository.findByIdForUpdate(runId).orElseThrow();
         run.setDispatchRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
         runRepository.save(run);
         syncJobProjection(run);
         eventPublisher.runEvent("RunDispatchRequested", run, UUID.randomUUID());
     }
 
-    private void markDispatched(UUID runId, String nomadJobId, String nomadEvalId) {
-        var run = runRepository.findById(runId).orElseThrow();
+    private void markDispatchAccepted(UUID runId, String nomadJobId, String nomadEvalId) {
+        var run = runRepository.findByIdForUpdate(runId).orElseThrow();
         run.setNomadJobId(nomadJobId);
         run.setNomadEvalId(nomadEvalId);
         run.setDispatchedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        run.setStatus(RunStatus.SCHEDULING);
         runRepository.save(run);
         syncJobProjection(run);
-        eventPublisher.runEvent("RunDispatched", run, UUID.randomUUID());
+        eventPublisher.runEvent(
+                "RunDispatchAccepted",
+                run,
+                Map.of(
+                        "nomadJobId", nomadJobId == null ? "" : nomadJobId,
+                        "nomadEvalId", nomadEvalId == null ? "" : nomadEvalId
+                ),
+                "backend",
+                UUID.randomUUID()
+        );
     }
 
     private void compensateDispatchFailure(UUID runId) {
-        var run = runRepository.findById(runId).orElse(null);
+        var run = runRepository.findByIdForUpdate(runId).orElse(null);
         if (run == null || run.getLeaseSettled()) {
             return;
         }

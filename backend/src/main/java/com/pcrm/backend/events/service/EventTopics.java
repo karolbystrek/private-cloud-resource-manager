@@ -6,6 +6,7 @@ import java.util.Set;
 public final class EventTopics {
 
     public static final String JOB_SUBMITTED = "job.submitted";
+    public static final String RUN_SUBMITTED = "run.submitted";
     public static final String RUN_CREATED = "run.created";
     public static final String RUN_LEASE_RESERVED = "run.lease.reserved";
     public static final String JOB_QUEUED = "job.queued";
@@ -25,12 +26,14 @@ public final class EventTopics {
     public static final String JOB_STARTED = "job.started";
     public static final String JOB_FINISHED = "job.finished";
     public static final String QUOTA_RESERVED = "quota.reserved";
+    public static final String QUOTA_REJECTED = "quota.rejected";
     public static final String QUOTA_CONSUMED = "quota.consumed";
     public static final String QUOTA_RELEASED = "quota.released";
     public static final String NOMAD_SIGNAL_RECEIVED = "nomad.signal.received";
 
     public static final Set<String> CURRENT_SERVICE_TOPICS = Set.of(
             JOB_SUBMITTED,
+            RUN_SUBMITTED,
             RUN_CREATED,
             RUN_LEASE_RESERVED,
             JOB_QUEUED,
@@ -50,6 +53,7 @@ public final class EventTopics {
             JOB_STARTED,
             JOB_FINISHED,
             QUOTA_RESERVED,
+            QUOTA_REJECTED,
             QUOTA_CONSUMED,
             QUOTA_RELEASED,
             NOMAD_SIGNAL_RECEIVED

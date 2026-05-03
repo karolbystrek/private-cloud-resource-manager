@@ -238,69 +238,73 @@ public class NomadEventStreamListener {
     }
 
     private void handleAllocationEvent(NomadEventPayload.NomadEventAllocation alloc) {
-        resolveRun(alloc).ifPresent(run -> {
-            var currentStatus = run.getStatus();
-            var newStatus = determineRunStatus(alloc, currentStatus);
-            boolean metadataUpdated = updateNomadAllocationMetadata(run, alloc);
+        resolveRun(alloc)
+                .flatMap(run -> runRepository.findByIdForUpdate(run.getId()))
+                .ifPresent(run -> {
+                    var currentStatus = run.getStatus();
+                    var newStatus = determineRunStatus(alloc, currentStatus);
+                    boolean metadataUpdated = updateNomadAllocationMetadata(run, alloc);
 
-            if (currentStatus != newStatus) {
-                var now = OffsetDateTime.now(ZoneOffset.UTC);
-                run.setStatus(newStatus);
-                if (newStatus == RunStatus.RUNNING && run.getStartedAt() == null) {
-                    run.setStartedAt(now);
-                }
-                if ((newStatus == RunStatus.FINALIZING || newStatus == RunStatus.SUCCEEDED) && run.getProcessFinishedAt() == null) {
-                    run.setProcessFinishedAt(now);
-                }
-                if (newStatus == RunStatus.SUCCEEDED && run.getFinalizedAt() == null) {
-                    run.setFinalizedAt(now);
-                }
-                var terminalReason = determineTerminalReason(alloc, newStatus);
-                if (terminalReason != null) {
-                    run.setTerminalReason(terminalReason);
-                }
-                if (isTerminal(newStatus)) {
-                    run.setProcessFinishedAt(now);
-                    settleCurrentLeaseIfNeeded(run, now, "Lease settled after terminal Nomad allocation event");
-                }
-                runRepository.save(run);
-                syncJobProjection(run);
-                eventPublisher.runEvent(eventTypeForTransition(newStatus), run, nomadPayload(alloc), "nomad", UUID.randomUUID());
-                log.info("Updated run {} status from {} to {}", run.getId(), currentStatus, newStatus);
-                return;
-            }
+                    if (currentStatus != newStatus) {
+                        var now = OffsetDateTime.now(ZoneOffset.UTC);
+                        run.setStatus(newStatus);
+                        if (newStatus == RunStatus.RUNNING && run.getStartedAt() == null) {
+                            run.setStartedAt(now);
+                        }
+                        if ((newStatus == RunStatus.FINALIZING || newStatus == RunStatus.SUCCEEDED) && run.getProcessFinishedAt() == null) {
+                            run.setProcessFinishedAt(now);
+                        }
+                        if (newStatus == RunStatus.SUCCEEDED && run.getFinalizedAt() == null) {
+                            run.setFinalizedAt(now);
+                        }
+                        var terminalReason = determineTerminalReason(alloc, newStatus);
+                        if (terminalReason != null) {
+                            run.setTerminalReason(terminalReason);
+                        }
+                        if (isTerminal(newStatus)) {
+                            run.setProcessFinishedAt(now);
+                            settleCurrentLeaseIfNeeded(run, now, "Lease settled after terminal Nomad allocation event");
+                        }
+                        runRepository.save(run);
+                        syncJobProjection(run);
+                        eventPublisher.runEvent(eventTypeForTransition(newStatus), run, nomadPayload(alloc), "nomad", UUID.randomUUID());
+                        log.info("Updated run {} status from {} to {}", run.getId(), currentStatus, newStatus);
+                        return;
+                    }
 
-            if (metadataUpdated) {
-                runRepository.save(run);
-                syncJobProjection(run);
-            }
-        });
+                    if (metadataUpdated) {
+                        runRepository.save(run);
+                        syncJobProjection(run);
+                    }
+                });
     }
 
     private void handleJobEvent(NomadEventPayload.NomadEventJob eventJob, String eventType) {
         if (eventJob.id() == null) return;
 
-        resolveRunByNomadJobId(eventJob.id()).ifPresent(run -> {
-            boolean updated = false;
+        resolveRunByNomadJobId(eventJob.id())
+                .flatMap(run -> runRepository.findByIdForUpdate(run.getId()))
+                .ifPresent(run -> {
+                    boolean updated = false;
 
-            if ("JobDeregistered".equals(eventType) || Boolean.TRUE.equals(eventJob.stop())) {
-                if (!isTerminal(run.getStatus()) && run.getStatus() != RunStatus.FINALIZING) {
-                    var now = OffsetDateTime.now(ZoneOffset.UTC);
-                    run.setStatus(RunStatus.CANCELED);
-                    run.setProcessFinishedAt(now);
-                    run.setTerminalReason("NOMAD_JOB_STOPPED");
-                    settleCurrentLeaseIfNeeded(run, now, "Lease settled after Nomad stop event");
-                    updated = true;
-                }
-            }
+                    if ("JobDeregistered".equals(eventType) || Boolean.TRUE.equals(eventJob.stop())) {
+                        if (!isTerminal(run.getStatus()) && run.getStatus() != RunStatus.FINALIZING) {
+                            var now = OffsetDateTime.now(ZoneOffset.UTC);
+                            run.setStatus(RunStatus.CANCELED);
+                            run.setProcessFinishedAt(now);
+                            run.setTerminalReason("NOMAD_JOB_STOPPED");
+                            settleCurrentLeaseIfNeeded(run, now, "Lease settled after Nomad stop event");
+                            updated = true;
+                        }
+                    }
 
-            if (updated) {
-                runRepository.save(run);
-                syncJobProjection(run);
-                eventPublisher.runEvent("RunCanceled", run, Map.of("nomadEventType", eventType == null ? "" : eventType), "nomad", UUID.randomUUID());
-                log.info("Updated run {} to CANCELED from Nomad Job event", run.getId());
-            }
-        });
+                    if (updated) {
+                        runRepository.save(run);
+                        syncJobProjection(run);
+                        eventPublisher.runEvent("RunCanceled", run, Map.of("nomadEventType", eventType == null ? "" : eventType), "nomad", UUID.randomUUID());
+                        log.info("Updated run {} to CANCELED from Nomad Job event", run.getId());
+                    }
+                });
     }
 
     private Optional<Run> resolveRun(NomadEventPayload.NomadEventAllocation alloc) {
@@ -526,6 +530,7 @@ public class NomadEventStreamListener {
 
     private String eventTypeForTransition(RunStatus status) {
         return switch (status) {
+            case SUBMITTED -> "RunSubmitted";
             case RUNNING -> "RunStarted";
             case FINALIZING -> "RunFinalizing";
             case FAILED -> "RunFailed";
@@ -535,7 +540,7 @@ public class NomadEventStreamListener {
             case SUCCEEDED -> "RunSucceeded";
             case QUEUED -> "RunQueued";
             case DISPATCHING -> "RunDispatchRequested";
-            case SCHEDULING -> "RunDispatched";
+            case SCHEDULING -> "RunScheduled";
         };
     }
 

@@ -1,6 +1,7 @@
 package com.pcrm.backend.jobs.domain;
 
 public enum RunStatus {
+    SUBMITTED,
     QUEUED,
     DISPATCHING,
     SCHEDULING,
