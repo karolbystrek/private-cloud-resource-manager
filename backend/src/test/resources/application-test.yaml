@@ -23,6 +23,9 @@ app:
       enabled: false
       interval-ms: 60000
       stale-timeout-sec: 300
+  idempotency:
+    cleanup:
+      enabled: false
   events:
     outbox:
       enabled: false

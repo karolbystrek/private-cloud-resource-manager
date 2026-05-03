@@ -2,7 +2,6 @@ package com.pcrm.backend.jobs.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pcrm.backend.exception.IdempotencyKeyConflictException;
 import com.pcrm.backend.exception.ResourceNotFoundException;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
@@ -17,8 +16,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -34,18 +31,15 @@ public class JobSubmissionPersistenceService {
     public PreparedJobSubmission prepareSubmission(
             UUID userId,
             JobSubmissionRequest request,
-            JobSubmissionIdempotency idempotency
+            String idempotencyKey,
+            String submissionFingerprint
     ) {
         var profile = profileRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Profile", userId));
 
-        var replayedSubmission = findReplayedSubmission(userId, idempotency, userId);
-        if (replayedSubmission.isPresent()) {
-            return replayedSubmission.get();
-        }
-
         var now = OffsetDateTime.now(ZoneOffset.UTC);
-        var savedJob = createQueuedJob(profile, request, idempotency, now);
+        var savedJob = createQueuedJob(profile, request, idempotencyKey, submissionFingerprint, now);
+
         var initialReservedMinutes = quotaAccountingService.reserveInitialLease(
                 userId,
                 savedJob,
@@ -79,29 +73,11 @@ public class JobSubmissionPersistenceService {
         log.debug("Compensated failed dispatch for jobId#{}", preparedJobSubmission.jobId());
     }
 
-    private Optional<PreparedJobSubmission> findReplayedSubmission(
-            UUID userId,
-            JobSubmissionIdempotency idempotency,
-            UUID logKey
-    ) {
-        var existingJob = jobRepository.findByProfile_IdAndIdempotencyKey(userId, idempotency.key());
-        if (existingJob.isEmpty()) {
-            return Optional.empty();
-        }
-
-        var persistedJob = existingJob.get();
-        if (!Objects.equals(persistedJob.getSubmissionFingerprint(), idempotency.fingerprint())) {
-            throw new IdempotencyKeyConflictException();
-        }
-
-        log.debug("Replayed idempotent job submission for user {}: jobId#{}", logKey, persistedJob.getId());
-        return Optional.of(PreparedJobSubmission.replayed(persistedJob.getId(), userId));
-    }
-
     private Job createQueuedJob(
             Profile profile,
             JobSubmissionRequest request,
-            JobSubmissionIdempotency idempotency,
+            String idempotencyKey,
+            String submissionFingerprint,
             OffsetDateTime now
     ) {
         var leaseMinutes = quotaAccountingService.getLeaseMinutes();
@@ -112,8 +88,8 @@ public class JobSubmissionPersistenceService {
                 .status(JobStatus.QUEUED)
                 .dockerImage(request.dockerImage())
                 .executionCommand(request.executionCommand())
-                .idempotencyKey(idempotency.key())
-                .submissionFingerprint(idempotency.fingerprint())
+                .idempotencyKey(idempotencyKey)
+                .submissionFingerprint(submissionFingerprint)
                 .reqCpuCores(request.reqCpuCores())
                 .reqRamGb(request.reqRamGb())
                 .envVarsJson(serializeEnvVars(request))
