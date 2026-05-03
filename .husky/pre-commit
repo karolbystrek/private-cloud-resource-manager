@@ -1,0 +1,2 @@
+#!/bin/sh
+npm --workspace frontend run lint

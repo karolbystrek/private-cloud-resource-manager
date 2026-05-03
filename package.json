@@ -1,9 +1,15 @@
 {
   "name": "private-cloud-resource-manager",
   "private": true,
+  "scripts": {
+    "prepare": "husky"
+  },
   "workspaces": [
     "frontend"
   ],
+  "devDependencies": {
+    "husky": "^9.1.7"
+  },
   "overrides": {
     "axios": "1.14.0"
   }
