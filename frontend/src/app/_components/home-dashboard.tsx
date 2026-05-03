@@ -97,19 +97,19 @@ export function HomeDashboard({ jobs, jobsError, quota, quotaError, statusCounts
               <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{queuedCount}</p><RiArrowRightLine size={18} /></CardContent>
             </Card>
           </Link>
-          <Link href={buildJobsHistoryHref(['RUNNING'])}>
+          <Link href={buildJobsHistoryHref(['DISPATCHING', 'SCHEDULING', 'RUNNING'])}>
             <Card className="hover:border-primary/60 transition-colors">
               <CardHeader className="pb-2"><CardTitle>Running</CardTitle></CardHeader>
               <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{runningCount}</p><RiPlayCircleLine size={18} /></CardContent>
             </Card>
           </Link>
-          <Link href={buildJobsHistoryHref(['COMPLETED'])}>
+          <Link href={buildJobsHistoryHref(['SUCCEEDED'])}>
             <Card className="hover:border-primary/60 transition-colors">
               <CardHeader className="pb-2"><CardTitle>Completed</CardTitle></CardHeader>
               <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{completedCount}</p><RiCheckboxCircleLine size={18} /></CardContent>
             </Card>
           </Link>
-          <Link href={buildJobsHistoryHref(['FAILED', 'OOM_KILLED', 'LEASE_EXPIRED'])}>
+          <Link href={buildJobsHistoryHref(['FAILED', 'TIMED_OUT', 'INFRA_FAILED', 'CANCELED'])}>
             <Card className="hover:border-primary/60 transition-colors">
               <CardHeader className="pb-2"><CardTitle>Failed</CardTitle></CardHeader>
               <CardContent className="flex items-center justify-between"><p className="text-2xl font-semibold">{failedCount}</p><RiCloseCircleLine size={18} /></CardContent>

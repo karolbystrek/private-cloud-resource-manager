@@ -6,5 +6,5 @@ import java.util.UUID;
 
 public interface NomadDispatchClient {
 
-    void dispatchJob(UUID userId, UUID jobId, JobSubmissionRequest request);
+    NomadDispatchResult dispatchJob(UUID userId, UUID jobId, UUID runId, JobSubmissionRequest request);
 }

@@ -11,7 +11,7 @@ import { formatLocalDateTime } from '@/lib/date-time';
 import { formatMinutesAsHoursAndMinutes } from '@/lib/duration';
 import { JobLogsPanel } from './job-logs-panel';
 
-const ACTIVE_STATUSES = new Set<JobStatus>(['QUEUED', 'PENDING', 'RUNNING']);
+const ACTIVE_STATUSES = new Set<JobStatus>(['QUEUED', 'DISPATCHING', 'SCHEDULING', 'RUNNING']);
 
 type JobDetailsPanelProps = {
   jobId: string;
@@ -202,9 +202,7 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
                     <RiFileCopyLine aria-hidden="true" size={14} />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={6}>
-                  Copy execution command
-                </TooltipContent>
+                <TooltipContent side="top">Copy execution command</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>

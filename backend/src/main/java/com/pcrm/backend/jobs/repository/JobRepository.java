@@ -1,7 +1,7 @@
 package com.pcrm.backend.jobs.repository;
 
 import com.pcrm.backend.jobs.domain.Job;
-import com.pcrm.backend.jobs.domain.JobStatus;
+import com.pcrm.backend.jobs.domain.RunStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,15 +17,11 @@ import java.util.UUID;
 @Repository
 public interface JobRepository extends JpaRepository<Job, UUID> {
 
-    Optional<Job> findByProfile_IdAndIdempotencyKey(UUID userId, String idempotencyKey);
-
     Page<Job> findByProfile_Id(UUID userId, Pageable pageable);
 
-    Page<Job> findByProfile_IdAndStatusIn(UUID userId, List<JobStatus> statuses, Pageable pageable);
+    Page<Job> findByProfile_IdAndStatusIn(UUID userId, List<RunStatus> statuses, Pageable pageable);
 
     Optional<Job> findByIdAndProfile_Id(UUID id, UUID userId);
-
-    List<Job> findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus status);
 
     @Modifying
     @Query("""
@@ -36,7 +32,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
             """)
     int transitionStatus(
             @Param("jobId") UUID jobId,
-            @Param("expectedStatus") JobStatus expectedStatus,
-            @Param("nextStatus") JobStatus nextStatus
+            @Param("expectedStatus") RunStatus expectedStatus,
+            @Param("nextStatus") RunStatus nextStatus
     );
 }

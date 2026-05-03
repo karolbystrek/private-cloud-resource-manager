@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function NewJobPage() {
   return (
-    <div className="bg-background/50 flex flex-1 flex-col justify-center py-12">
+    <div className="bg-background/50 flex flex-1 flex-col justify-center">
       <div className="container mx-auto max-w-4xl px-4 md:px-6">
         <JobSubmissionForm />
       </div>

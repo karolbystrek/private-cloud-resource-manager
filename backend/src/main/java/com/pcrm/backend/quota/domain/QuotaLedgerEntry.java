@@ -1,23 +1,10 @@
 package com.pcrm.backend.quota.domain;
 
 import com.pcrm.backend.jobs.domain.Job;
+import com.pcrm.backend.jobs.domain.Run;
 import com.pcrm.backend.user.Profile;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -36,12 +23,16 @@ public class QuotaLedgerEntry {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "profile_id", nullable = false)
     private Profile profile;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "job_id")
     private Job job;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "run_id")
+    private Run run;
 
     @Column(name = "lease_seq", nullable = false)
     @Builder.Default

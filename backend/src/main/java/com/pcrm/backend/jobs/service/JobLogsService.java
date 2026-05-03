@@ -2,7 +2,8 @@ package com.pcrm.backend.jobs.service;
 
 import com.pcrm.backend.auth.domain.CustomUserDetails;
 import com.pcrm.backend.jobs.repository.JobRepository;
-import com.pcrm.backend.jobs.domain.JobStatus;
+import com.pcrm.backend.jobs.domain.RunStatus;
+import com.pcrm.backend.jobs.repository.RunRepository;
 import com.pcrm.backend.nomad.NomadLogsClient;
 import com.pcrm.backend.nomad.NomadLogsUnavailableException;
 import jakarta.annotation.PreDestroy;
@@ -27,16 +28,17 @@ import java.util.concurrent.atomic.AtomicLong;
 @RequiredArgsConstructor
 public class JobLogsService {
 
-    private static final Set<JobStatus> TERMINAL_STATUSES = Set.of(
-            JobStatus.COMPLETED,
-            JobStatus.FAILED,
-            JobStatus.OOM_KILLED,
-            JobStatus.LEASE_EXPIRED,
-            JobStatus.STOPPED
+    private static final Set<RunStatus> TERMINAL_STATUSES = Set.of(
+            RunStatus.SUCCEEDED,
+            RunStatus.FAILED,
+            RunStatus.CANCELED,
+            RunStatus.TIMED_OUT,
+            RunStatus.INFRA_FAILED
     );
 
     private final JobQueryService jobQueryService;
     private final JobRepository jobRepository;
+    private final RunRepository runRepository;
     private final NomadLogsClient nomadLogsClient;
     private final ExecutorService streamExecutor = Executors.newCachedThreadPool();
 
@@ -53,7 +55,11 @@ public class JobLogsService {
     ) {
         var jobDetails = jobQueryService.getJobDetails(jobId, principal);
         boolean follow = !TERMINAL_STATUSES.contains(jobDetails.status());
-        String nomadJobId = buildNomadJobId(jobDetails.userId(), jobId);
+        String nomadJobId = jobDetails.runId() == null
+                ? "user#" + jobDetails.userId() + "-job#" + jobId
+                : runRepository.findById(jobDetails.runId())
+                .map(run -> run.getNomadJobId() == null ? buildNomadJobId(jobDetails.userId(), jobId, run.getId()) : run.getNomadJobId())
+                .orElseGet(() -> buildNomadJobId(jobDetails.userId(), jobId, jobDetails.runId()));
 
         SseEmitter emitter = new SseEmitter(0L);
         streamExecutor.execute(() -> streamToClient(
@@ -233,8 +239,8 @@ public class JobLogsService {
         return baseOffset + positiveLength;
     }
 
-    private String buildNomadJobId(UUID ownerId, UUID jobId) {
-        return "user#" + ownerId + "-job#" + jobId;
+    private String buildNomadJobId(UUID ownerId, UUID jobId, UUID runId) {
+        return "user#" + ownerId + "-job#" + jobId + "-run#" + runId;
     }
 
     private boolean sendEvent(SseEmitter emitter, String eventName, Object payload) {

@@ -30,6 +30,8 @@ public record NomadEventPayload(
     public record NomadEventAllocation(
             @JsonProperty("ID") String id,
             @JsonProperty("JobID") String jobId,
+            @JsonProperty("EvalID") String evalId,
+            @JsonProperty("DesiredStatus") String desiredStatus,
             @JsonProperty("ClientStatus") String clientStatus,
             @JsonProperty("TaskStates") Map<String, TaskState> taskStates
     ) {}

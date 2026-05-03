@@ -2,6 +2,8 @@ package com.pcrm.backend.nomad.config;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.pcrm.backend.jobs.repository.JobRepository;
+import com.pcrm.backend.jobs.repository.RunRepository;
+import com.pcrm.backend.jobs.service.JobRunEventPublisher;
 import com.pcrm.backend.nodes.repository.NodeRepository;
 import com.pcrm.backend.nomad.NomadDispatchClient;
 import com.pcrm.backend.nomad.NomadLogsClient;
@@ -52,8 +54,10 @@ public class NomadIntegrationConfig {
             @Value("${app.nomad.base-url}") String nomadBaseUrl,
             NomadStreamCursorRepository cursorRepository,
             JobRepository jobRepository,
+            RunRepository runRepository,
             NodeRepository nodeRepository,
             QuotaAccountingService quotaAccountingService,
+            JobRunEventPublisher eventPublisher,
             JsonMapper jsonMapper,
             TransactionTemplate transactionTemplate
     ) {
@@ -61,8 +65,10 @@ public class NomadIntegrationConfig {
                 nomadBaseUrl,
                 cursorRepository,
                 jobRepository,
+                runRepository,
                 nodeRepository,
                 quotaAccountingService,
+                eventPublisher,
                 jsonMapper,
                 transactionTemplate
         );

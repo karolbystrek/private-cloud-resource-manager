@@ -2,6 +2,7 @@ package com.pcrm.backend;
 
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.nomad.NomadDispatchClient;
+import com.pcrm.backend.nomad.NomadDispatchResult;
 import com.pcrm.backend.nomad.NomadLogsClient;
 import com.pcrm.backend.nomad.NomadNodeClient;
 import org.springframework.context.annotation.Bean;
@@ -20,7 +21,8 @@ class TestNomadConfig {
     NomadDispatchClient nomadDispatchClient() {
         return new NomadDispatchClient() {
             @Override
-            public void dispatchJob(UUID userId, UUID jobId, JobSubmissionRequest request) {
+            public NomadDispatchResult dispatchJob(UUID userId, UUID jobId, UUID runId, JobSubmissionRequest request) {
+                return new NomadDispatchResult("user#" + userId + "-job#" + jobId + "-run#" + runId, null);
             }
         };
     }

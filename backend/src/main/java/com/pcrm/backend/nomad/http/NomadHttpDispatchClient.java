@@ -3,6 +3,7 @@ package com.pcrm.backend.nomad.http;
 import com.pcrm.backend.exception.NomadDispatchException;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.nomad.NomadDispatchClient;
+import com.pcrm.backend.nomad.NomadDispatchResult;
 import com.pcrm.backend.storage.service.StorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.client.RestClient;
@@ -32,7 +33,8 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
     }
 
     @Override
-    public void dispatchJob(UUID userId, UUID jobId, JobSubmissionRequest request) {
+    public NomadDispatchResult dispatchJob(UUID userId, UUID jobId, UUID runId, JobSubmissionRequest request) {
+        var nomadJobId = buildNomadJobId(userId, jobId, runId);
 
         // 1. Safely format user environment variables into HCL syntax
         StringBuilder envVars = new StringBuilder();
@@ -43,13 +45,15 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
                     .append("\"\n        "));
         }
 
-                String artifactObjectKey = storageService.buildArtifactObjectKey(userId, jobId);
-                String artifactUploadUrl = storageService.generatePresignedUploadUrl(userId, jobId);
+        String artifactObjectKey = storageService.buildArtifactObjectKey(userId, jobId);
+        String artifactUploadUrl = storageService.generatePresignedUploadUrl(userId, jobId);
 
         // 2. Inject dynamic resources, config, and env vars
         String renderedHcl = hclTemplate
+                .replace("user#{{USER_ID}}-job#{{JOB_ID}}", nomadJobId)
                 .replace("{{USER_ID}}", userId.toString())
                 .replace("{{JOB_ID}}", jobId.toString())
+                .replace("{{RUN_ID}}", runId.toString())
                 .replace("{{DOCKER_IMAGE}}", escapeHcl(request.dockerImage()))
                 .replace("{{EXECUTION_COMMAND}}", escapeHcl(request.executionCommand()))
                 .replace("{{CORES}}", request.reqCpuCores().toString())
@@ -71,13 +75,14 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
             }
 
             // 4. Register the new job
-            restClient.post()
+            var registerResponse = restClient.post()
                     .uri("/v1/jobs")
                     .body(Map.of("Job", parsedResponse))
                     .retrieve()
-                    .toBodilessEntity();
+                    .body(Map.class);
 
             log.debug("Successfully registered dynamic job#{} to Nomad", jobId);
+            return new NomadDispatchResult(nomadJobId, extractEvalId(registerResponse));
         } catch (RestClientResponseException ex) {
             log.error("Nomad API rejected the request! Status: {}, Body: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
             throw new NomadDispatchException("Nomad API error: " + ex.getResponseBodyAsString(), ex);
@@ -91,5 +96,17 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
     private String escapeHcl(String input) {
         if (input == null) return "";
         return input.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String buildNomadJobId(UUID userId, UUID jobId, UUID runId) {
+        return "user#" + userId + "-job#" + jobId + "-run#" + runId;
+    }
+
+    private String extractEvalId(Map<?, ?> registerResponse) {
+        if (registerResponse == null) {
+            return null;
+        }
+        var evalId = registerResponse.get("EvalID");
+        return evalId == null ? null : evalId.toString();
     }
 }

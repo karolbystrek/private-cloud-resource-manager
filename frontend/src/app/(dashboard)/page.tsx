@@ -48,7 +48,8 @@ async function fetchRecentJobs(accessToken: string): Promise<JobsResult> {
   return { jobs: data.jobs ?? [], error: null };
 }
 
-const FAILED_STATUSES: JobStatus[] = ['FAILED', 'OOM_KILLED', 'LEASE_EXPIRED'];
+const RUNNING_STATUSES: JobStatus[] = ['DISPATCHING', 'SCHEDULING', 'RUNNING'];
+const FAILED_STATUSES: JobStatus[] = ['FAILED', 'TIMED_OUT', 'INFRA_FAILED', 'CANCELED'];
 
 async function fetchStatusCount(accessToken: string, statuses: JobStatus[]): Promise<number> {
   const BACKEND_URL = getBackendUrlForServer();
@@ -76,8 +77,8 @@ async function fetchStatusCount(accessToken: string, statuses: JobStatus[]): Pro
 async function fetchStatusCounts(accessToken: string) {
   const [queued, running, completed, failed] = await Promise.all([
     fetchStatusCount(accessToken, ['QUEUED']),
-    fetchStatusCount(accessToken, ['RUNNING']),
-    fetchStatusCount(accessToken, ['COMPLETED']),
+    fetchStatusCount(accessToken, RUNNING_STATUSES),
+    fetchStatusCount(accessToken, ['SUCCEEDED']),
     fetchStatusCount(accessToken, FAILED_STATUSES),
   ]);
   return { queued, running, completed, failed };

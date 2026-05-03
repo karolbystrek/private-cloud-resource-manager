@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -40,8 +41,8 @@ public class Job {
     private String nodeId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private JobStatus status;
+    @Column(nullable = false, length = 40)
+    private RunStatus status;
 
     @Column(name = "docker_image", nullable = false)
     private String dockerImage;
@@ -93,14 +94,27 @@ public class Job {
     @Builder.Default
     private Boolean leaseSettled = false;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_run_id")
+    private Run currentRun;
+
     @Column(name = "created_at", updatable = false)
     @Builder.Default
     private OffsetDateTime createdAt = OffsetDateTime.now();
+
+    @Column(name = "updated_at", nullable = false)
+    @Builder.Default
+    private OffsetDateTime updatedAt = OffsetDateTime.now();
 
     @PrePersist
     protected void ensureId() {
         if (id == null) {
             id = UUID.randomUUID();
         }
+    }
+
+    @PreUpdate
+    protected void updateTimestamp() {
+        updatedAt = OffsetDateTime.now();
     }
 }
