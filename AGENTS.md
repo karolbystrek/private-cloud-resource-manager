@@ -53,6 +53,7 @@
 - Keep billing/lease logic strongly consistent before optimizing.
 - Preserve append-only ledger semantics.
 - Do not introduce paths that can execute compute without active prepaid lease.
+- Do not add compatibility code for undeployed legacy behavior unless the user explicitly asks for it.
 
 ## Frontend Rules
 

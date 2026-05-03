@@ -19,6 +19,7 @@ type BrokerFieldError = {
 };
 
 type BrokerProblemDetail = {
+  title?: string;
   detail?: string;
   errors?: BrokerFieldError[];
 };
@@ -171,6 +172,12 @@ function mapErrorResponse(status: number, problem: BrokerProblemDetail | null): 
   }
 
   if (status === 409) {
+    if (problem?.title === 'Idempotency In Progress') {
+      return {
+        error: problem.detail ?? 'This submission is still being processed. Please try again shortly.',
+      };
+    }
+
     return {
       error: problem?.detail ?? 'Submission key already used with a different payload.',
     };

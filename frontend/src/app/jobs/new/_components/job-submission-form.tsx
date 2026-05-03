@@ -55,7 +55,7 @@ export function JobSubmissionForm() {
 
   function handleInputChange(name: keyof JobSubmissionPayload, value: string) {
     rotateIdempotencyKey();
-    setFormData(previous => ({
+    setFormData((previous) => ({
       ...previous,
       [name]: value,
     }));
@@ -63,7 +63,7 @@ export function JobSubmissionForm() {
 
   function handleEnvVarChange(id: string, field: 'key' | 'value', value: string) {
     rotateIdempotencyKey();
-    setEnvVarRows(previous =>
+    setEnvVarRows((previous) =>
       previous.map((row) => {
         if (row.id !== id) {
           return row;
@@ -78,13 +78,13 @@ export function JobSubmissionForm() {
 
   function addEnvVarRow() {
     rotateIdempotencyKey();
-    setEnvVarRows(previous => [createEnvVarRow(), ...previous]);
+    setEnvVarRows((previous) => [createEnvVarRow(), ...previous]);
   }
 
   function removeEnvVarRow(id: string) {
     rotateIdempotencyKey();
     setEnvVarRows((previous) => {
-      const nextRows = previous.filter(row => row.id !== id);
+      const nextRows = previous.filter((row) => row.id !== id);
       if (nextRows.length > 0) {
         return nextRows;
       }
@@ -160,9 +160,9 @@ export function JobSubmissionForm() {
           void submitJob();
         }}
       >
-        {errorMessage
-          ? <div className="text-destructive text-sm font-medium">{errorMessage}</div>
-          : null}
+        {errorMessage ? (
+          <div className="text-destructive text-sm font-medium">{errorMessage}</div>
+        ) : null}
 
         <JobCommandFields
           dockerImage={formData.dockerImage}

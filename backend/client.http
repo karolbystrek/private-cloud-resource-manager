@@ -3,6 +3,8 @@
 @email = user@example.com
 @password = Password1!
 @refreshToken = {{refreshToken}}
+@accessToken = {{accessToken}}
+@jobIdempotencyKey = 11111111-1111-4111-8111-111111111111
 
 ### Register mock user
 POST {{baseUrl}}/auth/register
@@ -31,12 +33,69 @@ Content-Type: application/json
             client.global.set("refreshToken", match[1]);
         }
     }
+    if (response.body.accessToken) {
+        client.global.set("accessToken", response.body.accessToken);
+    }
 %}
 
 ### Refresh token
 POST {{baseUrl}}/auth/refresh
 Cookie: refresh_token={{refreshToken}}
 
+> {%
+    if (response.body.accessToken) {
+        client.global.set("accessToken", response.body.accessToken);
+    }
+%}
+
 ### Logout
 POST {{baseUrl}}/auth/logout
 Cookie: refresh_token={{refreshToken}}
+
+### Submit job with idempotency key
+POST {{baseUrl}}/jobs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+Idempotency-Key: {{jobIdempotencyKey}}
+
+{
+  "dockerImage": "busybox",
+  "executionCommand": "echo hello",
+  "reqCpuCores": 1,
+  "reqRamGb": 1,
+  "envVars": {}
+}
+
+> {%
+    if (response.body.jobId) {
+        client.global.set("jobId", response.body.jobId);
+    }
+%}
+
+### Replay same job submission with same idempotency key
+POST {{baseUrl}}/jobs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+Idempotency-Key: {{jobIdempotencyKey}}
+
+{
+  "dockerImage": "alpine:latest",
+  "executionCommand": "echo hello",
+  "reqCpuCores": 1,
+  "reqRamGb": 1,
+  "envVars": {}
+}
+
+### Conflict: same idempotency key with different payload
+POST {{baseUrl}}/jobs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+Idempotency-Key: {{jobIdempotencyKey}}
+
+{
+  "dockerImage": "alpine:latest",
+  "executionCommand": "echo different",
+  "reqCpuCores": 1,
+  "reqRamGb": 1,
+  "envVars": {}
+}

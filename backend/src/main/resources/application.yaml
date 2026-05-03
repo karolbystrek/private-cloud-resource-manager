@@ -37,6 +37,11 @@ app:
       stale-timeout-sec: ${NOMAD_SYNC_STALE_TIMEOUT_SEC}
   quota:
     lease-minutes: ${QUOTA_LEASE_MINUTES:15}
+  idempotency:
+    cleanup:
+      enabled: ${IDEMPOTENCY_CLEANUP_ENABLED:true}
+      cron: ${IDEMPOTENCY_CLEANUP_CRON:0 0 * * * *}
+      retention-hours: ${IDEMPOTENCY_RETENTION_HOURS:24}
   scheduler:
     dispatch:
       interval-ms: ${SCHEDULER_DISPATCH_INTERVAL_MS:3000}

@@ -17,11 +17,7 @@ import java.util.UUID;
 @Repository
 public interface JobRepository extends JpaRepository<Job, UUID> {
 
-    Optional<Job> findByUser_IdAndIdempotencyKey(UUID userId, String idempotencyKey);
-
     Page<Job> findByUser_Id(UUID userId, Pageable pageable);
-
-    Page<Job> findByUser_IdAndStatus(UUID userId, JobStatus status, Pageable pageable);
 
     Page<Job> findByUser_IdAndStatusIn(UUID userId, List<JobStatus> statuses, Pageable pageable);
 

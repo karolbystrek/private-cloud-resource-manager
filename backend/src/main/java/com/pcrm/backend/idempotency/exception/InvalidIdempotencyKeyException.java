@@ -1,4 +1,4 @@
-package com.pcrm.backend.exception;
+package com.pcrm.backend.idempotency.exception;
 
 public class InvalidIdempotencyKeyException extends RuntimeException {
 

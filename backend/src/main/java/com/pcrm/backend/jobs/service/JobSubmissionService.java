@@ -1,5 +1,7 @@
 package com.pcrm.backend.jobs.service;
 
+import com.pcrm.backend.idempotency.service.IdempotencyService;
+import com.pcrm.backend.idempotency.service.IdempotentWorkflow;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -10,12 +12,16 @@ import java.util.UUID;
 @Service
 public class JobSubmissionService {
 
-    private final JobSubmissionIdempotencyService idempotencyService;
+    private static final String ACTOR_TYPE_USER = "USER";
+    private static final String WORKFLOW_JOB_SUBMIT = "job.submit";
+    private static final String RESOURCE_TYPE_JOB = "JOB";
+
+    private final IdempotencyService idempotencyService;
     private final JobSubmissionPersistenceService persistenceService;
     private final TransactionTemplate submissionTransactionTemplate;
 
     public JobSubmissionService(
-            JobSubmissionIdempotencyService idempotencyService,
+            IdempotencyService idempotencyService,
             JobSubmissionPersistenceService persistenceService,
             PlatformTransactionManager transactionManager
     ) {
@@ -25,17 +31,26 @@ public class JobSubmissionService {
     }
 
     public PreparedJobSubmission submitJob(UUID userId, JobSubmissionRequest request, String idempotencyKey) {
-        var idempotency = idempotencyService.build(idempotencyKey, request);
-        return executeSubmissionTransaction(userId, request, idempotency);
-    }
-
-    private PreparedJobSubmission executeSubmissionTransaction(
-            UUID userId,
-            JobSubmissionRequest request,
-            JobSubmissionIdempotency idempotency
-    ) {
         var preparedSubmission = submissionTransactionTemplate.execute(
-                _ -> persistenceService.prepareSubmission(userId, request, idempotency)
+                _ -> idempotencyService.execute(new IdempotentWorkflow<>(
+                        ACTOR_TYPE_USER,
+                        userId.toString(),
+                        WORKFLOW_JOB_SUBMIT,
+                        idempotencyKey,
+                        request,
+                        context -> persistenceService.prepareSubmission(
+                                userId,
+                                request,
+                                context.key(),
+                                context.requestFingerprint()
+                        ),
+                        responseBody -> PreparedJobSubmission.replayed(
+                                UUID.fromString(responseBody.get("jobId").asText()),
+                                userId
+                        ),
+                        RESOURCE_TYPE_JOB,
+                        PreparedJobSubmission::jobId
+                )).response()
         );
 
         if (preparedSubmission == null) {

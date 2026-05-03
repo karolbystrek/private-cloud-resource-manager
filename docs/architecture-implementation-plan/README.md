@@ -38,7 +38,7 @@ DB-backed state machine
 1. [x] [State Machine, Domain Events, and Outbox Foundation](01-state-machine-events-outbox.md)
    - Add the durable event log, outbox, aggregate sequence rules, consumer dedupe, and projection update contract.
 
-2. [Idempotent User-Intent API](02-idempotent-job-intent-api.md)
+2. [x] [Idempotent User-Intent API](02-idempotent-job-intent-api.md)
    - Generalize idempotency from job submission into a reusable mutating-request contract for submit, cancel, retry, schedule, admin quota, and artifact finalization flows.
 
 3. [Jobs, Runs, Attempts, and State Projections](03-job-run-state-model.md)
@@ -88,7 +88,7 @@ DB-backed state machine
 | --- | --- | --- |
 | Events | `domain_events`, `outbox`, aggregate sequences, and consumer dedupe foundation exist; legacy flows do not emit events yet. | Migrate submission, quota, dispatch, Nomad stream, artifacts, and reconciliation onto the event/outbox path. |
 | Job model | `jobs` stores both intent and execution state. | Split into `jobs`, `runs`, `run_attempts`, and current projections. |
-| Idempotency | Submission idempotency is stored on `jobs`. | Add reusable `idempotency_records` scoped by actor/workflow/key/fingerprint. |
+| Idempotency | Reusable `idempotency_records` exists and `job.submit` uses it; legacy submission columns remain on `jobs` for compatibility. | Extend the shared contract to cancel, retry, admin quota grant, artifact finalization, and later remove submission-specific job columns. |
 | Quota | Monthly policy/override/window/ledger exists. | Add grants, explicit reservations, resource multipliers, usage ledger corrections. |
 | Dispatch | `FairQueueDispatcherService` polls `QUEUED` jobs and directly calls Nomad. | Worker consumes durable events/outbox and uses idempotent dispatch claims. |
 | Nomad stream | Listener updates jobs directly. | Listener appends domain events, then projections consume those events. |

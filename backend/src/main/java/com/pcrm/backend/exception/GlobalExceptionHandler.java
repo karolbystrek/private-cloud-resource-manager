@@ -1,5 +1,8 @@
 package com.pcrm.backend.exception;
 
+import com.pcrm.backend.idempotency.exception.IdempotencyConflictException;
+import com.pcrm.backend.idempotency.exception.IdempotencyInProgressException;
+import com.pcrm.backend.idempotency.exception.InvalidIdempotencyKeyException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -112,7 +115,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     @ExceptionHandler(InvalidIdempotencyKeyException.class)
-    public ProblemDetail handleInvalidIdempotencyKey(InvalidIdempotencyKeyException ex) {
+    public ProblemDetail handleSharedInvalidIdempotencyKey(
+            InvalidIdempotencyKeyException ex
+    ) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, ex.getMessage());
         problem.setTitle("Invalid Idempotency Key");
@@ -120,11 +125,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
-    @ExceptionHandler(IdempotencyKeyConflictException.class)
-    public ProblemDetail handleIdempotencyKeyConflict(IdempotencyKeyConflictException ex) {
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ProblemDetail handleSharedIdempotencyConflict(
+            IdempotencyConflictException ex
+    ) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Idempotency Conflict");
+        problem.setType(URI.create("about:blank"));
+        return problem;
+    }
+
+    @ExceptionHandler(IdempotencyInProgressException.class)
+    public ProblemDetail handleIdempotencyInProgress(
+            IdempotencyInProgressException ex
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Idempotency In Progress");
         problem.setType(URI.create("about:blank"));
         return problem;
     }
