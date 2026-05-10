@@ -7,7 +7,7 @@
 #   - Podman does not support nested variable interpolation (${A:-${B}})
 #
 
-name: supabase
+name: private-cloud-resource-manager
 
 services:
 
