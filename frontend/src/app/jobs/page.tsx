@@ -3,12 +3,12 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { JobsHistoryView } from './_components/jobs-history-view';
 import type { JobHistorySortDirection, JobsPageResponse, JobStatus } from './_components/types';
+import { getBackendUrlForServer } from '@/lib/backend-url';
 
 export const metadata: Metadata = {
   title: 'Jobs - Private Cloud Resource Manager',
 };
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 const DEFAULT_PAGE = 0;
 const DEFAULT_SIZE = 5;
 const MAX_SIZE = 50;
@@ -94,10 +94,6 @@ function buildJobsPath(
 }
 
 export default async function JobsPage({ searchParams }: { searchParams: JobsPageSearchParams }) {
-  if (!BACKEND_URL) {
-    throw new Error('Backend URL is not configured.');
-  }
-
   const resolvedSearchParams = await searchParams;
   const page = parsePage(toSingleValue(resolvedSearchParams.page));
   const size = parseSize(toSingleValue(resolvedSearchParams.size));
@@ -119,6 +115,7 @@ export default async function JobsPage({ searchParams }: { searchParams: JobsPag
     backendParams.append('status', status);
   }
 
+  const BACKEND_URL = getBackendUrlForServer();
   const response = await fetch(`${BACKEND_URL}/api/jobs?${backendParams.toString()}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,

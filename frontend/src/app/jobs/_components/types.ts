@@ -36,5 +36,5 @@ export type JobDetails = {
   nodeId: string | null;
   createdAt: string;
   userId: string;
-  username: string;
+  userEmail: string;
 };

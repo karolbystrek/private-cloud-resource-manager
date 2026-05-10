@@ -12,7 +12,7 @@
 - Frontend: `frontend/` (Next.js + TypeScript + Shadcn UI).
 - Execution Plane: Nomad schedules Docker jobs; lease enforcer must terminate jobs when lease expires and cannot be
   renewed.
-- Storage/Infra: PostgreSQL (source of truth), Redis (distributed locks), MinIO (artifacts/logs), Nomad (orchestration).
+- Storage/Infra: Supabase Postgres (incl. `auth.users`) + Supabase Storage (S3 API), Redis (distributed locks where used), Nomad (orchestration).
 
 ## Core Billing + Lease Rules (Must Never Break)
 
@@ -34,9 +34,10 @@
 
 ## Auth Contract
 
-- Hybrid JWT flow:
-    - Access token: returned in JSON response body; client stores in memory; sent as `Authorization: Bearer <token>`.
-    - Refresh token: `HttpOnly`, `Secure`, `SameSite=Lax` cookie (`refresh_token`).
+- **Supabase Auth** (self-hosted GoTrue): users sign up / sign in via Supabase; JWT access token is issued by Auth.
+- **Next.js** stores `access_token` and Supabase `refresh_token` as `HttpOnly` cookies and forwards `Authorization: Bearer <access_token>` to the broker.
+- **Broker** validates Supabase JWTs with the shared `JWT_SECRET` (same value as GoTrue / `JWT_SECRET` in the repo-root `.env`).
+- Domain role and billing: `profiles` table (`id` = `auth.users.id`) with wallets/jobs referencing `auth.users`.
 
 ## Repository Map (High Signal)
 
@@ -45,7 +46,9 @@
 - `frontend/`: Next.js app.
 - `nomad/`: Nomad config + job template.
 - `docs/`: project source of truth for architecture/roadmap.
-- `compose.yaml`: local stack (Postgres, Redis, MinIO, Nomad, backend, frontend).
+- `docker-compose.yml`, `.env.example`, `reset.sh`: local stack at repo root.
+- `volumes/`: bind-mounted Supabase config (Kong, Postgres init SQL, pooler, functions snippets, Storage, Vector, etc.).
+- `scripts/supabase/`: optional Supabase ops helpers (`generate-keys.sh`, DB password change, etc.) and `smoke-test.sh`.
 
 ## Change Rules
 

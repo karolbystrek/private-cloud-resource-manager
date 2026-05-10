@@ -43,6 +43,8 @@ app:
       base-quantum: ${SCHEDULER_BASE_QUANTUM:25}
       age-boost-per-minute: ${SCHEDULER_AGE_BOOST_PER_MINUTE:2}
   security:
+    supabase:
+      jwt-secret: ${JWT_SECRET}
     cookie:
       secure: true
   cors:
@@ -51,19 +53,11 @@ app:
   storage:
     s3:
       endpoint: ${STORAGE_S3_ENDPOINT}
-      access-key: ${STORAGE_S3_ACCESS_KEY}
-      secret-key: ${STORAGE_S3_SECRET_KEY}
-      region: ${STORAGE_S3_REGION:us-east-1}
-      bucket: ${STORAGE_S3_BUCKET:job-artifacts}
+      access-key: ${S3_PROTOCOL_ACCESS_KEY_ID}
+      secret-key: ${S3_PROTOCOL_ACCESS_KEY_SECRET}
+      region: ${REGION}
+      bucket: ${GLOBAL_S3_BUCKET}
       path-style-access: ${STORAGE_S3_PATH_STYLE_ACCESS:true}
       presign:
         upload-ttl-sec: ${STORAGE_S3_PRESIGN_UPLOAD_TTL_SEC:900}
         download-ttl-sec: ${STORAGE_S3_PRESIGN_DOWNLOAD_TTL_SEC:900}
-
-application:
-  security:
-    jwt:
-      public-key: ${JWT_PUBLIC_KEY_PATH}
-      private-key: ${JWT_PRIVATE_KEY_PATH}
-      expiration: ${JWT_EXPIRATION_MS}
-      refresh-expiration: ${JWT_REFRESH_EXPIRATION_MS}

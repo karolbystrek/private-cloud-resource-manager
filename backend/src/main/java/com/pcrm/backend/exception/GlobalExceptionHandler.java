@@ -5,7 +5,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -49,30 +48,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * Handles token refresh failures.
-     * Returns 401 Unauthorized and proactively clears the invalid refresh token cookie.
-     */
-    @ExceptionHandler(TokenRefreshException.class)
-    public ResponseEntity<ProblemDetail> handleTokenRefreshException(TokenRefreshException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                HttpStatus.UNAUTHORIZED, ex.getMessage());
-        problem.setTitle("Authentication Failed");
-        problem.setType(URI.create("about:blank"));
-
-        ResponseCookie clearCookie = ResponseCookie.from("refresh_token", "")
-                .httpOnly(true)
-                .secure(true)
-                .sameSite("Lax")
-                .path("/")
-                .maxAge(0)
-                .build();
-
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .header(HttpHeaders.SET_COOKIE, clearCookie.toString())
-                .body(problem);
-    }
-
-    /**
      * Handles resource not found (e.g. user, wallet).
      */
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -84,20 +59,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
-    @ExceptionHandler(RegistrationConflictException.class)
-    public ProblemDetail handleRegistrationConflict(RegistrationConflictException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                HttpStatus.CONFLICT, ex.getMessage());
-        problem.setTitle("Registration Conflict");
-        problem.setType(URI.create("about:blank"));
-        return problem;
-    }
-
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                HttpStatus.CONFLICT, "Registration data conflicts with existing records");
-        problem.setTitle("Registration Conflict");
+                HttpStatus.CONFLICT, "Data conflicts with existing records");
+        problem.setTitle("Data Conflict");
         problem.setType(URI.create("about:blank"));
         return problem;
     }

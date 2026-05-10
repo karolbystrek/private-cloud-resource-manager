@@ -1,7 +1,7 @@
 package com.pcrm.backend.quota.domain;
 
 import com.pcrm.backend.jobs.domain.Job;
-import com.pcrm.backend.user.User;
+import com.pcrm.backend.user.Profile;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -37,7 +37,7 @@ public class QuotaLedgerEntry {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private Profile profile;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "job_id")

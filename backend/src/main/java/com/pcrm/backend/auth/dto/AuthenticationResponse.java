@@ -1,9 +1,0 @@
-package com.pcrm.backend.auth.dto;
-
-import com.pcrm.backend.user.UserRole;
-
-public record AuthenticationResponse(
-        String accessToken,
-        UserRole role
-) {
-}

@@ -8,9 +8,9 @@ import com.pcrm.backend.quota.dto.admin.UpsertQuotaOverrideRequest;
 import com.pcrm.backend.quota.dto.admin.UpsertQuotaPolicyRequest;
 import com.pcrm.backend.quota.repository.QuotaPolicyRepository;
 import com.pcrm.backend.quota.repository.UserQuotaOverrideRepository;
-import com.pcrm.backend.user.User;
+import com.pcrm.backend.user.Profile;
 import com.pcrm.backend.user.UserRole;
-import com.pcrm.backend.user.repository.UserRepository;
+import com.pcrm.backend.user.repository.ProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,15 +25,15 @@ public class QuotaPolicyResolverService {
 
     private final QuotaPolicyRepository quotaPolicyRepository;
     private final UserQuotaOverrideRepository userQuotaOverrideRepository;
-    private final UserRepository userRepository;
+    private final ProfileRepository profileRepository;
 
     @Transactional(readOnly = true)
-    public EffectiveQuotaPolicy resolveEffectivePolicy(User user, OffsetDateTime at) {
-        var activeOverride = userQuotaOverrideRepository.findActiveOverride(user.getId(), at);
+    public EffectiveQuotaPolicy resolveEffectivePolicy(Profile profile, OffsetDateTime at) {
+        var activeOverride = userQuotaOverrideRepository.findActiveOverride(profile.getId(), at);
         if (activeOverride.isPresent()) {
             var override = activeOverride.get();
             return new EffectiveQuotaPolicy(
-                    user.getRole(),
+                    profile.getRole(),
                     override.getMonthlyMinutes(),
                     override.getRoleWeight(),
                     override.getUnlimited(),
@@ -41,9 +41,9 @@ public class QuotaPolicyResolverService {
             );
         }
 
-        var rolePolicy = findRolePolicy(user.getRole(), at);
+        var rolePolicy = findRolePolicy(profile.getRole(), at);
         return new EffectiveQuotaPolicy(
-                user.getRole(),
+                profile.getRole(),
                 rolePolicy.getMonthlyMinutes(),
                 rolePolicy.getRoleWeight(),
                 rolePolicy.getUnlimited(),
@@ -82,11 +82,11 @@ public class QuotaPolicyResolverService {
 
     @Transactional
     public QuotaPolicyResponse upsertUserOverride(UUID userId, UpsertQuotaOverrideRequest request) {
-        var user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        var profile = profileRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Profile", userId));
 
         var override = UserQuotaOverride.builder()
-                .user(user)
+                .profile(profile)
                 .monthlyMinutes(request.monthlyMinutes())
                 .roleWeight(request.roleWeight())
                 .unlimited(request.unlimited())
@@ -97,8 +97,8 @@ public class QuotaPolicyResolverService {
         var saved = userQuotaOverrideRepository.save(override);
         return new QuotaPolicyResponse(
                 saved.getId(),
-                user.getId(),
-                user.getRole(),
+                profile.getId(),
+                profile.getRole(),
                 saved.getMonthlyMinutes(),
                 saved.getRoleWeight(),
                 saved.getUnlimited(),

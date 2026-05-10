@@ -55,7 +55,7 @@ public class JobsResource {
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         var sortDirection = parseSortDirection(sort);
-        return jobQueryService.listUserJobs(principal.user().getId(), page, size, sortDirection, statuses);
+        return jobQueryService.listUserJobs(principal.id(), page, size, sortDirection, statuses);
     }
 
     @GetMapping("/{id}")
@@ -83,8 +83,8 @@ public class JobsResource {
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        log.info("Received job submission request from user {}", principal.user().getUsername());
-        var result = jobSubmissionService.submitJob(principal.user().getId(), request, idempotencyKey);
+        log.info("Received job submission request from user {}", principal.email());
+        var result = jobSubmissionService.submitJob(principal.id(), request, idempotencyKey);
         var status = result.replayed() ? HttpStatus.OK : HttpStatus.CREATED;
         return ResponseEntity.status(status).body(new JobSubmissionResponse(result.jobId()));
     }

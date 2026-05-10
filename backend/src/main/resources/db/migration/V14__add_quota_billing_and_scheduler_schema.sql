@@ -22,7 +22,7 @@ VALUES ('STUDENT', 1200, 1, FALSE, TIMESTAMP WITH TIME ZONE '1970-01-01 00:00:00
 CREATE TABLE user_quota_override
 (
     id              UUID PRIMARY KEY             DEFAULT uuid_generate_v4(),
-    user_id         UUID                NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    user_id         UUID                NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
     monthly_minutes BIGINT              NOT NULL DEFAULT 0,
     role_weight     INTEGER             NOT NULL DEFAULT 1,
     unlimited       BOOLEAN             NOT NULL DEFAULT FALSE,
@@ -40,7 +40,7 @@ CREATE INDEX idx_user_quota_override_window ON user_quota_override (user_id, act
 CREATE TABLE quota_window
 (
     id                UUID PRIMARY KEY             DEFAULT uuid_generate_v4(),
-    user_id           UUID                NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    user_id           UUID                NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
     window_start      TIMESTAMP WITH TIME ZONE    NOT NULL,
     window_end        TIMESTAMP WITH TIME ZONE    NOT NULL,
     allocated_minutes BIGINT              NOT NULL,
@@ -61,7 +61,7 @@ CREATE INDEX idx_quota_window_window_start ON quota_window (window_start DESC);
 CREATE TABLE quota_ledger
 (
     id         UUID PRIMARY KEY             DEFAULT uuid_generate_v4(),
-    user_id    UUID                NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    user_id    UUID                NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
     job_id     UUID REFERENCES jobs (id) ON DELETE SET NULL,
     lease_seq  BIGINT              NOT NULL DEFAULT 0,
     entry_type VARCHAR(40)         NOT NULL,

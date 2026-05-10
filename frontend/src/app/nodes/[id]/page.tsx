@@ -4,8 +4,8 @@ import { notFound, redirect } from 'next/navigation';
 
 import { NodeDetailsPanel } from './_components/node-details';
 import type { NodeDetails } from '@/app/nodes/_components/types';
+import { getBackendUrlForServer } from '@/lib/backend-url';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 const DEFAULT_POLL_INTERVAL_MS = 30000;
 
 function resolvePollIntervalMs(): number {
@@ -25,16 +25,13 @@ type NodeDetailPageProps = {
 };
 
 export default async function NodeDetailPage({ params }: NodeDetailPageProps) {
-  if (!BACKEND_URL) {
-    throw new Error('Backend URL is not configured.');
-  }
-
   const { id } = await params;
   const accessToken = (await cookies()).get('access_token')?.value;
   if (!accessToken) {
     redirect(`/login?next=${encodeURIComponent(`/nodes/${id}`)}`);
   }
 
+  const BACKEND_URL = getBackendUrlForServer();
   const response = await fetch(`${BACKEND_URL}/api/nodes/${encodeURIComponent(id)}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,

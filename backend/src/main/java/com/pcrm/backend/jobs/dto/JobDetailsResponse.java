@@ -17,10 +17,10 @@ public record JobDetailsResponse(
         String nodeId,
         OffsetDateTime createdAt,
         UUID userId,
-        String username
+        String userEmail
 ) {
 
-    public static JobDetailsResponse from(Job job) {
+    public static JobDetailsResponse from(Job job, String userEmail) {
         return new JobDetailsResponse(
                 job.getId(),
                 job.getStatus(),
@@ -31,8 +31,8 @@ public record JobDetailsResponse(
                 job.getTotalConsumedMinutes(),
                 job.getNodeId(),
                 job.getCreatedAt(),
-                job.getUser().getId(),
-                job.getUser().getUsername()
+                job.getProfile().getId(),
+                userEmail
         );
     }
 }

@@ -1,8 +1,11 @@
 .idea/
 
+.cursor/
+
 .env
-!.env.example
 
 secrets/
+
+volumes/db/data/
 
 node_modules/

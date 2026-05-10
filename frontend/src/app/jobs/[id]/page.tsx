@@ -3,8 +3,7 @@ import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { JobDetailsPanel } from './_components/job-details-panel';
 import type { JobDetails } from '@/app/jobs/_components/types';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+import { getBackendUrlForServer } from '@/lib/backend-url';
 
 export const metadata: Metadata = {
   title: 'Job Details - Private Cloud Resource Manager',
@@ -15,16 +14,13 @@ type JobDetailPageProps = {
 };
 
 export default async function JobDetailPage({ params }: JobDetailPageProps) {
-  if (!BACKEND_URL) {
-    throw new Error('Backend URL is not configured.');
-  }
-
   const { id } = await params;
   const accessToken = (await cookies()).get('access_token')?.value;
   if (!accessToken) {
     redirect(`/login?next=${encodeURIComponent(`/jobs/${id}`)}`);
   }
 
+  const BACKEND_URL = getBackendUrlForServer();
   const response = await fetch(`${BACKEND_URL}/api/jobs/${encodeURIComponent(id)}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,

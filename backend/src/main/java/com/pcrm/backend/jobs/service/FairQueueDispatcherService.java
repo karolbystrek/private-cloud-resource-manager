@@ -83,8 +83,8 @@ public class FairQueueDispatcherService {
 
         try {
             var jobRequest = toSubmissionRequest(selected.job());
-            nomadDispatchClient.dispatchJob(selected.job().getUser().getId(), selected.job().getId(), jobRequest);
-            userDeficits.compute(selected.job().getUser().getId(), (_, value) ->
+            nomadDispatchClient.dispatchJob(selected.job().getProfile().getId(), selected.job().getId(), jobRequest);
+            userDeficits.compute(selected.job().getProfile().getId(), (_, value) ->
                     (value == null ? 0.0d : value) - selected.cost());
         } catch (NomadDispatchException ex) {
             log.error("Failed to dispatch queued job {}", selected.job().getId(), ex);
@@ -112,7 +112,7 @@ public class FairQueueDispatcherService {
             OffsetDateTime now,
             Map<UUID, Double> cycleDeficits
     ) {
-        var userId = job.getUser().getId();
+        var userId = job.getProfile().getId();
         QuotaFairnessSnapshot fairnessSnapshot = quotaAccountingService.loadFairnessSnapshot(userId, now);
 
         double usageRatio = fairnessSnapshot.usageRatio();

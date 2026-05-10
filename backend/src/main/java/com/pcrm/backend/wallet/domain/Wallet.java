@@ -1,6 +1,6 @@
 package com.pcrm.backend.wallet.domain;
 
-import com.pcrm.backend.user.User;
+import com.pcrm.backend.user.Profile;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -33,7 +33,7 @@ public class Wallet {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
-    private User user;
+    private Profile profile;
 
     @Column(name = "balance_credits", nullable = false)
     @Builder.Default

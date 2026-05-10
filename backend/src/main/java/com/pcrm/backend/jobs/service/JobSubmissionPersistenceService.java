@@ -9,8 +9,8 @@ import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.quota.service.QuotaAccountingService;
-import com.pcrm.backend.user.User;
-import com.pcrm.backend.user.repository.UserRepository;
+import com.pcrm.backend.user.Profile;
+import com.pcrm.backend.user.repository.ProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,7 +27,7 @@ import java.util.UUID;
 public class JobSubmissionPersistenceService {
 
     private final JobRepository jobRepository;
-    private final UserRepository userRepository;
+    private final ProfileRepository profileRepository;
     private final QuotaAccountingService quotaAccountingService;
     private final ObjectMapper objectMapper;
 
@@ -36,16 +36,16 @@ public class JobSubmissionPersistenceService {
             JobSubmissionRequest request,
             JobSubmissionIdempotency idempotency
     ) {
-        var user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        var profile = profileRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Profile", userId));
 
-        var replayedSubmission = findReplayedSubmission(userId, idempotency, user.getUsername());
+        var replayedSubmission = findReplayedSubmission(userId, idempotency, userId);
         if (replayedSubmission.isPresent()) {
             return replayedSubmission.get();
         }
 
         var now = OffsetDateTime.now(ZoneOffset.UTC);
-        var savedJob = createQueuedJob(user, request, idempotency, now);
+        var savedJob = createQueuedJob(profile, request, idempotency, now);
         var initialReservedMinutes = quotaAccountingService.reserveInitialLease(
                 userId,
                 savedJob,
@@ -56,7 +56,7 @@ public class JobSubmissionPersistenceService {
         savedJob.setActiveLeaseExpiresAt(now.plusMinutes(initialReservedMinutes));
         jobRepository.save(savedJob);
 
-        log.debug("Prepared queued job submission for user {}: jobId#{}", user.getUsername(), savedJob.getId());
+        log.debug("Prepared queued job submission for user {}: jobId#{}", userId, savedJob.getId());
         return PreparedJobSubmission.created(savedJob.getId(), userId, initialReservedMinutes);
     }
 
@@ -82,9 +82,9 @@ public class JobSubmissionPersistenceService {
     private Optional<PreparedJobSubmission> findReplayedSubmission(
             UUID userId,
             JobSubmissionIdempotency idempotency,
-            String username
+            UUID logKey
     ) {
-        var existingJob = jobRepository.findByUser_IdAndIdempotencyKey(userId, idempotency.key());
+        var existingJob = jobRepository.findByProfile_IdAndIdempotencyKey(userId, idempotency.key());
         if (existingJob.isEmpty()) {
             return Optional.empty();
         }
@@ -94,12 +94,12 @@ public class JobSubmissionPersistenceService {
             throw new IdempotencyKeyConflictException();
         }
 
-        log.debug("Replayed idempotent job submission for user {}: jobId#{}", username, persistedJob.getId());
+        log.debug("Replayed idempotent job submission for user {}: jobId#{}", logKey, persistedJob.getId());
         return Optional.of(PreparedJobSubmission.replayed(persistedJob.getId(), userId));
     }
 
     private Job createQueuedJob(
-            User user,
+            Profile profile,
             JobSubmissionRequest request,
             JobSubmissionIdempotency idempotency,
             OffsetDateTime now
@@ -107,7 +107,7 @@ public class JobSubmissionPersistenceService {
         var leaseMinutes = quotaAccountingService.getLeaseMinutes();
         var job = Job.builder()
                 .id(UUID.randomUUID())
-                .user(user)
+                .profile(profile)
                 .nodeId(null)
                 .status(JobStatus.QUEUED)
                 .dockerImage(request.dockerImage())

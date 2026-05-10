@@ -10,8 +10,8 @@ import com.pcrm.backend.quota.dto.QuotaLedgerEntryResponse;
 import com.pcrm.backend.quota.dto.QuotaSummaryResponse;
 import com.pcrm.backend.quota.repository.QuotaLedgerRepository;
 import com.pcrm.backend.quota.repository.QuotaWindowRepository;
-import com.pcrm.backend.user.User;
-import com.pcrm.backend.user.repository.UserRepository;
+import com.pcrm.backend.user.Profile;
+import com.pcrm.backend.user.repository.ProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -28,7 +28,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class QuotaAccountingService {
 
-    private final UserRepository userRepository;
+    private final ProfileRepository profileRepository;
     private final QuotaWindowRepository quotaWindowRepository;
     private final QuotaLedgerRepository quotaLedgerRepository;
     private final QuotaPolicyResolverService quotaPolicyResolverService;
@@ -38,12 +38,12 @@ public class QuotaAccountingService {
 
     @Transactional
     public long reserveInitialLease(UUID userId, Job job, String reason) {
-        var user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        var profile = profileRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Profile", userId));
         var now = OffsetDateTime.now(ZoneOffset.UTC);
-        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, now);
+        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(profile, now);
         var bounds = resolveBounds(now);
-        var window = getOrCreateWindowForUpdate(user, bounds, effectivePolicy, now);
+        var window = getOrCreateWindowForUpdate(profile, bounds, effectivePolicy, now);
 
         var remaining = calculateRemainingMinutes(window);
         if (!effectivePolicy.unlimited() && remaining < leaseMinutes) {
@@ -53,7 +53,7 @@ public class QuotaAccountingService {
         window.setReservedMinutes(window.getReservedMinutes() + leaseMinutes);
         bumpVersionAndUpdatedAt(window, now);
         quotaWindowRepository.save(window);
-        quotaLedgerRepository.save(buildLedgerEntry(user, job, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_RESERVE, leaseMinutes, reason, now));
+        quotaLedgerRepository.save(buildLedgerEntry(profile, job, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_RESERVE, leaseMinutes, reason, now));
         return leaseMinutes;
     }
 
@@ -64,15 +64,15 @@ public class QuotaAccountingService {
 
     @Transactional
     public void settleLeaseMinutes(Job job, long reservedMinutes, long consumedMinutes, String reason) {
-        var user = userRepository.findById(job.getUser().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", job.getUser().getId()));
+        var profile = profileRepository.findById(job.getProfile().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Profile", job.getProfile().getId()));
 
         var referenceTime = job.getQueuedAt() != null ? job.getQueuedAt() : job.getCreatedAt();
         var referencePoint = referenceTime != null ? referenceTime : OffsetDateTime.now(ZoneOffset.UTC);
         var bounds = resolveBounds(referencePoint);
         var now = OffsetDateTime.now(ZoneOffset.UTC);
-        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, referencePoint);
-        var window = getOrCreateWindowForUpdate(user, bounds, effectivePolicy, now);
+        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(profile, referencePoint);
+        var window = getOrCreateWindowForUpdate(profile, bounds, effectivePolicy, now);
 
         long releasableMinutes = Math.min(Math.max(0L, reservedMinutes), window.getReservedMinutes());
         long consumed = Math.min(Math.max(0L, consumedMinutes), releasableMinutes);
@@ -84,20 +84,20 @@ public class QuotaAccountingService {
         quotaWindowRepository.save(window);
 
         if (consumed > 0) {
-            quotaLedgerRepository.save(buildLedgerEntry(user, job, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_CONSUME, consumed, reason, now));
+            quotaLedgerRepository.save(buildLedgerEntry(profile, job, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_CONSUME, consumed, reason, now));
         }
         if (refunded > 0) {
-            quotaLedgerRepository.save(buildLedgerEntry(user, job, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_REFUND, refunded, reason, now));
+            quotaLedgerRepository.save(buildLedgerEntry(profile, job, job.getLeaseSequence(), QuotaLedgerEntryType.LEASE_REFUND, refunded, reason, now));
         }
     }
 
     @Transactional(readOnly = true)
     public QuotaFairnessSnapshot loadFairnessSnapshot(UUID userId, OffsetDateTime at) {
-        var user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, at);
+        var profile = profileRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Profile", userId));
+        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(profile, at);
         var bounds = resolveBounds(at);
-        var existingWindow = quotaWindowRepository.findByUser_IdAndWindowStart(userId, bounds.start());
+        var existingWindow = quotaWindowRepository.findByProfile_IdAndWindowStart(userId, bounds.start());
 
         long allocatedMinutes = effectivePolicy.monthlyMinutes();
         long consumedMinutes = existingWindow.map(QuotaWindow::getConsumedMinutes).orElse(0L);
@@ -112,13 +112,13 @@ public class QuotaAccountingService {
 
     @Transactional(readOnly = true)
     public QuotaSummaryResponse getQuotaSummary(UUID userId) {
-        var user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        var profile = profileRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Profile", userId));
         var now = OffsetDateTime.now(ZoneOffset.UTC);
-        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(user, now);
+        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(profile, now);
         var bounds = resolveBounds(now);
 
-        var existingWindow = quotaWindowRepository.findByUser_IdAndWindowStart(userId, bounds.start());
+        var existingWindow = quotaWindowRepository.findByProfile_IdAndWindowStart(userId, bounds.start());
         long allocated = existingWindow.map(QuotaWindow::getAllocatedMinutes).orElse(effectivePolicy.monthlyMinutes());
         long reserved = existingWindow.map(QuotaWindow::getReservedMinutes).orElse(0L);
         long consumed = existingWindow.map(QuotaWindow::getConsumedMinutes).orElse(0L);
@@ -128,7 +128,7 @@ public class QuotaAccountingService {
                 : Math.max(0L, allocated - reserved - consumed);
 
         return new QuotaSummaryResponse(
-                user.getRole(),
+                profile.getRole(),
                 allocated,
                 reserved,
                 consumed,
@@ -147,7 +147,7 @@ public class QuotaAccountingService {
         var end = start.plusMonths(1);
 
         return quotaLedgerRepository
-                .findByUser_IdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(userId, start, end)
+                .findByProfile_IdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(userId, start, end)
                 .stream()
                 .map(QuotaLedgerEntryResponse::from)
                 .toList();
@@ -158,23 +158,23 @@ public class QuotaAccountingService {
     }
 
     private QuotaWindow getOrCreateWindowForUpdate(
-            User user,
+            Profile profile,
             QuotaWindowBounds bounds,
             EffectiveQuotaPolicy effectivePolicy,
             OffsetDateTime now
     ) {
-        return quotaWindowRepository.findByUserIdAndWindowStartForUpdate(user.getId(), bounds.start())
-                .orElseGet(() -> createAndLockWindow(user, bounds, effectivePolicy, now));
+        return quotaWindowRepository.findByUserIdAndWindowStartForUpdate(profile.getId(), bounds.start())
+                .orElseGet(() -> createAndLockWindow(profile, bounds, effectivePolicy, now));
     }
 
     private QuotaWindow createAndLockWindow(
-            User user,
+            Profile profile,
             QuotaWindowBounds bounds,
             EffectiveQuotaPolicy effectivePolicy,
             OffsetDateTime now
     ) {
         var newWindow = QuotaWindow.builder()
-                .user(user)
+                .profile(profile)
                 .windowStart(bounds.start())
                 .windowEnd(bounds.end())
                 .allocatedMinutes(effectivePolicy.monthlyMinutes())
@@ -187,7 +187,7 @@ public class QuotaAccountingService {
         try {
             quotaWindowRepository.saveAndFlush(newWindow);
             quotaLedgerRepository.save(buildLedgerEntry(
-                    user,
+                    profile,
                     null,
                     0L,
                     QuotaLedgerEntryType.WINDOW_ALLOCATION,
@@ -198,12 +198,12 @@ public class QuotaAccountingService {
         } catch (DataIntegrityViolationException ignored) {
         }
 
-        return quotaWindowRepository.findByUserIdAndWindowStartForUpdate(user.getId(), bounds.start())
-                .orElseThrow(() -> new ResourceNotFoundException("QuotaWindow", "userId", user.getId().toString()));
+        return quotaWindowRepository.findByUserIdAndWindowStartForUpdate(profile.getId(), bounds.start())
+                .orElseThrow(() -> new ResourceNotFoundException("QuotaWindow", "userId", profile.getId().toString()));
     }
 
     private QuotaLedgerEntry buildLedgerEntry(
-            User user,
+            Profile profile,
             Job job,
             long leaseSequence,
             QuotaLedgerEntryType type,
@@ -212,7 +212,7 @@ public class QuotaAccountingService {
             OffsetDateTime createdAt
     ) {
         return QuotaLedgerEntry.builder()
-                .user(user)
+                .profile(profile)
                 .job(job)
                 .leaseSequence(Math.max(0L, leaseSequence))
                 .entryType(type)

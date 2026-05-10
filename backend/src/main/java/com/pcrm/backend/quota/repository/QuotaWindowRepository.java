@@ -19,7 +19,7 @@ public interface QuotaWindowRepository extends JpaRepository<QuotaWindow, UUID> 
     @Query("""
             SELECT window
             FROM QuotaWindow window
-            WHERE window.user.id = :userId
+            WHERE window.profile.id = :userId
               AND window.windowStart = :windowStart
             """)
     Optional<QuotaWindow> findByUserIdAndWindowStartForUpdate(
@@ -27,5 +27,5 @@ public interface QuotaWindowRepository extends JpaRepository<QuotaWindow, UUID> 
             @Param("windowStart") OffsetDateTime windowStart
     );
 
-    Optional<QuotaWindow> findByUser_IdAndWindowStart(UUID userId, OffsetDateTime windowStart);
+    Optional<QuotaWindow> findByProfile_IdAndWindowStart(UUID userId, OffsetDateTime windowStart);
 }

@@ -1,13 +1,17 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;INIT=RUNSCRIPT FROM 'classpath:h2-auth.sql'
     username: sa
     password: ""
     driver-class-name: org.h2.Driver
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: none
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    properties:
+      hibernate:
+        default_schema: PUBLIC
 
   flyway:
     enabled: false
@@ -20,15 +24,21 @@ app:
       interval-ms: 60000
       stale-timeout-sec: 300
   security:
+    supabase:
+      jwt-secret: test-test-test-test-test-test-test-test-test-test-test
     cookie:
       secure: false
   cors:
     allowed-origins: http://localhost:3000
 
-application:
-  security:
-    jwt:
-      public-key: src/test/resources/jwt/test-public.pem
-      private-key: src/test/resources/jwt/test-private.pem
-      expiration: 900000
-      refresh-expiration: 604800000
+  storage:
+    s3:
+      endpoint: http://localhost:9000
+      access-key: test
+      secret-key: test
+      region: us-east-1
+      bucket: test-bucket
+      path-style-access: true
+      presign:
+        upload-ttl-sec: 900
+        download-ttl-sec: 900

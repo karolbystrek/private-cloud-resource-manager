@@ -3,12 +3,12 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { NodesList } from './_components/nodes-list';
 import type { NodeSummary } from './_components/types';
+import { getBackendUrlForServer } from '@/lib/backend-url';
 
 export const metadata: Metadata = {
   title: 'Nodes - Private Cloud Resource Manager',
 };
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 const DEFAULT_POLL_INTERVAL_MS = 30000;
 
 function resolvePollIntervalMs(): number {
@@ -20,15 +20,12 @@ function resolvePollIntervalMs(): number {
 }
 
 export default async function NodesPage() {
-  if (!BACKEND_URL) {
-    throw new Error('Backend URL is not configured.');
-  }
-
   const accessToken = (await cookies()).get('access_token')?.value;
   if (!accessToken) {
     redirect('/login?next=/nodes');
   }
 
+  const BACKEND_URL = getBackendUrlForServer();
   const response = await fetch(`${BACKEND_URL}/api/nodes`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
