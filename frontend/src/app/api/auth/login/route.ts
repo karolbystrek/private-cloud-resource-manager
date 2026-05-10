@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { getBackendUrlForServer } from '@/lib/backend-url';
 import { isUserRole, type UserRole } from '@/lib/user-role';
 
-const brokerBaseUrl = getBackendUrlForServer();
 const USER_ROLE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 type QuotaMeResponse = {
@@ -34,6 +33,7 @@ export async function POST(request: Request) {
     const accessToken = data.session.access_token;
     const refreshToken = data.session.refresh_token;
 
+    const brokerBaseUrl = getBackendUrlForServer();
     const quotaResponse = await fetch(`${brokerBaseUrl}/api/quota/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });

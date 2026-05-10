@@ -9,7 +9,6 @@ export const metadata: Metadata = {
   title: 'Dashboard - Private Cloud Resource Manager',
 };
 
-const BACKEND_URL = getBackendUrlForServer();
 const RECENT_JOBS_SIZE = 6;
 
 type JobsResult = {
@@ -32,6 +31,7 @@ type QuotaResult = {
 };
 
 async function fetchRecentJobs(accessToken: string): Promise<JobsResult> {
+  const BACKEND_URL = getBackendUrlForServer();
   const response = await fetch(`${BACKEND_URL}/api/jobs?page=0&size=${RECENT_JOBS_SIZE}&sort=desc`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: 'no-store',
@@ -51,6 +51,7 @@ async function fetchRecentJobs(accessToken: string): Promise<JobsResult> {
 const FAILED_STATUSES: JobStatus[] = ['FAILED', 'OOM_KILLED', 'LEASE_EXPIRED'];
 
 async function fetchStatusCount(accessToken: string, statuses: JobStatus[]): Promise<number> {
+  const BACKEND_URL = getBackendUrlForServer();
   const params = new URLSearchParams({ page: '0', size: '1', sort: 'desc' });
   for (const status of statuses) {
     params.append('status', status);
@@ -83,6 +84,7 @@ async function fetchStatusCounts(accessToken: string) {
 }
 
 async function fetchQuotaSummary(accessToken: string): Promise<QuotaResult> {
+  const BACKEND_URL = getBackendUrlForServer();
   const response = await fetch(`${BACKEND_URL}/api/quota/me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: 'no-store',

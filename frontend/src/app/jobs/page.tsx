@@ -9,7 +9,6 @@ export const metadata: Metadata = {
   title: 'Jobs - Private Cloud Resource Manager',
 };
 
-const BACKEND_URL = getBackendUrlForServer();
 const DEFAULT_PAGE = 0;
 const DEFAULT_SIZE = 5;
 const MAX_SIZE = 50;
@@ -116,6 +115,7 @@ export default async function JobsPage({ searchParams }: { searchParams: JobsPag
     backendParams.append('status', status);
   }
 
+  const BACKEND_URL = getBackendUrlForServer();
   const response = await fetch(`${BACKEND_URL}/api/jobs?${backendParams.toString()}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,

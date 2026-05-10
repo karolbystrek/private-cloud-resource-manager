@@ -14,8 +14,6 @@ export const metadata: Metadata = {
   title: 'Admin - Private Cloud Resource Manager',
 };
 
-const BACKEND_URL = getBackendUrlForServer();
-
 type NodesResult = {
   nodes: NodeSummary[];
   error: string | null;
@@ -26,6 +24,7 @@ function getCountByStatus(nodes: NodeSummary[], status: string): number {
 }
 
 async function fetchNodes(accessToken: string): Promise<NodesResult> {
+  const BACKEND_URL = getBackendUrlForServer();
   const response = await fetch(`${BACKEND_URL}/api/nodes`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: 'no-store',

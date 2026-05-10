@@ -9,7 +9,6 @@ export const metadata: Metadata = {
   title: 'Nodes - Private Cloud Resource Manager',
 };
 
-const BACKEND_URL = getBackendUrlForServer();
 const DEFAULT_POLL_INTERVAL_MS = 30000;
 
 function resolvePollIntervalMs(): number {
@@ -26,6 +25,7 @@ export default async function NodesPage() {
     redirect('/login?next=/nodes');
   }
 
+  const BACKEND_URL = getBackendUrlForServer();
   const response = await fetch(`${BACKEND_URL}/api/nodes`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,

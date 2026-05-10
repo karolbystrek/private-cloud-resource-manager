@@ -5,8 +5,6 @@ import { JobDetailsPanel } from './_components/job-details-panel';
 import type { JobDetails } from '@/app/jobs/_components/types';
 import { getBackendUrlForServer } from '@/lib/backend-url';
 
-const BACKEND_URL = getBackendUrlForServer();
-
 export const metadata: Metadata = {
   title: 'Job Details - Private Cloud Resource Manager',
 };
@@ -22,6 +20,7 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
     redirect(`/login?next=${encodeURIComponent(`/jobs/${id}`)}`);
   }
 
+  const BACKEND_URL = getBackendUrlForServer();
   const response = await fetch(`${BACKEND_URL}/api/jobs/${encodeURIComponent(id)}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
