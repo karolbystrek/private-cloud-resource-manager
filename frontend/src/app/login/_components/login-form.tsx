@@ -1,6 +1,7 @@
 'use client';
 
-import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 type LoginPayload = {
-  username: string;
+  email: string;
   password: string;
 };
 
@@ -20,7 +21,7 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [formData, setFormData] = useState<LoginPayload>({
-    username: '',
+    email: '',
     password: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,10 +36,10 @@ export function LoginForm() {
     return nextParam;
   }, [searchParams]);
 
-  function handleUsernameChange(event: ChangeEvent<HTMLInputElement>) {
+  function handleEmailChange(event: ChangeEvent<HTMLInputElement>) {
     setFormData((previous) => ({
       ...previous,
-      username: event.target.value,
+      email: event.target.value,
     }));
   }
 
@@ -93,16 +94,17 @@ export function LoginForm() {
           </p>
         ) : null}
         <div className="space-y-2">
-          <Label htmlFor="username" className="text-sm font-medium">
-            Username
+          <Label htmlFor="email" className="text-sm font-medium">
+            Email
           </Label>
           <Input
-            id="username"
-            name="username"
-            autoComplete="username"
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
             required
-            value={formData.username}
-            onChange={handleUsernameChange}
+            value={formData.email}
+            onChange={handleEmailChange}
           />
         </div>
         <div className="space-y-2">

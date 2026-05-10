@@ -1,13 +1,14 @@
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { getBackendUrlForServer } from '@/lib/backend-url';
 import { isUserRole, type UserRole } from '@/lib/user-role';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+const brokerBaseUrl = getBackendUrlForServer();
 const USER_ROLE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
-type AuthenticationResponse = {
-  accessToken: string;
-  role: UserRole;
+type QuotaMeResponse = {
+  role: string;
 };
 
 export async function POST() {
@@ -19,39 +20,53 @@ export async function POST() {
       return NextResponse.json({ error: 'No refresh token.' }, { status: 401 });
     }
 
-    const backendResponse = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        Cookie: `refresh_token=${refreshToken}`,
-      },
+    const url = process.env.SUPABASE_URL;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !anonKey) {
+      return NextResponse.json({ error: 'Server misconfiguration.' }, { status: 500 });
+    }
+
+    const supabase = createClient(url, anonKey);
+    const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
+    if (error || !data.session) {
+      return NextResponse.json({ error: 'Refresh failed' }, { status: 401 });
+    }
+
+    const accessToken = data.session.access_token;
+    const nextRefresh = data.session.refresh_token ?? refreshToken;
+
+    const quotaResponse = await fetch(`${brokerBaseUrl}/api/quota/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    if (!backendResponse.ok) {
-      return NextResponse.json({ error: 'Refresh failed' }, { status: backendResponse.status });
+    let role: UserRole = 'STUDENT';
+    if (quotaResponse.ok) {
+      const quota = (await quotaResponse.json()) as QuotaMeResponse;
+      if (isUserRole(quota.role)) {
+        role = quota.role;
+      }
     }
-
-    const data = (await backendResponse.json()) as AuthenticationResponse;
-    if (!isUserRole(data.role) || typeof data.accessToken !== 'string') {
-      return NextResponse.json({ error: 'Invalid authentication response.' }, { status: 502 });
-    }
-
-    const backendSetCookie = backendResponse.headers.get('set-cookie');
 
     const response = NextResponse.json({ success: true }, { status: 200 });
 
-    if (backendSetCookie) {
-      response.headers.append('Set-Cookie', backendSetCookie);
-    }
-
-    response.cookies.set('access_token', data.accessToken, {
+    const accessMaxAge = Math.max(60, (data.session.expires_in ?? 3600) - 30);
+    response.cookies.set('access_token', accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 15 * 60,
+      maxAge: accessMaxAge,
     });
 
-    response.cookies.set('user_role', data.role, {
+    response.cookies.set('refresh_token', nextRefresh, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    });
+
+    response.cookies.set('user_role', role, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

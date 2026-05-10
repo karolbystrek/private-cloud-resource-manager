@@ -1,8 +1,9 @@
 .idea/
 
 .env
-!.env.example
 
 secrets/
+
+volumes/db/data/
 
 node_modules/

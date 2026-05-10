@@ -13,5 +13,5 @@ import java.util.UUID;
 public interface WalletRepository extends JpaRepository<Wallet, UUID> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<Wallet> findByUserId(UUID userId);
+    Optional<Wallet> findByProfile_Id(UUID userId);
 }

@@ -171,10 +171,10 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
               value={formatMinutesAsHoursAndMinutes(job.totalConsumedMinutes)}
             />
             <FieldRow
-              label="Owner Username"
+              label="Owner email"
               value={
                 <span className="inline-flex items-center gap-2">
-                  <span>{job.username}</span>
+                  <span>{job.userEmail}</span>
                 </span>
               }
             />

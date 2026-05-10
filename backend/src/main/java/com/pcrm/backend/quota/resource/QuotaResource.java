@@ -26,7 +26,7 @@ public class QuotaResource {
 
     @GetMapping("/me")
     public QuotaSummaryResponse getMyQuota(@AuthenticationPrincipal CustomUserDetails principal) {
-        return quotaAccountingService.getQuotaSummary(principal.user().getId());
+        return quotaAccountingService.getQuotaSummary(principal.id());
     }
 
     @GetMapping("/ledger")
@@ -35,7 +35,7 @@ public class QuotaResource {
             @RequestParam(name = "window", required = false) String window
     ) {
         var parsedWindow = parseWindow(window);
-        return quotaAccountingService.getQuotaLedger(principal.user().getId(), parsedWindow);
+        return quotaAccountingService.getQuotaLedger(principal.id(), parsedWindow);
     }
 
     private YearMonth parseWindow(String window) {

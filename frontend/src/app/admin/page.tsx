@@ -7,13 +7,14 @@ import type { NodeSummary } from '@/app/nodes/_components/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatUtcDateTime } from '@/lib/date-time';
+import { getBackendUrlForServer } from '@/lib/backend-url';
 import { isUserRole } from '@/lib/user-role';
 
 export const metadata: Metadata = {
   title: 'Admin - Private Cloud Resource Manager',
 };
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+const BACKEND_URL = getBackendUrlForServer();
 
 type NodesResult = {
   nodes: NodeSummary[];
@@ -47,10 +48,6 @@ async function fetchNodes(accessToken: string): Promise<NodesResult> {
 }
 
 export default async function AdminDashboardPage() {
-  if (!BACKEND_URL) {
-    throw new Error('Backend URL is not configured.');
-  }
-
   const cookieStore = await cookies();
   const accessToken = cookieStore.get('access_token')?.value;
   if (!accessToken) {

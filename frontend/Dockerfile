@@ -8,11 +8,11 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 
 # ---- Stage 2: Development ----
 # Copies pre-installed deps, exposes port 3000, and starts the Next.js dev server.
-# The compose.yaml mounts the host source tree over /app so edits are reflected instantly.
+# Docker Compose can mount the host source tree over /app so edits are reflected instantly.
 FROM node:20-alpine AS dev
 WORKDIR /app/frontend
 COPY --from=deps /app/node_modules /app/node_modules
-# When used with compose.yaml the host source tree is mounted over /app,
+# When used with Docker Compose the host source tree is mounted over /app,
 # overriding this layer. The COPY is kept so the stage also works standalone.
 COPY frontend /app/frontend
 ENV NODE_ENV=development

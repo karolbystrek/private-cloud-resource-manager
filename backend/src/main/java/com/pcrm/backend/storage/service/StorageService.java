@@ -1,18 +1,19 @@
 package com.pcrm.backend.storage.service;
 
-import io.minio.BucketExistsArgs;
-import io.minio.GetPresignedObjectUrlArgs;
-import io.minio.MakeBucketArgs;
-import io.minio.MinioClient;
-import io.minio.http.Method;
 import jakarta.annotation.PostConstruct;
+import java.time.Duration;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-
-import java.util.UUID;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 @Slf4j
 @Service
@@ -20,7 +21,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class StorageService {
 
-    private final MinioClient minioClient;
+    private final S3Presigner s3Presigner;
+    private final JdbcTemplate jdbcTemplate;
 
     @Value("${app.storage.s3.bucket}")
     private String bucket;
@@ -32,26 +34,27 @@ public class StorageService {
     private int downloadTtlSec;
 
     @PostConstruct
-    void ensureBucketExists() {
+    void initializeBucket() {
         try {
-            boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
-            if (!exists) {
-                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
-                log.info("Created object storage bucket {}", bucket);
-            } else {
-                log.info("Object storage bucket {} is ready", bucket);
-            }
-        } catch (Exception exception) {
-            throw new IllegalStateException("Failed to initialize object storage bucket " + bucket, exception);
+            jdbcTemplate.update(
+                    "INSERT INTO storage.buckets (id, name, public) VALUES (?, ?, false) ON CONFLICT (id) DO NOTHING",
+                    bucket,
+                    bucket);
+            log.info("Ensured storage bucket '{}' exists in Supabase.", bucket);
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to automatically create storage bucket '{}'. Ensure it exists in Supabase Studio: {}",
+                    bucket,
+                    e.getMessage());
         }
     }
 
     public String generatePresignedUploadUrl(UUID userId, UUID jobId) {
-        return generatePresignedUrl(userId, jobId, Method.PUT, uploadTtlSec);
+        return generatePresignedUrl(userId, jobId, true, uploadTtlSec);
     }
 
     public String generatePresignedDownloadUrl(UUID userId, UUID jobId) {
-        return generatePresignedUrl(userId, jobId, Method.GET, downloadTtlSec);
+        return generatePresignedUrl(userId, jobId, false, downloadTtlSec);
     }
 
     public String buildArtifactObjectKey(UUID userId, UUID jobId) {
@@ -66,26 +69,43 @@ public class StorageService {
         return downloadTtlSec;
     }
 
-    private String generatePresignedUrl(UUID userId, UUID jobId, Method method, int expirySeconds) {
+    private String generatePresignedUrl(UUID userId, UUID jobId, boolean upload, int expirySeconds) {
         if (expirySeconds <= 0) {
             throw new IllegalStateException("Presigned URL expiry must be greater than zero");
         }
 
         String objectKey = buildArtifactObjectKey(userId, jobId);
+        var ttl = Duration.ofSeconds(expirySeconds);
+
         try {
-            return minioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(method)
-                            .bucket(bucket)
-                            .object(objectKey)
-                            .expiry(expirySeconds)
-                            .build()
-            );
+            if (upload) {
+                var presigned =
+                        s3Presigner.presignPutObject(
+                                PutObjectPresignRequest.builder()
+                                        .signatureDuration(ttl)
+                                        .putObjectRequest(
+                                                PutObjectRequest.builder()
+                                                        .bucket(bucket)
+                                                        .key(objectKey)
+                                                        .build())
+                                        .build());
+                return presigned.url().toString();
+            }
+            var presigned =
+                    s3Presigner.presignGetObject(
+                            GetObjectPresignRequest.builder()
+                                    .signatureDuration(ttl)
+                                    .getObjectRequest(
+                                            GetObjectRequest.builder()
+                                                    .bucket(bucket)
+                                                    .key(objectKey)
+                                                    .build())
+                                    .build());
+            return presigned.url().toString();
         } catch (Exception exception) {
             throw new IllegalStateException(
                     "Failed to generate presigned URL for object " + objectKey,
-                    exception
-            );
+                    exception);
         }
     }
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import { ChangeEvent, FormEvent, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 type SignupPayload = {
-  username: string;
   email: string;
   password: string;
 };
@@ -16,19 +16,11 @@ type SignupPayload = {
 export function SignupForm() {
   const router = useRouter();
   const [formData, setFormData] = useState<SignupPayload>({
-    username: '',
     email: '',
     password: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-
-  function handleUsernameChange(event: ChangeEvent<HTMLInputElement>) {
-    setFormData((previous) => ({
-      ...previous,
-      username: event.target.value,
-    }));
-  }
 
   function handleEmailChange(event: ChangeEvent<HTMLInputElement>) {
     setFormData((previous) => ({
@@ -50,7 +42,7 @@ export function SignupForm() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -59,7 +51,8 @@ export function SignupForm() {
       });
 
       if (!response.ok) {
-        setErrorMessage('Registration failed. Please try again.');
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        setErrorMessage(body?.error ?? 'Registration failed. Please try again.');
         return;
       }
 
@@ -79,19 +72,6 @@ export function SignupForm() {
         <p className="text-muted-foreground text-sm">Create your account to continue.</p>
       </div>
       <form className="space-y-6" onSubmit={handleSubmit}>
-        <div className="space-y-2">
-          <Label htmlFor="username" className="text-sm font-medium">
-            Username
-          </Label>
-          <Input
-            id="username"
-            name="username"
-            autoComplete="username"
-            required
-            value={formData.username}
-            onChange={handleUsernameChange}
-          />
-        </div>
         <div className="space-y-2">
           <Label htmlFor="email" className="text-sm font-medium">
             Email

@@ -1,6 +1,6 @@
 package com.pcrm.backend.quota.domain;
 
-import com.pcrm.backend.user.User;
+import com.pcrm.backend.user.Profile;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -34,7 +34,7 @@ public class QuotaWindow {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private Profile profile;
 
     @Column(name = "window_start", nullable = false)
     private OffsetDateTime windowStart;

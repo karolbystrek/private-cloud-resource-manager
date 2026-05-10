@@ -8,6 +8,7 @@ import com.pcrm.backend.jobs.dto.JobHistoryItemResponse;
 import com.pcrm.backend.jobs.dto.JobsPageResponse;
 import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.user.UserRole;
+import com.pcrm.backend.user.repository.ProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -23,6 +24,7 @@ import java.util.UUID;
 public class JobQueryService {
 
     private final JobRepository jobRepository;
+    private final ProfileRepository profileRepository;
 
     @Transactional(readOnly = true)
     public JobsPageResponse listUserJobs(
@@ -34,8 +36,8 @@ public class JobQueryService {
     ) {
         var pageable = PageRequest.of(page, size, Sort.by(sortDirection, "createdAt"));
         var jobsPage = statusFilters == null || statusFilters.isEmpty()
-                ? jobRepository.findByUser_Id(userId, pageable)
-                : jobRepository.findByUser_IdAndStatusIn(userId, statusFilters, pageable);
+                ? jobRepository.findByProfile_Id(userId, pageable)
+                : jobRepository.findByProfile_IdAndStatusIn(userId, statusFilters, pageable);
 
         var jobs = jobsPage.getContent()
                 .stream()
@@ -56,18 +58,19 @@ public class JobQueryService {
 
     @Transactional(readOnly = true)
     public JobDetailsResponse getJobDetails(UUID jobId, CustomUserDetails principal) {
-        var job = principal.user().getRole() == UserRole.ADMIN
+        var job = principal.role() == UserRole.ADMIN
                 ? jobRepository.findById(jobId)
-                : jobRepository.findByIdAndUser_Id(jobId, principal.user().getId());
+                : jobRepository.findByIdAndProfile_Id(jobId, principal.id());
 
-        return job.map(JobDetailsResponse::from)
-                .orElseThrow(() -> new ResourceNotFoundException("Job", "id", jobId.toString()));
+        var j = job.orElseThrow(() -> new ResourceNotFoundException("Job", "id", jobId.toString()));
+        var email = profileRepository.findEmailForAuthUser(j.getProfile().getId()).orElse(principal.email());
+        return JobDetailsResponse.from(j, email);
     }
-    
+
     @Transactional(readOnly = true)
     public UUID getJobOwnerId(UUID jobId) {
         return jobRepository.findById(jobId)
-                .map(job -> job.getUser().getId())
+                .map(job -> job.getProfile().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Job", "id", jobId.toString()));
     }
 }

@@ -3,12 +3,13 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { HomeDashboard } from '@/app/_components/home-dashboard';
 import type { JobHistoryItem, JobsPageResponse, JobStatus } from '@/app/jobs/_components/types';
+import { getBackendUrlForServer } from '@/lib/backend-url';
 
 export const metadata: Metadata = {
   title: 'Dashboard - Private Cloud Resource Manager',
 };
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+const BACKEND_URL = getBackendUrlForServer();
 const RECENT_JOBS_SIZE = 6;
 
 type JobsResult = {
@@ -100,10 +101,6 @@ async function fetchQuotaSummary(accessToken: string): Promise<QuotaResult> {
 }
 
 export default async function Home() {
-  if (!BACKEND_URL) {
-    throw new Error('Backend URL is not configured.');
-  }
-
   const cookieStore = await cookies();
   const accessToken = cookieStore.get('access_token')?.value;
   if (!accessToken) {

@@ -1,7 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+import { getBackendUrlForServer } from '@/lib/backend-url';
 
 type Params = {
   params: Promise<{ id: string }>;
@@ -26,7 +25,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request, { params }: Params) {
-  if (!BACKEND_URL) {
+  let BACKEND_URL: string;
+  try {
+    BACKEND_URL = getBackendUrlForServer();
+  } catch {
     return NextResponse.json({ error: 'Backend URL is not configured.' }, { status: 500 });
   }
 

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { getBackendUrlForServer } from '@/lib/backend-url';
 
 type JobSubmissionBody = {
   dockerImage: string;
@@ -31,8 +32,6 @@ type ApiErrorResponse = {
   error: string;
   fieldErrors?: JobSubmissionFieldErrors;
 };
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 const validFields = new Set([
   'dockerImage',
@@ -182,7 +181,10 @@ function mapErrorResponse(status: number, problem: BrokerProblemDetail | null): 
 }
 
 export async function POST(request: Request) {
-  if (!BACKEND_URL) {
+  let BACKEND_URL: string;
+  try {
+    BACKEND_URL = getBackendUrlForServer();
+  } catch {
     return NextResponse.json({ error: 'Backend URL is not configured.' }, { status: 500 });
   }
 

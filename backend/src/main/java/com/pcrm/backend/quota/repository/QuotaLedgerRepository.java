@@ -11,7 +11,7 @@ import java.util.UUID;
 @Repository
 public interface QuotaLedgerRepository extends JpaRepository<QuotaLedgerEntry, UUID> {
 
-    List<QuotaLedgerEntry> findByUser_IdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+    List<QuotaLedgerEntry> findByProfile_IdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
             UUID userId,
             OffsetDateTime from,
             OffsetDateTime to
