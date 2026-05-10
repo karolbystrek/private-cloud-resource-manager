@@ -344,6 +344,9 @@ public class NomadEventStreamListener {
     private UUID extractRunId(String nomadJobId) {
         if (nomadJobId == null) return null;
         try {
+            if (!nomadJobId.contains("-run#") && !nomadJobId.contains("-job#")) {
+                return UUID.fromString(nomadJobId);
+            }
             if (nomadJobId.contains("-run#")) {
                 String[] parts = nomadJobId.split("-run#");
                 if (parts.length == 2) {
@@ -359,7 +362,6 @@ public class NomadEventStreamListener {
     private UUID extractJobId(String nomadJobId) {
         if (nomadJobId == null) return null;
         try {
-            // Check for format user#<user-uuid>-job#<job-uuid>
             if (nomadJobId.contains("-job#")) {
                 String[] parts = nomadJobId.split("-job#");
                 if (parts.length == 2) {
@@ -369,8 +371,7 @@ public class NomadEventStreamListener {
                     return UUID.fromString(parts[1]);
                 }
             }
-            // Fallback for simple UUID
-            return UUID.fromString(nomadJobId);
+            return null;
         } catch (IllegalArgumentException e) {
             return null; // Not our job format
         }

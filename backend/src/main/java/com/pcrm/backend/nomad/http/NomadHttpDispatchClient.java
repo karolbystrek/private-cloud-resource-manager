@@ -1,8 +1,8 @@
 package com.pcrm.backend.nomad.http;
 
 import com.pcrm.backend.exception.NomadDispatchException;
-import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.nomad.NomadDispatchClient;
+import com.pcrm.backend.nomad.NomadDispatchRequest;
 import com.pcrm.backend.nomad.NomadDispatchResult;
 import com.pcrm.backend.storage.service.StorageService;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.UUID;
 
 @Slf4j
 public class NomadHttpDispatchClient implements NomadDispatchClient {
@@ -33,10 +32,14 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
     }
 
     @Override
-    public NomadDispatchResult dispatchJob(UUID userId, UUID jobId, UUID runId, JobSubmissionRequest request) {
-        var nomadJobId = buildNomadJobId(userId, jobId, runId);
+    public NomadDispatchResult dispatchJob(NomadDispatchRequest request) {
+        var existingJob = fetchExistingJob(request.nomadJobId());
+        if (existingJob != null) {
+            verifyExistingJobMatchesRun(existingJob, request);
+            log.debug("Nomad job {} already exists for run {}", request.nomadJobId(), request.runId());
+            return new NomadDispatchResult(request.nomadJobId(), null);
+        }
 
-        // 1. Safely format user environment variables into HCL syntax
         StringBuilder envVars = new StringBuilder();
         if (request.envVars() != null) {
             request.envVars().forEach((key, value) -> envVars.append(key)
@@ -45,15 +48,18 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
                     .append("\"\n        "));
         }
 
-        String artifactObjectKey = storageService.buildArtifactObjectKey(userId, jobId);
-        String artifactUploadUrl = storageService.generatePresignedUploadUrl(userId, jobId);
+        String artifactObjectKey = storageService.buildArtifactObjectKey(request.userId(), request.jobId());
+        String artifactUploadUrl = storageService.generatePresignedUploadUrl(request.userId(), request.jobId());
 
-        // 2. Inject dynamic resources, config, and env vars
         String renderedHcl = hclTemplate
-                .replace("user#{{USER_ID}}-job#{{JOB_ID}}", nomadJobId)
-                .replace("{{USER_ID}}", userId.toString())
-                .replace("{{JOB_ID}}", jobId.toString())
-                .replace("{{RUN_ID}}", runId.toString())
+                .replace("{{NOMAD_JOB_ID}}", escapeHcl(request.nomadJobId()))
+                .replace("{{USER_ID}}", request.userId().toString())
+                .replace("{{JOB_ID}}", request.jobId().toString())
+                .replace("{{RUN_ID}}", request.runId().toString())
+                .replace("{{TRACE_ID}}", valueOrEmpty(request.correlationId()))
+                .replace("{{CORRELATION_ID}}", valueOrEmpty(request.correlationId()))
+                .replace("{{QUOTA_RESERVATION_ID}}", valueOrEmpty(request.quotaReservationId()))
+                .replace("{{RESOURCE_CLASS}}", escapeHcl(request.resourceClass()))
                 .replace("{{DOCKER_IMAGE}}", escapeHcl(request.dockerImage()))
                 .replace("{{EXECUTION_COMMAND}}", escapeHcl(request.executionCommand()))
                 .replace("{{CORES}}", request.reqCpuCores().toString())
@@ -62,8 +68,11 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
                 .replace("{{ARTIFACT_UPLOAD_URL}}", escapeHcl(artifactUploadUrl))
                 .replace("{{ENV_VARS}}", envVars.toString());
 
+        if (renderedHcl.contains("{{")) {
+            throw new NomadDispatchException("Rendered Nomad job template contains unresolved placeholders");
+        }
+
         try {
-            // 3. Parse the dynamically generated HCL into Nomad JSON
             var parsedResponse = restClient.post()
                     .uri("/v1/jobs/parse")
                     .body(Map.of("JobHCL", renderedHcl))
@@ -74,32 +83,62 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
                 throw new NomadDispatchException("Failed to parse HCL: Invalid response from Nomad");
             }
 
-            // 4. Register the new job
             var registerResponse = restClient.post()
                     .uri("/v1/jobs")
                     .body(Map.of("Job", parsedResponse))
                     .retrieve()
                     .body(Map.class);
 
-            log.debug("Successfully registered dynamic job#{} to Nomad", jobId);
-            return new NomadDispatchResult(nomadJobId, extractEvalId(registerResponse));
+            log.debug("Successfully registered Nomad job {} for run {}", request.nomadJobId(), request.runId());
+            return new NomadDispatchResult(request.nomadJobId(), extractEvalId(registerResponse));
         } catch (RestClientResponseException ex) {
             log.error("Nomad API rejected the request! Status: {}, Body: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
             throw new NomadDispatchException("Nomad API error: " + ex.getResponseBodyAsString(), ex);
         } catch (Exception ex) {
             log.error("Unexpected error during Nomad dispatch", ex);
-            throw new NomadDispatchException("Failed to register job#" + jobId + ": " + ex.getMessage(), ex);
+            throw new NomadDispatchException("Failed to register Nomad job " + request.nomadJobId() + ": " + ex.getMessage(), ex);
         }
     }
 
-    // Prevents HCL injection by escaping backslashes and double quotes in user inputs.
+    private Map<?, ?> fetchExistingJob(String nomadJobId) {
+        try {
+            return restClient.get()
+                    .uri("/v1/job/{jobId}", nomadJobId)
+                    .retrieve()
+                    .body(Map.class);
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 404) {
+                return null;
+            }
+            throw new NomadDispatchException("Failed to check existing Nomad job " + nomadJobId, ex);
+        }
+    }
+
+    private void verifyExistingJobMatchesRun(Map<?, ?> existingJob, NomadDispatchRequest request) {
+        if (!request.nomadJobId().equals(String.valueOf(existingJob.get("ID")))) {
+            throw new NomadDispatchException("Existing Nomad job has unexpected ID for run " + request.runId());
+        }
+
+        Object rawMeta = existingJob.get("Meta");
+        if (!(rawMeta instanceof Map<?, ?> meta)) {
+            throw new NomadDispatchException("Existing Nomad job has no run metadata for " + request.nomadJobId());
+        }
+
+        var existingRunId = meta.get("run_id");
+        if (!request.runId().toString().equals(existingRunId == null ? null : existingRunId.toString())) {
+            throw new NomadDispatchException("Existing Nomad job metadata does not match run " + request.runId());
+        }
+    }
+
     private String escapeHcl(String input) {
-        if (input == null) return "";
+        if (input == null) {
+            return "";
+        }
         return input.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    private String buildNomadJobId(UUID userId, UUID jobId, UUID runId) {
-        return "user#" + userId + "-job#" + jobId + "-run#" + runId;
+    private String valueOrEmpty(Object input) {
+        return input == null ? "" : escapeHcl(input.toString());
     }
 
     private String extractEvalId(Map<?, ?> registerResponse) {

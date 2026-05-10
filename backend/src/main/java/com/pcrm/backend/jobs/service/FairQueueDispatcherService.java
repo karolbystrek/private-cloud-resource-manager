@@ -2,21 +2,26 @@ package com.pcrm.backend.jobs.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pcrm.backend.exception.NomadDispatchException;
+import com.pcrm.backend.events.domain.OutboxMessage;
+import com.pcrm.backend.events.service.EventConsumerDedupeService;
+import com.pcrm.backend.events.service.EventTopics;
+import com.pcrm.backend.events.service.OutboxMessageHandler;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.Run;
 import com.pcrm.backend.jobs.domain.RunStatus;
-import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.jobs.repository.RunRepository;
 import com.pcrm.backend.nodes.domain.NodeStatus;
 import com.pcrm.backend.nodes.repository.NodeRepository;
 import com.pcrm.backend.nomad.NomadDispatchClient;
+import com.pcrm.backend.nomad.NomadDispatchRequest;
+import com.pcrm.backend.nomad.NomadDispatchResult;
 import com.pcrm.backend.quota.service.QuotaAccountingService;
 import com.pcrm.backend.quota.service.QuotaFairnessSnapshot;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -29,17 +34,21 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
+@ConditionalOnProperty(name = "app.nomad.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
-public class FairQueueDispatcherService {
+public class FairQueueDispatcherService implements OutboxMessageHandler {
 
     private static final TypeReference<Map<String, String>> ENV_VARS_TYPE = new TypeReference<>() {
     };
+    private static final String CONSUMER_NAME = "fair-queue-dispatcher";
+    private static final int MAX_ERROR_LENGTH = 4000;
 
     private final JobRepository jobRepository;
     private final RunRepository runRepository;
     private final NodeRepository nodeRepository;
     private final NomadDispatchClient nomadDispatchClient;
     private final QuotaAccountingService quotaAccountingService;
+    private final EventConsumerDedupeService dedupeService;
     private final JobRunEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
     private final ObjectMapper objectMapper;
@@ -52,51 +61,106 @@ public class FairQueueDispatcherService {
     @Value("${app.scheduler.dispatch.age-boost-per-minute:2}")
     private double ageBoostPerMinute;
 
+    @Value("${app.scheduler.dispatch.retry-stale-after-ms:60000}")
+    private long retryStaleAfterMs;
+
+    @Override
+    public String topic() {
+        return EventTopics.RUN_QUEUED;
+    }
+
+    @Override
+    public void handle(OutboxMessage message) {
+        dedupeService.runOnce(CONSUMER_NAME, message.getEventId(), () ->
+                requestNextDispatch(extractCorrelationId(message))
+        );
+    }
+
     @Scheduled(fixedDelayString = "${app.scheduler.dispatch.interval-ms:3000}")
-    public void dispatchNextQueuedJob() {
+    public void requestNextDispatchFromQueue() {
+        requestNextDispatch(UUID.randomUUID());
+    }
+
+    private void requestNextDispatch(UUID correlationId) {
+        if (retryStaleDispatchingRun(correlationId)) {
+            return;
+        }
+
+        var selected = selectCandidate();
+        if (selected.isEmpty()) {
+            return;
+        }
+
+        var candidate = selected.get();
+        var claimedRun = transactionTemplate.execute(_ -> claimForDispatch(candidate.run().getId()));
+
+        if (claimedRun == null || claimedRun.isEmpty()) {
+            return;
+        }
+
+        var run = claimedRun.get();
+        var dispatched = dispatchClaimedRun(run, correlationId);
+        if (!dispatched) {
+            return;
+        }
+
+        userDeficits.compute(candidate.job().getProfile().getId(), (_, value) ->
+                (value == null ? 0.0d : value) - candidate.cost());
+    }
+
+    private boolean retryStaleDispatchingRun(UUID correlationId) {
+        var now = OffsetDateTime.now(ZoneOffset.UTC);
+        var staleBefore = now.minus(Duration.ofMillis(retryStaleAfterMs));
+        var staleRun = runRepository.findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(RunStatus.DISPATCHING).stream()
+                .filter(run -> run.getDispatchedAt() == null)
+                .filter(run -> run.getDispatchRequestedAt() != null && run.getDispatchRequestedAt().isBefore(staleBefore))
+                .filter(run -> hasDispatchableReservation(run, now))
+                .findFirst();
+
+        if (staleRun.isEmpty()) {
+            return false;
+        }
+
+        var retryRun = transactionTemplate.execute(_ -> prepareDispatchRetry(staleRun.get().getId()));
+        return retryRun != null && retryRun.isPresent() && dispatchClaimedRun(retryRun.get(), correlationId);
+    }
+
+    private boolean dispatchClaimedRun(Run run, UUID correlationId) {
+        NomadDispatchResult dispatchResult;
+        try {
+            dispatchResult = nomadDispatchClient.dispatchJob(toDispatchRequest(run, correlationId));
+        } catch (Exception ex) {
+            log.error("Failed to dispatch queued run {}", run.getId(), ex);
+            transactionTemplate.executeWithoutResult(_ ->
+                    compensateDispatchFailure(run.getId(), summarize(ex), correlationId)
+            );
+            return false;
+        }
+
+        transactionTemplate.executeWithoutResult(_ ->
+                markDispatchAccepted(run.getId(), dispatchResult, correlationId)
+        );
+        return true;
+    }
+
+    private Optional<CandidateJob> selectCandidate() {
         var queuedRuns = runRepository.findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(RunStatus.QUEUED);
         if (queuedRuns.isEmpty()) {
-            return;
+            return Optional.empty();
         }
 
         var clusterCapacity = loadClusterCapacity();
         if (clusterCapacity.totalCpu() <= 0 || clusterCapacity.totalRamMb() <= 0) {
-            return;
+            return Optional.empty();
         }
 
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var cycleDeficits = new HashMap<UUID, Double>();
         var candidate = pickBestCandidate(queuedRuns, clusterCapacity, now, cycleDeficits);
-        if (candidate.isEmpty()) {
-            return;
+        if (candidate.isPresent()) {
+            userDeficits.putAll(cycleDeficits);
         }
-        userDeficits.putAll(cycleDeficits);
-
-        var selected = candidate.get();
-        var claimed = transactionTemplate.execute(status ->
-                runRepository.transitionStatus(selected.run().getId(), RunStatus.QUEUED, RunStatus.DISPATCHING)
-        );
-
-        if (claimed == null || claimed == 0) {
-            return;
-        }
-
-        try {
-            transactionTemplate.executeWithoutResult(_ -> markDispatchRequested(selected.run().getId()));
-            var jobRequest = toSubmissionRequest(selected.run().getJob());
-            var dispatchResult = nomadDispatchClient.dispatchJob(
-                    selected.run().getProfile().getId(),
-                    selected.run().getJob().getId(),
-                    selected.run().getId(),
-                    jobRequest
-            );
-            transactionTemplate.executeWithoutResult(_ -> markDispatchAccepted(selected.run().getId(), dispatchResult.nomadJobId(), dispatchResult.nomadEvalId()));
-            userDeficits.compute(selected.job().getProfile().getId(), (_, value) ->
-                    (value == null ? 0.0d : value) - selected.cost());
-        } catch (NomadDispatchException ex) {
-            log.error("Failed to dispatch queued run {}", selected.run().getId(), ex);
-            transactionTemplate.executeWithoutResult(status -> compensateDispatchFailure(selected.run().getId()));
-        }
+        return candidate;
     }
 
     private Optional<CandidateJob> pickBestCandidate(
@@ -181,74 +245,143 @@ public class FairQueueDispatcherService {
         return new ClusterCapacity(totalCpu, totalRamMb);
     }
 
-    private JobSubmissionRequest toSubmissionRequest(Job job) {
+    private Optional<Run> claimForDispatch(UUID runId) {
+        var run = runRepository.findByIdForUpdate(runId).orElseThrow();
+        if (run.getStatus() != RunStatus.QUEUED) {
+            return Optional.empty();
+        }
+
+        run.setStatus(RunStatus.DISPATCHING);
+        run.setDispatchRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        run.setNomadJobId(run.getId().toString());
+        run.setDispatchAttemptCount((run.getDispatchAttemptCount() == null ? 0L : run.getDispatchAttemptCount()) + 1);
+        run.setLastDispatchError(null);
+        var savedRun = runRepository.save(run);
+        syncJobProjection(run);
+        log.debug("Requested dispatch for run {} as Nomad job {}", run.getId(), run.getNomadJobId());
+        return Optional.of(savedRun);
+    }
+
+    private Optional<Run> prepareDispatchRetry(UUID runId) {
+        var run = runRepository.findByIdForUpdate(runId).orElseThrow();
+        if (run.getStatus() != RunStatus.DISPATCHING || run.getDispatchedAt() != null) {
+            return Optional.empty();
+        }
+
+        run.setDispatchRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        if (run.getNomadJobId() == null || run.getNomadJobId().isBlank()) {
+            run.setNomadJobId(run.getId().toString());
+        }
+        run.setDispatchAttemptCount((run.getDispatchAttemptCount() == null ? 0L : run.getDispatchAttemptCount()) + 1);
+        run.setLastDispatchError(null);
+        return Optional.of(runRepository.save(run));
+    }
+
+    private NomadDispatchRequest toDispatchRequest(Run run, UUID correlationId) {
+        var job = run.getJob();
+        return new NomadDispatchRequest(
+                run.getProfile().getId(),
+                job.getId(),
+                run.getId(),
+                run.getQuotaReservationId(),
+                run.getResourceClass(),
+                run.getNomadJobId(),
+                job.getDockerImage(),
+                job.getExecutionCommand(),
+                job.getReqCpuCores(),
+                job.getReqRamGb(),
+                deserializeEnvVars(job),
+                correlationId
+        );
+    }
+
+    private Map<String, String> deserializeEnvVars(Job job) {
         try {
-            var envVars = objectMapper.readValue(job.getEnvVarsJson(), ENV_VARS_TYPE);
-            return new JobSubmissionRequest(
-                    job.getDockerImage(),
-                    job.getExecutionCommand(),
-                    job.getReqCpuCores(),
-                    job.getReqRamGb(),
-                    envVars
-            );
+            return objectMapper.readValue(job.getEnvVarsJson(), ENV_VARS_TYPE);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to deserialize job environment variables", ex);
         }
     }
 
-    private void markDispatchRequested(UUID runId) {
+    private void markDispatchAccepted(UUID runId, NomadDispatchResult dispatchResult, UUID correlationId) {
         var run = runRepository.findByIdForUpdate(runId).orElseThrow();
-        run.setDispatchRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        runRepository.save(run);
-        syncJobProjection(run);
-        eventPublisher.runEvent("RunDispatchRequested", run, UUID.randomUUID());
-    }
-
-    private void markDispatchAccepted(UUID runId, String nomadJobId, String nomadEvalId) {
-        var run = runRepository.findByIdForUpdate(runId).orElseThrow();
-        run.setNomadJobId(nomadJobId);
-        run.setNomadEvalId(nomadEvalId);
-        run.setDispatchedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        runRepository.save(run);
-        syncJobProjection(run);
-        eventPublisher.runEvent(
-                "RunDispatchAccepted",
-                run,
-                Map.of(
-                        "nomadJobId", nomadJobId == null ? "" : nomadJobId,
-                        "nomadEvalId", nomadEvalId == null ? "" : nomadEvalId
-                ),
-                "backend",
-                UUID.randomUUID()
-        );
-    }
-
-    private void compensateDispatchFailure(UUID runId) {
-        var run = runRepository.findByIdForUpdate(runId).orElse(null);
-        if (run == null || run.getLeaseSettled()) {
+        if (run.getStatus() != RunStatus.DISPATCHING) {
             return;
         }
 
-        quotaAccountingService.refundLeaseReservation(
+        run.setNomadJobId(dispatchResult.nomadJobId());
+        run.setNomadEvalId(dispatchResult.nomadEvalId());
+        run.setDispatchedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        run.setStatus(RunStatus.SCHEDULING);
+        run.setLastDispatchError(null);
+        runRepository.save(run);
+        syncJobProjection(run);
+        eventPublisher.runEvent(
+                "RunDispatched",
                 run,
-                run.getCurrentLeaseReservedMinutes(),
-                "Nomad dispatch failed, initial lease refunded"
+                Map.of(
+                        "nomadJobId", dispatchResult.nomadJobId() == null ? "" : dispatchResult.nomadJobId(),
+                        "nomadEvalId", dispatchResult.nomadEvalId() == null ? "" : dispatchResult.nomadEvalId()
+                ),
+                "backend",
+                correlationId
         );
+    }
 
-        run.setCurrentLeaseReservedMinutes(0L);
-        run.setLeaseSettled(true);
+    private void compensateDispatchFailure(UUID runId, String reason, UUID correlationId) {
+        var run = runRepository.findByIdForUpdate(runId).orElse(null);
+        if (run == null || run.getStatus() != RunStatus.DISPATCHING) {
+            return;
+        }
+
+        run.setLastDispatchError(reason);
+        if (!Boolean.TRUE.equals(run.getLeaseSettled())) {
+            quotaAccountingService.refundLeaseReservation(
+                    run,
+                    run.getCurrentLeaseReservedMinutes(),
+                    "Nomad dispatch failed, initial lease refunded"
+            );
+
+            run.setCurrentLeaseReservedMinutes(0L);
+            run.setLeaseSettled(true);
+            run.setActiveLeaseExpiresAt(null);
+        }
+
         run.setStatus(RunStatus.INFRA_FAILED);
         run.setTerminalReason("NOMAD_DISPATCH_FAILED");
         run.setProcessFinishedAt(OffsetDateTime.now(ZoneOffset.UTC));
         runRepository.save(run);
         syncJobProjection(run);
-        eventPublisher.runEvent("RunInfraFailed", run, UUID.randomUUID());
+        eventPublisher.runEvent(
+                "RunInfraFailed",
+                run,
+                Map.of("reason", reason == null ? "" : reason),
+                "backend",
+                correlationId
+        );
+    }
+
+    private String summarize(Exception ex) {
+        var message = ex.getClass().getSimpleName() + ": " + (ex.getMessage() == null ? "" : ex.getMessage());
+        if (message.length() <= MAX_ERROR_LENGTH) {
+            return message;
+        }
+        return message.substring(0, MAX_ERROR_LENGTH);
+    }
+
+    private UUID extractCorrelationId(OutboxMessage message) {
+        var rawCorrelationId = message.getHeaders().path("correlation_id").asText(null);
+        if (rawCorrelationId == null || rawCorrelationId.isBlank()) {
+            return UUID.randomUUID();
+        }
+        return UUID.fromString(rawCorrelationId);
     }
 
     private void syncJobProjection(Run run) {
         var job = run.getJob();
         job.setStatus(run.getStatus());
         job.setCurrentRun(run);
+        job.setQueuedAt(run.getQueuedAt());
         job.setStartedAt(run.getStartedAt());
         job.setFinishedAt(run.getProcessFinishedAt());
         job.setActiveLeaseExpiresAt(run.getActiveLeaseExpiresAt());

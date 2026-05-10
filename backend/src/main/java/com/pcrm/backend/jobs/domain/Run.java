@@ -53,6 +53,13 @@ public class Run {
     @Column(name = "nomad_allocation_id", length = 180)
     private String nomadAllocationId;
 
+    @Column(name = "dispatch_attempt_count", nullable = false)
+    @Builder.Default
+    private Long dispatchAttemptCount = 0L;
+
+    @Column(name = "last_dispatch_error")
+    private String lastDispatchError;
+
     @Column(name = "queued_at")
     private OffsetDateTime queuedAt;
 

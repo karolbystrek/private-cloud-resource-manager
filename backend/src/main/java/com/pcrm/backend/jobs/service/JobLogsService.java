@@ -56,10 +56,10 @@ public class JobLogsService {
         var jobDetails = jobQueryService.getJobDetails(jobId, principal);
         boolean follow = !TERMINAL_STATUSES.contains(jobDetails.status());
         String nomadJobId = jobDetails.runId() == null
-                ? "user#" + jobDetails.userId() + "-job#" + jobId
+                ? jobId.toString()
                 : runRepository.findById(jobDetails.runId())
-                .map(run -> run.getNomadJobId() == null ? buildNomadJobId(jobDetails.userId(), jobId, run.getId()) : run.getNomadJobId())
-                .orElseGet(() -> buildNomadJobId(jobDetails.userId(), jobId, jobDetails.runId()));
+                .map(run -> run.getNomadJobId() == null ? run.getId().toString() : run.getNomadJobId())
+                .orElseGet(() -> jobDetails.runId().toString());
 
         SseEmitter emitter = new SseEmitter(0L);
         streamExecutor.execute(() -> streamToClient(
@@ -237,10 +237,6 @@ public class JobLogsService {
         long baseOffset = frameOffset >= 0 ? frameOffset : previousOffset;
         long positiveLength = Math.max(0, byteLength);
         return baseOffset + positiveLength;
-    }
-
-    private String buildNomadJobId(UUID ownerId, UUID jobId, UUID runId) {
-        return "user#" + ownerId + "-job#" + jobId + "-run#" + runId;
     }
 
     private boolean sendEvent(SseEmitter emitter, String eventName, Object payload) {
