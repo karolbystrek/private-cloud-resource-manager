@@ -18,20 +18,20 @@ import java.util.UUID;
 @Repository
 public interface RunRepository extends JpaRepository<Run, UUID> {
 
-    @EntityGraph(attributePaths = {"job", "job.user", "user"})
+    @EntityGraph(attributePaths = {"job", "job.profile", "profile"})
     List<Run> findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(RunStatus status);
 
-    @EntityGraph(attributePaths = {"job", "job.user", "user"})
+    @EntityGraph(attributePaths = {"job", "job.profile", "profile"})
     Optional<Run> findByNomadJobId(String nomadJobId);
 
-    @EntityGraph(attributePaths = {"job", "job.user", "user"})
+    @EntityGraph(attributePaths = {"job", "job.profile", "profile"})
     Optional<Run> findByNomadAllocationId(String nomadAllocationId);
 
-    @EntityGraph(attributePaths = {"job", "job.user", "user"})
+    @EntityGraph(attributePaths = {"job", "job.profile", "profile"})
     Optional<Run> findFirstByJob_IdOrderByRunNumberDesc(UUID jobId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = {"job", "job.user", "user"})
+    @EntityGraph(attributePaths = {"job", "job.profile", "profile"})
     @Query("""
             SELECT run
             FROM Run run

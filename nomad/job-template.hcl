@@ -47,7 +47,7 @@ job "{{NOMAD_JOB_ID}}" {
 
       config {
         image   = "alpine:3.20"
-        network_mode = "supabase_default"
+        network_mode = "{{DOCKER_COMPOSE_NETWORK}}"
         command = "/bin/sh"
         args    = ["-ec", "apk add --no-cache curl zip >/dev/null && if [ -d \"$NOMAD_ALLOC_DIR/data\" ] && [ \"$(ls -A \"$NOMAD_ALLOC_DIR/data\" 2>/dev/null)\" ]; then cd \"$NOMAD_ALLOC_DIR/data\" && zip -qr /tmp/output.zip .; fi && if [ -f /tmp/output.zip ]; then curl -fsS -X PUT --upload-file /tmp/output.zip \"$ARTIFACT_UPLOAD_URL\"; else echo \"No artifacts to upload, skipping\"; fi"]
       }

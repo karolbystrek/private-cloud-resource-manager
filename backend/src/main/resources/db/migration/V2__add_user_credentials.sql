@@ -1,1 +1,0 @@
--- Supabase auth.users holds credentials; no public users table.

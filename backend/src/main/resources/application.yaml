@@ -31,6 +31,7 @@ app:
     enabled: ${NOMAD_ENABLED:true}
     base-url: ${NOMAD_BASE_URL}
     job-template: ${NOMAD_WORKLOAD_TEMPLATE_PATH}
+    docker-compose-network: ${NOMAD_DOCKER_NETWORK:private-cloud-resource-manager_default}
     sync:
       enabled: ${NOMAD_SYNC_ENABLED}
       interval-ms: ${NOMAD_SYNC_INTERVAL_MS}

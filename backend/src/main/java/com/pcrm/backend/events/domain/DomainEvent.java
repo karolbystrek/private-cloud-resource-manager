@@ -61,7 +61,7 @@ public class DomainEvent {
     @Column(name = "actor_id", length = 255)
     private String actorId;
 
-    @Column(name = "user_id")
+    @Column(name = "profile_id")
     private UUID userId;
 
     @Column(name = "job_id")

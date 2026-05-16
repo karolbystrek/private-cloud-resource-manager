@@ -34,7 +34,7 @@ public class UserQuotaBalanceCurrent {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "profile_id", nullable = false)
     private Profile profile;
 
     @Column(name = "interval_start", nullable = false)

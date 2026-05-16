@@ -16,7 +16,7 @@ public interface UserQuotaOverrideRepository extends JpaRepository<UserQuotaOver
     @Query(value = """
             SELECT *
             FROM user_quota_override
-            WHERE user_id = :userId
+            WHERE profile_id = :userId
               AND active_from <= :at
               AND (expires_at IS NULL OR expires_at > :at)
             ORDER BY active_from DESC

@@ -1,12 +1,7 @@
 package com.pcrm.backend.jobs.service;
 
 import com.pcrm.backend.events.domain.OutboxMessage;
-import com.pcrm.backend.events.service.AggregateIds;
-import com.pcrm.backend.events.service.DomainEventAppendRequest;
-import com.pcrm.backend.events.service.DomainEventAppender;
-import com.pcrm.backend.events.service.EventConsumerDedupeService;
-import com.pcrm.backend.events.service.EventTopics;
-import com.pcrm.backend.events.service.OutboxMessageHandler;
+import com.pcrm.backend.events.service.*;
 import com.pcrm.backend.exception.InsufficientQuotaException;
 import com.pcrm.backend.exception.ResourceNotFoundException;
 import com.pcrm.backend.jobs.domain.Job;
@@ -72,7 +67,7 @@ public class RunAdmissionWorker implements OutboxMessageHandler {
     private void admitWithQuotaReservation(Run run, UUID correlationId) {
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var reservedMinutes = quotaAccountingService.reserveInitialLease(
-                run.getUser().getId(),
+                run.getProfile().getId(),
                 run,
                 "Initial lease reserved during admission"
         );
@@ -125,9 +120,9 @@ public class RunAdmissionWorker implements OutboxMessageHandler {
         domainEventAppender.append(new DomainEventAppendRequest(
                 "QuotaRejected",
                 AggregateIds.QUOTA_BALANCE,
-                AggregateIds.quotaBalance(run.getUser().getId(), bounds.start(), COMPUTE_RESOURCE_CLASS),
+                AggregateIds.quotaBalance(run.getProfile().getId(), bounds.start(), COMPUTE_RESOURCE_CLASS),
                 Map.of(
-                        "userId", run.getUser().getId(),
+                        "userId", run.getProfile().getId(),
                         "jobId", run.getJob().getId(),
                         "runId", run.getId(),
                         "factType", INSUFFICIENT_QUOTA,
@@ -137,7 +132,7 @@ public class RunAdmissionWorker implements OutboxMessageHandler {
                 "backend",
                 "SYSTEM",
                 CONSUMER_NAME,
-                run.getUser().getId(),
+                run.getProfile().getId(),
                 run.getJob().getId(),
                 null,
                 correlationId,

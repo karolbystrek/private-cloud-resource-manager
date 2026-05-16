@@ -31,9 +31,10 @@ public class NomadIntegrationConfig {
     NomadDispatchClient nomadDispatchClient(
             @Value("${app.nomad.base-url}") String nomadBaseUrl,
             @Value("${app.nomad.job-template}") String jobTemplatePath,
+            @Value("${app.nomad.docker-compose-network}") String dockerComposeNetwork,
             StorageService storageService
     ) throws IOException {
-        return new NomadHttpDispatchClient(nomadBaseUrl, jobTemplatePath, storageService);
+        return new NomadHttpDispatchClient(nomadBaseUrl, jobTemplatePath, dockerComposeNetwork, storageService);
     }
 
     @Bean

@@ -31,7 +31,7 @@ public class JobRunEventPublisher {
                 job,
                 Map.of(
                         "jobId", job.getId(),
-                        "userId", job.getUser().getId(),
+                        "profileId", job.getProfile().getId(),
                         "dockerImage", job.getDockerImage(),
                         "reqCpuCores", job.getReqCpuCores(),
                         "reqRamGb", job.getReqRamGb()
@@ -120,7 +120,7 @@ public class JobRunEventPublisher {
                 SOURCE_BACKEND,
                 actorType,
                 actorId,
-                job.getUser().getId(),
+                job.getProfile().getId(),
                 job.getId(),
                 null,
                 correlationId == null ? UUID.randomUUID() : correlationId,

@@ -27,7 +27,7 @@ public class SupabaseJwtAuthenticationConverter implements Converter<Jwt, Abstra
             if (email == null) {
                 email = "";
             }
-            var profile = profileProvisioningService.ensureProfileAndWallet(id);
+            var profile = profileProvisioningService.ensureProfile(id);
             var principal = new CustomUserDetails(id, email, profile.getRole());
             return new UsernamePasswordAuthenticationToken(principal, jwt, principal.getAuthorities());
         });

@@ -19,15 +19,18 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
 
     private final RestClient restClient;
     private final String hclTemplate;
+    private final String dockerComposeNetwork;
     private final StorageService storageService;
 
     public NomadHttpDispatchClient(
             String nomadBaseUrl,
             String jobTemplatePath,
+            String dockerComposeNetwork,
             StorageService storageService
     ) throws IOException {
         this.restClient = RestClient.builder().baseUrl(nomadBaseUrl).build();
         this.hclTemplate = Files.readString(Path.of(jobTemplatePath));
+        this.dockerComposeNetwork = dockerComposeNetwork;
         this.storageService = storageService;
     }
 
@@ -66,6 +69,7 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
                 .replace("{{MEMORY_MB}}", String.valueOf(request.reqRamGb() * 1024))
                 .replace("{{ARTIFACT_OBJECT_KEY}}", escapeHcl(artifactObjectKey))
                 .replace("{{ARTIFACT_UPLOAD_URL}}", escapeHcl(artifactUploadUrl))
+                .replace("{{DOCKER_COMPOSE_NETWORK}}", escapeHcl(dockerComposeNetwork))
                 .replace("{{ENV_VARS}}", envVars.toString());
 
         if (renderedHcl.contains("{{")) {

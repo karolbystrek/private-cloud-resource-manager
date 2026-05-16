@@ -1,1 +1,0 @@
--- Session refresh handled by Supabase Auth; no broker refresh_tokens table.

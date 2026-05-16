@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public record AdminQuotaGrantResponse(
         UUID grantId,
-        UUID userId,
+        UUID profileId,
         long minutes,
         long remainingMinutes,
         QuotaGrantType grantType,
@@ -33,7 +33,7 @@ public record AdminQuotaGrantResponse(
     ) {
         return new AdminQuotaGrantResponse(
                 grant.getId(),
-                grant.getUser().getId(),
+                grant.getProfile().getId(),
                 grant.getMinutes(),
                 grant.getRemainingMinutes(),
                 grant.getGrantType(),
