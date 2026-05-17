@@ -3,7 +3,7 @@
 
 .cursor/
 
-.env
+.env.*
 
 secrets/
 
