@@ -3,11 +3,8 @@ job "{{NOMAD_JOB_ID}}" {
 
   meta {
     job_id = "{{JOB_ID}}"
-    run_id = "{{RUN_ID}}"
     user_id = "{{USER_ID}}"
-    quota_reservation_id = "{{QUOTA_RESERVATION_ID}}"
     correlation_id = "{{CORRELATION_ID}}"
-    resource_class = "{{RESOURCE_CLASS}}"
   }
 
   group "execution-group" {
@@ -22,12 +19,9 @@ job "{{NOMAD_JOB_ID}}" {
 
       env {
         JOB_ID = "{{JOB_ID}}"
-        RUN_ID = "{{RUN_ID}}"
         USER_ID = "{{USER_ID}}"
         TRACE_ID = "{{TRACE_ID}}"
         CORRELATION_ID = "{{CORRELATION_ID}}"
-        QUOTA_RESERVATION_ID = "{{QUOTA_RESERVATION_ID}}"
-        RESOURCE_CLASS = "{{RESOURCE_CLASS}}"
         {{ENV_VARS}}
       }
 
@@ -54,12 +48,9 @@ job "{{NOMAD_JOB_ID}}" {
 
       env {
         JOB_ID = "{{JOB_ID}}"
-        RUN_ID = "{{RUN_ID}}"
         USER_ID = "{{USER_ID}}"
         TRACE_ID = "{{TRACE_ID}}"
         CORRELATION_ID = "{{CORRELATION_ID}}"
-        QUOTA_RESERVATION_ID = "{{QUOTA_RESERVATION_ID}}"
-        RESOURCE_CLASS = "{{RESOURCE_CLASS}}"
         ARTIFACT_OBJECT_KEY = "{{ARTIFACT_OBJECT_KEY}}"
         ARTIFACT_UPLOAD_URL = "{{ARTIFACT_UPLOAD_URL}}"
       }

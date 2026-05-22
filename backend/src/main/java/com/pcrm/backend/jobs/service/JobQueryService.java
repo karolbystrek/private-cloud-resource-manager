@@ -2,7 +2,7 @@ package com.pcrm.backend.jobs.service;
 
 import com.pcrm.backend.auth.domain.CustomUserDetails;
 import com.pcrm.backend.exception.ResourceNotFoundException;
-import com.pcrm.backend.jobs.domain.RunStatus;
+import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.dto.JobDetailsResponse;
 import com.pcrm.backend.jobs.dto.JobHistoryItemResponse;
 import com.pcrm.backend.jobs.dto.JobsPageResponse;
@@ -32,12 +32,12 @@ public class JobQueryService {
             int page,
             int size,
             Sort.Direction sortDirection,
-            List<RunStatus> statusFilters
+            List<JobStatus> statusFilters
     ) {
         var pageable = PageRequest.of(page, size, Sort.by(sortDirection, "createdAt"));
         var jobsPage = statusFilters == null || statusFilters.isEmpty()
                 ? jobRepository.findByProfile_Id(userId, pageable)
-                : jobRepository.findByProfile_IdAndCurrentRun_StatusIn(userId, statusFilters, pageable);
+                : jobRepository.findByProfile_IdAndStatusIn(userId, statusFilters, pageable);
 
         var jobs = jobsPage.getContent()
                 .stream()

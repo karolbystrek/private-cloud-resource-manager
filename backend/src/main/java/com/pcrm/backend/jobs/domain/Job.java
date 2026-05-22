@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Entity
@@ -23,12 +24,9 @@ public class Job {
     @JoinColumn(name = "profile_id", nullable = false)
     private Profile profile;
 
-    @Column(name = "node_id")
-    private String nodeId;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
-    private RunStatus status;
+    private JobStatus status;
 
     @Column(name = "docker_image", nullable = false)
     private String dockerImage;
@@ -59,11 +57,20 @@ public class Job {
     @Column(name = "queued_at")
     private OffsetDateTime queuedAt;
 
+    @Column(name = "dispatch_requested_at")
+    private OffsetDateTime dispatchRequestedAt;
+
+    @Column(name = "dispatched_at")
+    private OffsetDateTime dispatchedAt;
+
     @Column(name = "started_at")
     private OffsetDateTime startedAt;
 
-    @Column(name = "finished_at")
-    private OffsetDateTime finishedAt;
+    @Column(name = "process_finished_at")
+    private OffsetDateTime processFinishedAt;
+
+    @Column(name = "finalized_at")
+    private OffsetDateTime finalizedAt;
 
     @Column(name = "active_lease_expires_at")
     private OffsetDateTime activeLeaseExpiresAt;
@@ -80,27 +87,43 @@ public class Job {
     @Builder.Default
     private Boolean leaseSettled = false;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "current_run_id")
-    private Run currentRun;
-
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "lease_renewal_attempt_count", nullable = false)
     @Builder.Default
-    private OffsetDateTime createdAt = OffsetDateTime.now();
+    private Long leaseRenewalAttemptCount = 0L;
+
+    @Column(name = "last_lease_renewal_error")
+    private String lastLeaseRenewalError;
+
+    @Column(name = "lease_stop_requested_at")
+    private OffsetDateTime leaseStopRequestedAt;
+
+    @Column(name = "terminal_reason", length = 120)
+    private String terminalReason;
+
+    @Column(name = "created_at", updatable = false, nullable = false)
+    @Builder.Default
+    private OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);
 
     @Column(name = "updated_at", nullable = false)
     @Builder.Default
-    private OffsetDateTime updatedAt = OffsetDateTime.now();
+    private OffsetDateTime updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
     @PrePersist
-    protected void ensureId() {
+    protected void ensureDefaults() {
+        var now = OffsetDateTime.now(ZoneOffset.UTC);
         if (id == null) {
             id = UUID.randomUUID();
+        }
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
         }
     }
 
     @PreUpdate
     protected void updateTimestamp() {
-        updatedAt = OffsetDateTime.now();
+        updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
     }
 }

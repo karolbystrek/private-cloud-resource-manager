@@ -1,7 +1,7 @@
 package com.pcrm.backend.jobs.resource;
 
 import com.pcrm.backend.auth.domain.CustomUserDetails;
-import com.pcrm.backend.jobs.domain.RunStatus;
+import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.dto.JobDetailsResponse;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.jobs.dto.JobSubmissionResponse;
@@ -44,7 +44,7 @@ public class JobsResource {
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "5") @Min(1) @Max(100) int size,
             @RequestParam(defaultValue = "desc") String sort,
-            @RequestParam(name = "status", required = false) List<RunStatus> statuses,
+            @RequestParam(name = "status", required = false) List<JobStatus> statuses,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         var sortDirection = parseSortDirection(sort);
@@ -79,7 +79,7 @@ public class JobsResource {
         log.info("Received job submission request from user {}", principal.id());
         var result = jobSubmissionService.submitJob(principal.id(), request, idempotencyKey);
         var status = result.replayed() ? HttpStatus.OK : HttpStatus.ACCEPTED;
-        return ResponseEntity.status(status).body(new JobSubmissionResponse(result.jobId(), result.runId()));
+        return ResponseEntity.status(status).body(new JobSubmissionResponse(result.jobId()));
     }
 
     private Sort.Direction parseSortDirection(String sort) {

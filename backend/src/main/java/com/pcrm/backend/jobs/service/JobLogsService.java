@@ -1,9 +1,8 @@
 package com.pcrm.backend.jobs.service;
 
 import com.pcrm.backend.auth.domain.CustomUserDetails;
+import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.repository.JobRepository;
-import com.pcrm.backend.jobs.domain.RunStatus;
-import com.pcrm.backend.jobs.repository.RunRepository;
 import com.pcrm.backend.nomad.NomadLogsClient;
 import com.pcrm.backend.nomad.NomadLogsUnavailableException;
 import jakarta.annotation.PreDestroy;
@@ -28,17 +27,16 @@ import java.util.concurrent.atomic.AtomicLong;
 @RequiredArgsConstructor
 public class JobLogsService {
 
-    private static final Set<RunStatus> TERMINAL_STATUSES = Set.of(
-            RunStatus.SUCCEEDED,
-            RunStatus.FAILED,
-            RunStatus.CANCELED,
-            RunStatus.TIMED_OUT,
-            RunStatus.INFRA_FAILED
+    private static final Set<JobStatus> TERMINAL_STATUSES = Set.of(
+            JobStatus.SUCCEEDED,
+            JobStatus.FAILED,
+            JobStatus.CANCELED,
+            JobStatus.TIMED_OUT,
+            JobStatus.INFRA_FAILED
     );
 
     private final JobQueryService jobQueryService;
     private final JobRepository jobRepository;
-    private final RunRepository runRepository;
     private final NomadLogsClient nomadLogsClient;
     private final ExecutorService streamExecutor = Executors.newCachedThreadPool();
 
@@ -55,11 +53,7 @@ public class JobLogsService {
     ) {
         var jobDetails = jobQueryService.getJobDetails(jobId, principal);
         boolean follow = !TERMINAL_STATUSES.contains(jobDetails.status());
-        String nomadJobId = jobDetails.runId() == null
-                ? jobId.toString()
-                : runRepository.findById(jobDetails.runId())
-                .map(run -> run.getNomadJobId() == null ? run.getId().toString() : run.getNomadJobId())
-                .orElseGet(() -> jobDetails.runId().toString());
+        String nomadJobId = jobId.toString();
 
         SseEmitter emitter = new SseEmitter(0L);
         streamExecutor.execute(() -> streamToClient(

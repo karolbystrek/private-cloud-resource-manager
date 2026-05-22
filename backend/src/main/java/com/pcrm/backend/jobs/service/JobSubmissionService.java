@@ -46,7 +46,6 @@ public class JobSubmissionService {
                         ),
                         responseBody -> PreparedJobSubmission.replayed(
                                 UUID.fromString(responseBody.get("jobId").asText()),
-                                UUID.fromString(responseBody.get("runId").asText()),
                                 userId
                         ),
                         RESOURCE_TYPE_JOB,

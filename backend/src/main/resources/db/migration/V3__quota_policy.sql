@@ -1,12 +1,12 @@
 CREATE TABLE quota_policy
 (
-    id              UUID PRIMARY KEY             DEFAULT uuid_generate_v4(),
-    role            VARCHAR(20)                  NOT NULL,
-    monthly_minutes BIGINT                       NOT NULL DEFAULT 0,
-    role_weight     INTEGER                      NOT NULL DEFAULT 1,
-    unlimited       BOOLEAN                      NOT NULL DEFAULT FALSE,
-    active_from     TIMESTAMPTZ                  NOT NULL,
-    created_at      TIMESTAMPTZ                  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id              UUID PRIMARY KEY     DEFAULT uuid_generate_v4(),
+    role            VARCHAR(20) NOT NULL,
+    monthly_minutes BIGINT      NOT NULL DEFAULT 0,
+    role_weight     INTEGER     NOT NULL DEFAULT 1,
+    unlimited       BOOLEAN     NOT NULL DEFAULT FALSE,
+    active_from     TIMESTAMPTZ NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_quota_policy_role_active_from UNIQUE (role, active_from),
     CONSTRAINT chk_quota_policy_minutes_nn CHECK (monthly_minutes >= 0),
     CONSTRAINT chk_quota_policy_weight_pos CHECK (role_weight > 0)

@@ -7,9 +7,8 @@ import com.pcrm.backend.events.service.EventConsumerDedupeService;
 import com.pcrm.backend.events.service.EventTopics;
 import com.pcrm.backend.events.service.OutboxMessageHandler;
 import com.pcrm.backend.jobs.domain.Job;
-import com.pcrm.backend.jobs.domain.Run;
-import com.pcrm.backend.jobs.domain.RunStatus;
-import com.pcrm.backend.jobs.repository.RunRepository;
+import com.pcrm.backend.jobs.domain.JobStatus;
+import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.nodes.domain.NodeStatus;
 import com.pcrm.backend.nodes.repository.NodeRepository;
 import com.pcrm.backend.nomad.NomadDispatchClient;
@@ -42,13 +41,13 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
     private static final String CONSUMER_NAME = "fair-queue-dispatcher";
     private static final int MAX_ERROR_LENGTH = 4000;
 
-    private final RunRepository runRepository;
-    private final RunStateMachine runStateMachine;
+    private final JobRepository jobRepository;
+    private final JobStateMachine jobStateMachine;
     private final NodeRepository nodeRepository;
     private final NomadDispatchClient nomadDispatchClient;
     private final QuotaAccountingService quotaAccountingService;
     private final EventConsumerDedupeService dedupeService;
-    private final JobRunEventPublisher eventPublisher;
+    private final JobEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
     private final ObjectMapper objectMapper;
 
@@ -65,7 +64,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
 
     @Override
     public String topic() {
-        return EventTopics.RUN_QUEUED;
+        return EventTopics.JOB_QUEUED;
     }
 
     @Override
@@ -81,7 +80,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
     }
 
     private void requestNextDispatch(UUID correlationId) {
-        if (retryStaleDispatchingRun(correlationId)) {
+        if (retryStaleDispatchingJob(correlationId)) {
             return;
         }
 
@@ -91,14 +90,14 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
         }
 
         var candidate = selected.get();
-        var claimedRun = transactionTemplate.execute(_ -> claimForDispatch(candidate.run().getId()));
+        var claimedJob = transactionTemplate.execute(_ -> claimForDispatch(candidate.job().getId()));
 
-        if (claimedRun == null || claimedRun.isEmpty()) {
+        if (claimedJob == null || claimedJob.isEmpty()) {
             return;
         }
 
-        var run = claimedRun.get();
-        var dispatched = dispatchClaimedRun(run, correlationId);
+        var job = claimedJob.get();
+        var dispatched = dispatchClaimedJob(job, correlationId);
         if (!dispatched) {
             return;
         }
@@ -107,44 +106,44 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
                 (value == null ? 0.0d : value) - candidate.cost());
     }
 
-    private boolean retryStaleDispatchingRun(UUID correlationId) {
+    private boolean retryStaleDispatchingJob(UUID correlationId) {
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var staleBefore = now.minus(Duration.ofMillis(retryStaleAfterMs));
-        var staleRun = runRepository.findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(RunStatus.DISPATCHING).stream()
-                .filter(run -> run.getDispatchedAt() == null)
-                .filter(run -> run.getDispatchRequestedAt() != null && run.getDispatchRequestedAt().isBefore(staleBefore))
-                .filter(run -> hasDispatchableReservation(run, now))
+        var staleJob = jobRepository.findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus.DISPATCHING).stream()
+                .filter(job -> job.getDispatchedAt() == null)
+                .filter(job -> job.getDispatchRequestedAt() != null && job.getDispatchRequestedAt().isBefore(staleBefore))
+                .filter(job -> hasDispatchableReservation(job, now))
                 .findFirst();
 
-        if (staleRun.isEmpty()) {
+        if (staleJob.isEmpty()) {
             return false;
         }
 
-        var retryRun = transactionTemplate.execute(_ -> prepareDispatchRetry(staleRun.get().getId()));
-        return retryRun != null && retryRun.isPresent() && dispatchClaimedRun(retryRun.get(), correlationId);
+        var retryJob = transactionTemplate.execute(_ -> prepareDispatchRetry(staleJob.get().getId()));
+        return retryJob != null && retryJob.isPresent() && dispatchClaimedJob(retryJob.get(), correlationId);
     }
 
-    private boolean dispatchClaimedRun(Run run, UUID correlationId) {
+    private boolean dispatchClaimedJob(Job job, UUID correlationId) {
         NomadDispatchResult dispatchResult;
         try {
-            dispatchResult = nomadDispatchClient.dispatchJob(toDispatchRequest(run, correlationId));
+            dispatchResult = nomadDispatchClient.dispatchJob(toDispatchRequest(job, correlationId));
         } catch (Exception ex) {
-            log.error("Failed to dispatch queued run {}", run.getId(), ex);
+            log.error("Failed to dispatch queued job {}", job.getId(), ex);
             transactionTemplate.executeWithoutResult(_ ->
-                    compensateDispatchFailure(run.getId(), summarize(ex), correlationId)
+                    compensateDispatchFailure(job.getId(), summarize(ex), correlationId)
             );
             return false;
         }
 
         transactionTemplate.executeWithoutResult(_ ->
-                markDispatchAccepted(run.getId(), dispatchResult, correlationId)
+                markDispatchAccepted(job.getId(), dispatchResult, correlationId)
         );
         return true;
     }
 
     private Optional<CandidateJob> selectCandidate() {
-        var queuedRuns = runRepository.findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(RunStatus.QUEUED);
-        if (queuedRuns.isEmpty()) {
+        var queuedJobs = jobRepository.findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus.QUEUED);
+        if (queuedJobs.isEmpty()) {
             return Optional.empty();
         }
 
@@ -155,7 +154,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
 
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var cycleDeficits = new HashMap<UUID, Double>();
-        var candidate = pickBestCandidate(queuedRuns, clusterCapacity, now, cycleDeficits);
+        var candidate = pickBestCandidate(queuedJobs, clusterCapacity, now, cycleDeficits);
         if (candidate.isPresent()) {
             userDeficits.putAll(cycleDeficits);
         }
@@ -163,34 +162,32 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
     }
 
     private Optional<CandidateJob> pickBestCandidate(
-            java.util.List<Run> queuedRuns,
+            java.util.List<Job> queuedJobs,
             ClusterCapacity clusterCapacity,
             OffsetDateTime now,
             Map<UUID, Double> cycleDeficits
     ) {
-        return queuedRuns.stream()
-                .filter(run -> hasDispatchableReservation(run, now))
-                .filter(run -> isRunnable(run.getJob(), clusterCapacity))
-                .map(run -> scoreCandidate(run, clusterCapacity, now, cycleDeficits))
+        return queuedJobs.stream()
+                .filter(job -> hasDispatchableReservation(job, now))
+                .filter(job -> isRunnable(job, clusterCapacity))
+                .map(job -> scoreCandidate(job, clusterCapacity, now, cycleDeficits))
                 .max(Comparator
                         .comparingDouble(CandidateJob::score)
                         .thenComparingLong(CandidateJob::queueAgeMinutes));
     }
 
-    private boolean hasDispatchableReservation(Run run, OffsetDateTime now) {
-        return run.getQuotaReservationId() != null
-                && run.getCurrentLeaseReservedMinutes() > 0
-                && run.getActiveLeaseExpiresAt() != null
-                && run.getActiveLeaseExpiresAt().isAfter(now);
+    private boolean hasDispatchableReservation(Job job, OffsetDateTime now) {
+        return job.getCurrentLeaseReservedMinutes() > 0
+                && job.getActiveLeaseExpiresAt() != null
+                && job.getActiveLeaseExpiresAt().isAfter(now);
     }
 
     private CandidateJob scoreCandidate(
-            Run run,
+            Job job,
             ClusterCapacity clusterCapacity,
             OffsetDateTime now,
             Map<UUID, Double> cycleDeficits
     ) {
-        var job = run.getJob();
         var profileId = job.getProfile().getId();
         QuotaFairnessSnapshot fairnessSnapshot = quotaAccountingService.loadFairnessSnapshot(profileId, now);
 
@@ -207,7 +204,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
         double ageBoost = queueMinutes * ageBoostPerMinute;
         double score = updatedDeficit - cost + ageBoost;
 
-        return new CandidateJob(run, score, cost, queueMinutes);
+        return new CandidateJob(job, score, cost, queueMinutes);
     }
 
     private boolean isRunnable(Job job, ClusterCapacity clusterCapacity) {
@@ -244,35 +241,31 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
         return new ClusterCapacity(totalCpu, totalRamMb);
     }
 
-    private Optional<Run> claimForDispatch(UUID runId) {
-        var run = runRepository.findByIdForUpdate(runId).orElseThrow();
-        if (run.getStatus() != RunStatus.QUEUED) {
+    private Optional<Job> claimForDispatch(UUID jobId) {
+        var job = jobRepository.findByIdForUpdate(jobId).orElseThrow();
+        if (job.getStatus() != JobStatus.QUEUED) {
             return Optional.empty();
         }
 
-        var savedRun = runStateMachine.markDispatchRequested(run, OffsetDateTime.now(ZoneOffset.UTC));
-        log.debug("Requested dispatch for run {} as Nomad job {}", run.getId(), run.getNomadJobId());
-        return Optional.of(savedRun);
+        var savedJob = jobStateMachine.markDispatchRequested(job, OffsetDateTime.now(ZoneOffset.UTC));
+        log.debug("Requested dispatch for job {} as Nomad job {}", job.getId(), nomadJobId(job));
+        return Optional.of(savedJob);
     }
 
-    private Optional<Run> prepareDispatchRetry(UUID runId) {
-        var run = runRepository.findByIdForUpdate(runId).orElseThrow();
-        if (run.getStatus() != RunStatus.DISPATCHING || run.getDispatchedAt() != null) {
+    private Optional<Job> prepareDispatchRetry(UUID jobId) {
+        var job = jobRepository.findByIdForUpdate(jobId).orElseThrow();
+        if (job.getStatus() != JobStatus.DISPATCHING || job.getDispatchedAt() != null) {
             return Optional.empty();
         }
 
-        return Optional.of(runStateMachine.markDispatchRetryRequested(run, OffsetDateTime.now(ZoneOffset.UTC)));
+        return Optional.of(jobStateMachine.markDispatchRetryRequested(job, OffsetDateTime.now(ZoneOffset.UTC)));
     }
 
-    private NomadDispatchRequest toDispatchRequest(Run run, UUID correlationId) {
-        var job = run.getJob();
+    private NomadDispatchRequest toDispatchRequest(Job job, UUID correlationId) {
         return new NomadDispatchRequest(
-                run.getProfile().getId(),
+                job.getProfile().getId(),
                 job.getId(),
-                run.getId(),
-                run.getQuotaReservationId(),
-                run.getResourceClass(),
-                run.getNomadJobId(),
+                nomadJobId(job),
                 job.getDockerImage(),
                 job.getExecutionCommand(),
                 job.getReqCpuCores(),
@@ -290,16 +283,16 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
         }
     }
 
-    private void markDispatchAccepted(UUID runId, NomadDispatchResult dispatchResult, UUID correlationId) {
-        var run = runRepository.findByIdForUpdate(runId).orElseThrow();
-        if (run.getStatus() != RunStatus.DISPATCHING) {
+    private void markDispatchAccepted(UUID jobId, NomadDispatchResult dispatchResult, UUID correlationId) {
+        var job = jobRepository.findByIdForUpdate(jobId).orElseThrow();
+        if (job.getStatus() != JobStatus.DISPATCHING) {
             return;
         }
 
-        runStateMachine.markDispatchAccepted(run, dispatchResult, OffsetDateTime.now(ZoneOffset.UTC));
-        eventPublisher.runEvent(
-                "RunDispatched",
-                run,
+        jobStateMachine.markDispatchAccepted(job, OffsetDateTime.now(ZoneOffset.UTC));
+        eventPublisher.jobEvent(
+                "JobDispatched",
+                job,
                 Map.of(
                         "nomadJobId", dispatchResult.nomadJobId() == null ? "" : dispatchResult.nomadJobId(),
                         "nomadEvalId", dispatchResult.nomadEvalId() == null ? "" : dispatchResult.nomadEvalId()
@@ -309,26 +302,30 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
         );
     }
 
-    private void compensateDispatchFailure(UUID runId, String reason, UUID correlationId) {
-        var run = runRepository.findByIdForUpdate(runId).orElse(null);
-        if (run == null || run.getStatus() != RunStatus.DISPATCHING) {
+    private String nomadJobId(Job job) {
+        return job.getId().toString();
+    }
+
+    private void compensateDispatchFailure(UUID jobId, String reason, UUID correlationId) {
+        var job = jobRepository.findByIdForUpdate(jobId).orElse(null);
+        if (job == null || job.getStatus() != JobStatus.DISPATCHING) {
             return;
         }
 
-        if (!Boolean.TRUE.equals(run.getLeaseSettled())) {
+        if (!Boolean.TRUE.equals(job.getLeaseSettled())) {
             quotaAccountingService.refundLeaseReservation(
-                    run,
-                    run.getCurrentLeaseReservedMinutes(),
+                    job,
+                    job.getCurrentLeaseReservedMinutes(),
                     "Nomad dispatch failed, initial lease refunded"
             );
 
-            runStateMachine.markCurrentLeaseSettled(run, 0L);
+            jobStateMachine.markCurrentLeaseSettled(job, 0L);
         }
 
-        runStateMachine.markDispatchFailed(run, reason, OffsetDateTime.now(ZoneOffset.UTC));
-        eventPublisher.runEvent(
-                "RunInfraFailed",
-                run,
+        jobStateMachine.markDispatchFailed(job, OffsetDateTime.now(ZoneOffset.UTC));
+        eventPublisher.jobEvent(
+                "JobInfraFailed",
+                job,
                 Map.of("reason", reason == null ? "" : reason),
                 "backend",
                 correlationId
@@ -354,9 +351,6 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
     private record ClusterCapacity(long totalCpu, long totalRamMb) {
     }
 
-    private record CandidateJob(Run run, double score, double cost, long queueAgeMinutes) {
-        private Job job() {
-            return run.getJob();
-        }
+    private record CandidateJob(Job job, double score, double cost, long queueAgeMinutes) {
     }
 }

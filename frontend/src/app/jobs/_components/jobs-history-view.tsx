@@ -139,11 +139,6 @@ export function JobsHistoryView({ jobsPage, statusFilters }: JobsHistoryViewProp
                     {' '}
                     {formatMinutesAsHoursAndMinutes(job.totalConsumedMinutes)}
                   </p>
-                  <p>
-                    <span className="text-muted-foreground">Node:</span>
-                    {' '}
-                    {job.nodeId ?? '-'}
-                  </p>
                 </div>
               </CardContent>
             </Card>

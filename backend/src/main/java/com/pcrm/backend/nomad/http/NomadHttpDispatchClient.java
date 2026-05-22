@@ -38,8 +38,8 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
     public NomadDispatchResult dispatchJob(NomadDispatchRequest request) {
         var existingJob = fetchExistingJob(request.nomadJobId());
         if (existingJob != null) {
-            verifyExistingJobMatchesRun(existingJob, request);
-            log.debug("Nomad job {} already exists for run {}", request.nomadJobId(), request.runId());
+            verifyExistingJobMatchesJob(existingJob, request);
+            log.debug("Nomad job {} already exists for job {}", request.nomadJobId(), request.jobId());
             return new NomadDispatchResult(request.nomadJobId(), null);
         }
 
@@ -58,11 +58,8 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
                 .replace("{{NOMAD_JOB_ID}}", escapeHcl(request.nomadJobId()))
                 .replace("{{USER_ID}}", request.userId().toString())
                 .replace("{{JOB_ID}}", request.jobId().toString())
-                .replace("{{RUN_ID}}", request.runId().toString())
                 .replace("{{TRACE_ID}}", valueOrEmpty(request.correlationId()))
                 .replace("{{CORRELATION_ID}}", valueOrEmpty(request.correlationId()))
-                .replace("{{QUOTA_RESERVATION_ID}}", valueOrEmpty(request.quotaReservationId()))
-                .replace("{{RESOURCE_CLASS}}", escapeHcl(request.resourceClass()))
                 .replace("{{DOCKER_IMAGE}}", escapeHcl(request.dockerImage()))
                 .replace("{{EXECUTION_COMMAND}}", escapeHcl(request.executionCommand()))
                 .replace("{{CORES}}", request.reqCpuCores().toString())
@@ -93,7 +90,7 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
                     .retrieve()
                     .body(Map.class);
 
-            log.debug("Successfully registered Nomad job {} for run {}", request.nomadJobId(), request.runId());
+            log.debug("Successfully registered Nomad job {} for job {}", request.nomadJobId(), request.jobId());
             return new NomadDispatchResult(request.nomadJobId(), extractEvalId(registerResponse));
         } catch (RestClientResponseException ex) {
             log.error("Nomad API rejected the request! Status: {}, Body: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
@@ -118,19 +115,19 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
         }
     }
 
-    private void verifyExistingJobMatchesRun(Map<?, ?> existingJob, NomadDispatchRequest request) {
+    private void verifyExistingJobMatchesJob(Map<?, ?> existingJob, NomadDispatchRequest request) {
         if (!request.nomadJobId().equals(String.valueOf(existingJob.get("ID")))) {
-            throw new NomadDispatchException("Existing Nomad job has unexpected ID for run " + request.runId());
+            throw new NomadDispatchException("Existing Nomad job has unexpected ID for job " + request.jobId());
         }
 
         Object rawMeta = existingJob.get("Meta");
         if (!(rawMeta instanceof Map<?, ?> meta)) {
-            throw new NomadDispatchException("Existing Nomad job has no run metadata for " + request.nomadJobId());
+            throw new NomadDispatchException("Existing Nomad job has no job metadata for " + request.nomadJobId());
         }
 
-        var existingRunId = meta.get("run_id");
-        if (!request.runId().toString().equals(existingRunId == null ? null : existingRunId.toString())) {
-            throw new NomadDispatchException("Existing Nomad job metadata does not match run " + request.runId());
+        var existingJobId = meta.get("job_id");
+        if (!request.jobId().toString().equals(existingJobId == null ? null : existingJobId.toString())) {
+            throw new NomadDispatchException("Existing Nomad job metadata does not match job " + request.jobId());
         }
     }
 

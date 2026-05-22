@@ -19,19 +19,11 @@ public interface QuotaReservationRepository extends JpaRepository<QuotaReservati
     @Query("""
             SELECT reservation
             FROM QuotaReservation reservation
-            WHERE reservation.id = :reservationId
-            """)
-    Optional<QuotaReservation> findByIdForUpdate(@Param("reservationId") UUID reservationId);
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
-            SELECT reservation
-            FROM QuotaReservation reservation
-            WHERE reservation.run.id = :runId
+            WHERE reservation.job.id = :jobId
               AND reservation.status = :status
             """)
-    Optional<QuotaReservation> findByRunIdAndStatusForUpdate(
-            @Param("runId") UUID runId,
+    Optional<QuotaReservation> findByJobIdAndStatusForUpdate(
+            @Param("jobId") UUID jobId,
             @Param("status") QuotaReservationStatus status
     );
 }

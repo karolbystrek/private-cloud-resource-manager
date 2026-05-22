@@ -5,7 +5,7 @@ import com.pcrm.backend.events.service.DomainEventAppendRequest;
 import com.pcrm.backend.events.service.DomainEventAppender;
 import com.pcrm.backend.exception.InsufficientQuotaException;
 import com.pcrm.backend.exception.ResourceNotFoundException;
-import com.pcrm.backend.jobs.domain.Run;
+import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.quota.domain.*;
 import com.pcrm.backend.quota.dto.QuotaSummaryResponse;
 import com.pcrm.backend.quota.dto.QuotaUsageLedgerEntryResponse;
@@ -33,7 +33,6 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class QuotaAccountingService {
-    private static final String COMPUTE_RESOURCE_CLASS = "compute";
     private static final int DEFAULT_MULTIPLIER = 1;
 
     private final ProfileRepository profileRepository;
@@ -48,11 +47,10 @@ public class QuotaAccountingService {
     private long leaseMinutes;
 
     @Transactional
-    public long reserveInitialLease(UUID profileId, Run run, String reason) {
+    public long reserveInitialLease(UUID profileId, Job job, String reason) {
         var existingReservation = quotaReservationRepository
-                .findByRunIdAndStatusForUpdate(run.getId(), QuotaReservationStatus.ACTIVE);
+                .findByJobIdAndStatusForUpdate(job.getId(), QuotaReservationStatus.ACTIVE);
         if (existingReservation.isPresent()) {
-            run.setQuotaReservationId(existingReservation.get().getId());
             return existingReservation.get().getReservedComputeMinutes();
         }
 
@@ -70,8 +68,7 @@ public class QuotaAccountingService {
 
         var reservation = quotaReservationRepository.save(QuotaReservation.builder()
                 .profile(profile)
-                .job(run.getJob())
-                .run(run)
+                .job(job)
                 .intervalStart(bounds.start())
                 .intervalEnd(bounds.end())
                 .reservedComputeMinutes(computeMinutes)
@@ -82,26 +79,24 @@ public class QuotaAccountingService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build());
-        run.setQuotaReservationId(reservation.getId());
-
         reserveBalanceMinutes(balance, computeMinutes, now);
-        appendQuotaEvent("QuotaReserved", profile, run, reservation, "RESERVATION_CREATED", computeMinutes, reason, now);
+        appendQuotaEvent("QuotaReserved", profile, job, reservation, "RESERVATION_CREATED", computeMinutes, reason, now);
         return computeMinutes;
     }
 
     @Transactional
-    public long reserveAdditionalLease(UUID profileId, Run run, OffsetDateTime nextLeaseExpiresAt, String reason) {
+    public long reserveAdditionalLease(UUID profileId, Job job, OffsetDateTime nextLeaseExpiresAt, String reason) {
         var profile = profileRepository.findById(profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("Profile", profileId));
         var now = OffsetDateTime.now(ZoneOffset.UTC);
-        var referencePoint = resolveRunReferencePoint(run);
+        var referencePoint = resolveJobReferencePoint(job);
         var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(profile, referencePoint);
         var bounds = resolveBounds(referencePoint);
         var balance = getOrCreateBalanceForUpdate(profile, bounds, effectivePolicy, now);
-        var reservation = findReservationForSettlement(run);
+        var reservation = findReservationForSettlement(job);
 
         if (reservation == null || reservation.getStatus() != QuotaReservationStatus.ACTIVE) {
-            throw new IllegalStateException("Run %s has no active quota reservation to renew".formatted(run.getId()));
+            throw new IllegalStateException("Job %s has no active quota reservation to renew".formatted(job.getId()));
         }
 
         var computeMinutes = normalizeComputeMinutes(leaseMinutes, DEFAULT_MULTIPLIER);
@@ -115,29 +110,29 @@ public class QuotaAccountingService {
         quotaReservationRepository.save(reservation);
 
         reserveBalanceMinutes(balance, computeMinutes, now);
-        appendQuotaEvent("QuotaReserved", profile, run, reservation, "LEASE_RENEWED", computeMinutes, reason, now);
+        appendQuotaEvent("QuotaReserved", profile, job, reservation, "LEASE_RENEWED", computeMinutes, reason, now);
         return computeMinutes;
     }
 
     @Transactional
-    public void refundLeaseReservation(Run run, long minutes, String reason) {
-        settleLeaseMinutes(run, minutes, 0L, reason);
+    public void refundLeaseReservation(Job job, long minutes, String reason) {
+        settleLeaseMinutes(job, minutes, 0L, reason);
     }
 
     @Transactional
-    public void settleLeaseMinutes(Run run, long reservedMinutes, long consumedMinutes, String reason) {
-        var profile = profileRepository.findById(run.getProfile().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Profile", run.getProfile().getId()));
-        var referencePoint = resolveRunReferencePoint(run);
+    public void settleLeaseMinutes(Job job, long reservedMinutes, long consumedMinutes, String reason) {
+        var profile = profileRepository.findById(job.getProfile().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Profile", job.getProfile().getId()));
+        var referencePoint = resolveJobReferencePoint(job);
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(profile, referencePoint);
         var bounds = resolveBounds(referencePoint);
         var balance = getOrCreateBalanceForUpdate(profile, bounds, effectivePolicy, now);
-        var reservation = findReservationForSettlement(run);
+        var reservation = findReservationForSettlement(job);
 
         if (reservation == null) {
             var settlement = settleBalanceMinutes(balance, Math.max(0L, reservedMinutes), Math.max(0L, consumedMinutes), now);
-            appendSettlementFacts(profile, run, null, settlement, reason, now);
+            appendSettlementFacts(profile, job, null, settlement, reason, now);
             return;
         }
 
@@ -158,7 +153,7 @@ public class QuotaAccountingService {
         quotaReservationRepository.save(reservation);
 
         var settlement = settleBalanceMinutes(balance, releasableMinutes, consumed, now);
-        appendSettlementFacts(profile, run, reservation, settlement, reason, now);
+        appendSettlementFacts(profile, job, reservation, settlement, reason, now);
     }
 
     @Transactional(readOnly = true)
@@ -351,12 +346,9 @@ public class QuotaAccountingService {
         return new BalanceSettlement(releasedReservedMinutes, consumed, refunded);
     }
 
-    private QuotaReservation findReservationForSettlement(Run run) {
-        if (run.getQuotaReservationId() != null) {
-            return quotaReservationRepository.findByIdForUpdate(run.getQuotaReservationId()).orElse(null);
-        }
+    private QuotaReservation findReservationForSettlement(Job job) {
         return quotaReservationRepository
-                .findByRunIdAndStatusForUpdate(run.getId(), QuotaReservationStatus.ACTIVE)
+                .findByJobIdAndStatusForUpdate(job.getId(), QuotaReservationStatus.ACTIVE)
                 .orElse(null);
     }
 
@@ -373,7 +365,7 @@ public class QuotaAccountingService {
 
     private void appendSettlementFacts(
             Profile profile,
-            Run run,
+            Job job,
             QuotaReservation reservation,
             BalanceSettlement settlement,
             String reason,
@@ -382,32 +374,32 @@ public class QuotaAccountingService {
         if (settlement.consumedMinutes() > 0) {
             quotaUsageLedgerRepository.save(buildUsageLedgerEntry(
                     profile,
-                    run,
+                    job,
                     reservation,
                     QuotaUsageLedgerEntryType.USAGE_DEBITED,
                     settlement.consumedMinutes(),
                     reason,
                     now
             ));
-            appendQuotaEvent("QuotaConsumed", profile, run, reservation, QuotaUsageLedgerEntryType.USAGE_DEBITED.name(), settlement.consumedMinutes(), reason, now);
+            appendQuotaEvent("QuotaConsumed", profile, job, reservation, QuotaUsageLedgerEntryType.USAGE_DEBITED.name(), settlement.consumedMinutes(), reason, now);
         }
         if (settlement.refundedMinutes() > 0) {
             quotaUsageLedgerRepository.save(buildUsageLedgerEntry(
                     profile,
-                    run,
+                    job,
                     reservation,
                     QuotaUsageLedgerEntryType.USAGE_RELEASED,
                     settlement.refundedMinutes(),
                     reason,
                     now
             ));
-            appendQuotaEvent("QuotaReleased", profile, run, reservation, QuotaUsageLedgerEntryType.USAGE_RELEASED.name(), settlement.refundedMinutes(), reason, now);
+            appendQuotaEvent("QuotaReleased", profile, job, reservation, QuotaUsageLedgerEntryType.USAGE_RELEASED.name(), settlement.refundedMinutes(), reason, now);
         }
     }
 
     private QuotaUsageLedgerEntry buildUsageLedgerEntry(
             Profile profile,
-            Run run,
+            Job job,
             QuotaReservation reservation,
             QuotaUsageLedgerEntryType type,
             long computeMinutes,
@@ -416,8 +408,7 @@ public class QuotaAccountingService {
     ) {
         return QuotaUsageLedgerEntry.builder()
                 .profile(profile)
-                .job(run.getJob())
-                .run(run)
+                .job(job)
                 .quotaReservation(reservation)
                 .entryType(type)
                 .rawRuntimeSeconds(null)
@@ -432,7 +423,7 @@ public class QuotaAccountingService {
     private void appendQuotaEvent(
             String eventType,
             Profile profile,
-            Run run,
+            Job job,
             QuotaReservation reservation,
             String factType,
             long minutes,
@@ -440,15 +431,14 @@ public class QuotaAccountingService {
             OffsetDateTime occurredAt
     ) {
         var reference = occurredAt == null ? OffsetDateTime.now(ZoneOffset.UTC) : occurredAt;
-        var aggregateId = AggregateIds.quotaBalance(profile.getId(), resolveBounds(reference).start(), COMPUTE_RESOURCE_CLASS);
+        var aggregateId = AggregateIds.quotaBalance(profile.getId(), resolveBounds(reference).start());
         domainEventAppender.append(new DomainEventAppendRequest(
                 eventType,
                 AggregateIds.QUOTA_BALANCE,
                 aggregateId,
                 Map.of(
                         "profileId", profile.getId(),
-                        "jobId", run.getJob().getId(),
-                        "runId", run.getId(),
+                        "jobId", job.getId(),
                         "quotaReservationId", reservation == null ? "" : reservation.getId(),
                         "factType", factType,
                         "minutes", Math.max(0L, minutes),
@@ -459,7 +449,7 @@ public class QuotaAccountingService {
                 "SYSTEM",
                 "quota-accounting",
                 profile.getId(),
-                run.getJob().getId(),
+                job.getId(),
                 null,
                 UUID.randomUUID(),
                 null,
@@ -477,7 +467,7 @@ public class QuotaAccountingService {
             String idempotencyKey,
             OffsetDateTime occurredAt
     ) {
-        var aggregateId = AggregateIds.quotaBalance(grant.getProfile().getId(), grant.getIntervalStart(), COMPUTE_RESOURCE_CLASS);
+        var aggregateId = AggregateIds.quotaBalance(grant.getProfile().getId(), grant.getIntervalStart());
         domainEventAppender.append(new DomainEventAppendRequest(
                 eventType,
                 AggregateIds.QUOTA_BALANCE,
@@ -521,8 +511,8 @@ public class QuotaAccountingService {
         balance.setVersion(balance.getVersion() + 1L);
     }
 
-    private OffsetDateTime resolveRunReferencePoint(Run run) {
-        var referenceTime = run.getQueuedAt() != null ? run.getQueuedAt() : run.getCreatedAt();
+    private OffsetDateTime resolveJobReferencePoint(Job job) {
+        var referenceTime = job.getQueuedAt() != null ? job.getQueuedAt() : job.getCreatedAt();
         return referenceTime != null ? referenceTime : OffsetDateTime.now(ZoneOffset.UTC);
     }
 

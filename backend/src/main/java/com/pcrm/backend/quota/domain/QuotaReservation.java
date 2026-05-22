@@ -1,7 +1,6 @@
 package com.pcrm.backend.quota.domain;
 
 import com.pcrm.backend.jobs.domain.Job;
-import com.pcrm.backend.jobs.domain.Run;
 import com.pcrm.backend.user.Profile;
 import jakarta.persistence.*;
 import lombok.*;
@@ -30,10 +29,6 @@ public class QuotaReservation {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "job_id", nullable = false)
     private Job job;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "run_id", nullable = false)
-    private Run run;
 
     @Column(name = "interval_start", nullable = false)
     private OffsetDateTime intervalStart;

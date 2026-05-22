@@ -15,8 +15,6 @@ export type JobStatus =
 
 export type JobHistoryItem = {
   id: string;
-  runId: string | null;
-  nodeId: string | null;
   status: JobStatus;
   dockerImage: string;
   executionCommand: string;
@@ -39,14 +37,12 @@ export type JobsPageResponse = {
 
 export type JobDetails = {
   id: string;
-  runId: string | null;
   status: JobStatus;
   dockerImage: string;
   executionCommand: string;
   reqCpuCores: number;
   reqRamGb: number;
   totalConsumedMinutes: number;
-  nodeId: string | null;
   createdAt: string;
   userId: string;
   userEmail: string;

@@ -1,8 +1,8 @@
 package com.pcrm.backend.jobs.service;
 
-import com.pcrm.backend.jobs.domain.Run;
-import com.pcrm.backend.jobs.domain.RunStatus;
-import com.pcrm.backend.jobs.repository.RunRepository;
+import com.pcrm.backend.jobs.domain.Job;
+import com.pcrm.backend.jobs.domain.JobStatus;
+import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.nomad.NomadJobControlClient;
 import com.pcrm.backend.quota.service.QuotaAccountingService;
 import lombok.RequiredArgsConstructor;
@@ -32,19 +32,19 @@ public class LeaseWorker {
     private static final int MAX_ERROR_LENGTH = 4000;
     private static final String LEASE_RENEWAL_FAILED = "LEASE_RENEWAL_FAILED";
     private static final String LEASE_EXPIRED = "LEASE_EXPIRED";
-    private static final List<RunStatus> LEASE_ENFORCED_STATUSES = List.of(
-            RunStatus.QUEUED,
-            RunStatus.DISPATCHING,
-            RunStatus.SCHEDULING,
-            RunStatus.RUNNING,
-            RunStatus.FINALIZING
+    private static final List<JobStatus> LEASE_ENFORCED_STATUSES = List.of(
+            JobStatus.QUEUED,
+            JobStatus.DISPATCHING,
+            JobStatus.SCHEDULING,
+            JobStatus.RUNNING,
+            JobStatus.FINALIZING
     );
 
-    private final RunRepository runRepository;
-    private final RunStateMachine runStateMachine;
+    private final JobRepository jobRepository;
+    private final JobStateMachine jobStateMachine;
     private final QuotaAccountingService quotaAccountingService;
     private final NomadJobControlClient nomadJobControlClient;
-    private final JobRunEventPublisher eventPublisher;
+    private final JobEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
 
     @Value("${app.scheduler.lease.safety-window-ms:120000}")
@@ -70,7 +70,7 @@ public class LeaseWorker {
 
         var threshold = OffsetDateTime.now(ZoneOffset.UTC)
                 .plus(Duration.ofMillis(Math.max(0L, safetyWindowMs)));
-        var candidates = transactionTemplate.execute(_ -> runRepository.findLeaseEnforcementCandidatesForUpdate(
+        var candidates = transactionTemplate.execute(_ -> jobRepository.findLeaseEnforcementCandidatesForUpdate(
                 LEASE_ENFORCED_STATUSES,
                 threshold,
                 PageRequest.of(0, batchSize)
@@ -80,19 +80,19 @@ public class LeaseWorker {
             return;
         }
 
-        log.debug("Lease {} scan found {} candidate runs", trigger, candidates.size());
+        log.debug("Lease {} scan found {} candidate jobs", trigger, candidates.size());
         candidates.stream()
-                .map(Run::getId)
-                .forEach(this::enforceRunLease);
+                .map(Job::getId)
+                .forEach(this::enforceJobLease);
     }
 
-    private void enforceRunLease(UUID runId) {
+    private void enforceJobLease(UUID jobId) {
         LeaseDecision stopRequest;
         try {
-            stopRequest = transactionTemplate.execute(_ -> renewOrPrepareStop(runId));
+            stopRequest = transactionTemplate.execute(_ -> renewOrPrepareStop(jobId));
         } catch (RuntimeException ex) {
             stopRequest = transactionTemplate.execute(_ ->
-                    prepareStopAfterRenewalFailure(runId, summarize(ex))
+                    prepareStopAfterRenewalFailure(jobId, summarize(ex))
             );
         }
 
@@ -106,7 +106,7 @@ public class LeaseWorker {
 
         if (nomadJobId == null || nomadJobId.isBlank()) {
             transactionTemplate.executeWithoutResult(_ ->
-                    markRunTimedOut(runId, reason, correlationId)
+                    markJobTimedOut(jobId, reason, correlationId)
             );
             return;
         }
@@ -114,55 +114,55 @@ public class LeaseWorker {
         try {
             nomadJobControlClient.stopJob(nomadJobId);
             transactionTemplate.executeWithoutResult(_ ->
-                    markRunTimedOut(runId, reason, correlationId)
+                    markJobTimedOut(jobId, reason, correlationId)
             );
         } catch (Exception ex) {
             var stopFailureReason = summarize(ex);
             transactionTemplate.executeWithoutResult(_ ->
-                    recordStopFailure(runId, stopFailureReason, correlationId)
+                    recordStopFailure(jobId, stopFailureReason, correlationId)
             );
-            log.error("Failed to stop Nomad job {} for run {}", nomadJobId, runId, ex);
+            log.error("Failed to stop Nomad job {} for job {}", nomadJobId, jobId, ex);
         }
     }
 
-    private LeaseDecision renewOrPrepareStop(UUID runId) {
-        var run = runRepository.findByIdForUpdate(runId).orElse(null);
-        if (run == null || !shouldEnforce(run)) {
+    private LeaseDecision renewOrPrepareStop(UUID jobId) {
+        var job = jobRepository.findByIdForUpdate(jobId).orElse(null);
+        if (job == null || !shouldEnforce(job)) {
             return LeaseDecision.none();
         }
 
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var correlationId = UUID.randomUUID();
-        if (!run.getActiveLeaseExpiresAt().isAfter(now)) {
-            return prepareStop(run, LEASE_EXPIRED, now, correlationId);
+        if (!job.getActiveLeaseExpiresAt().isAfter(now)) {
+            return prepareStop(job, LEASE_EXPIRED, now, correlationId);
         }
 
-        renewLease(run, now, correlationId);
+        renewLease(job, now, correlationId);
         return LeaseDecision.none();
     }
 
-    private LeaseDecision prepareStopAfterRenewalFailure(UUID runId, String reason) {
-        var run = runRepository.findByIdForUpdate(runId).orElse(null);
-        if (run == null || !shouldEnforce(run)) {
+    private LeaseDecision prepareStopAfterRenewalFailure(UUID jobId, String reason) {
+        var job = jobRepository.findByIdForUpdate(jobId).orElse(null);
+        if (job == null || !shouldEnforce(job)) {
             return LeaseDecision.none();
         }
-        return prepareStop(run, reason, OffsetDateTime.now(ZoneOffset.UTC), UUID.randomUUID());
+        return prepareStop(job, reason, OffsetDateTime.now(ZoneOffset.UTC), UUID.randomUUID());
     }
 
-    private void renewLease(Run run, OffsetDateTime now, UUID correlationId) {
-        var nextLeaseExpiresAt = run.getActiveLeaseExpiresAt()
+    private void renewLease(Job job, OffsetDateTime now, UUID correlationId) {
+        var nextLeaseExpiresAt = job.getActiveLeaseExpiresAt()
                 .plusMinutes(quotaAccountingService.getLeaseMinutes());
         var additionalReservedMinutes = quotaAccountingService.reserveAdditionalLease(
-                run.getProfile().getId(),
-                run,
+                job.getProfile().getId(),
+                job,
                 nextLeaseExpiresAt,
                 "Lease renewed before expiry"
         );
 
-        runStateMachine.markLeaseRenewed(run, nextLeaseExpiresAt, additionalReservedMinutes);
-        eventPublisher.runEvent(
-                "RunLeaseRenewed",
-                run,
+        jobStateMachine.markLeaseRenewed(job, nextLeaseExpiresAt, additionalReservedMinutes);
+        eventPublisher.jobEvent(
+                "JobLeaseRenewed",
+                job,
                 Map.of(
                         "additionalReservedMinutes", additionalReservedMinutes,
                         "activeLeaseExpiresAt", nextLeaseExpiresAt,
@@ -171,97 +171,97 @@ public class LeaseWorker {
                 "backend",
                 correlationId
         );
-        log.debug("Renewed lease for run {} until {}", run.getId(), nextLeaseExpiresAt);
+        log.debug("Renewed lease for job {} until {}", job.getId(), nextLeaseExpiresAt);
     }
 
-    private LeaseDecision prepareStop(Run run, String reason, OffsetDateTime now, UUID correlationId) {
-        runStateMachine.markLeaseStopRequested(run, now, truncate(reason, MAX_ERROR_LENGTH));
-        eventPublisher.runEvent(
-                "RunLeaseStopRequested",
-                run,
+    private LeaseDecision prepareStop(Job job, String reason, OffsetDateTime now, UUID correlationId) {
+        jobStateMachine.markLeaseStopRequested(job, now, truncate(reason, MAX_ERROR_LENGTH));
+        eventPublisher.jobEvent(
+                "JobLeaseStopRequested",
+                job,
                 Map.of(
                         "reason", reason == null ? "" : reason,
-                        "activeLeaseExpiresAt", run.getActiveLeaseExpiresAt(),
+                        "activeLeaseExpiresAt", job.getActiveLeaseExpiresAt(),
                         "leaseStopRequestedAt", now
                 ),
                 "backend",
                 correlationId
         );
-        return LeaseDecision.stop(run.getNomadJobId(), reason, correlationId);
+        return LeaseDecision.stop(job.getId().toString(), reason, correlationId);
     }
 
-    private void markRunTimedOut(UUID runId, String reason, UUID correlationId) {
-        var run = runRepository.findByIdForUpdate(runId).orElse(null);
-        if (run == null || runStateMachine.isTerminal(run.getStatus())) {
+    private void markJobTimedOut(UUID jobId, String reason, UUID correlationId) {
+        var job = jobRepository.findByIdForUpdate(jobId).orElse(null);
+        if (job == null || jobStateMachine.isTerminal(job.getStatus())) {
             return;
         }
 
         var now = OffsetDateTime.now(ZoneOffset.UTC);
-        settleCurrentLeaseIfNeeded(run, now, "Lease settled after enforcement timeout");
-        runStateMachine.markTimedOut(
-                run,
+        settleCurrentLeaseIfNeeded(job, now, "Lease settled after enforcement timeout");
+        jobStateMachine.markTimedOut(
+                job,
                 now,
                 reason == null || reason.isBlank() ? LEASE_RENEWAL_FAILED : truncate(reason, 120)
         );
-        eventPublisher.runEvent(
-                "RunTimedOut",
-                run,
-                Map.of("reason", run.getTerminalReason()),
+        eventPublisher.jobEvent(
+                "JobTimedOut",
+                job,
+                Map.of("reason", job.getTerminalReason()),
                 "backend",
                 correlationId
         );
-        log.info("Marked run {} as TIMED_OUT after lease enforcement", run.getId());
+        log.info("Marked job {} as TIMED_OUT after lease enforcement", job.getId());
     }
 
-    private void recordStopFailure(UUID runId, String reason, UUID correlationId) {
-        var run = runRepository.findByIdForUpdate(runId).orElse(null);
-        if (run == null || runStateMachine.isTerminal(run.getStatus())) {
+    private void recordStopFailure(UUID jobId, String reason, UUID correlationId) {
+        var job = jobRepository.findByIdForUpdate(jobId).orElse(null);
+        if (job == null || jobStateMachine.isTerminal(job.getStatus())) {
             return;
         }
 
-        runStateMachine.recordLeaseStopFailure(
-                run,
+        jobStateMachine.recordLeaseStopFailure(
+                job,
                 OffsetDateTime.now(ZoneOffset.UTC),
                 truncate(reason, MAX_ERROR_LENGTH)
         );
-        eventPublisher.runEvent(
-                "RunLeaseStopFailed",
-                run,
+        eventPublisher.jobEvent(
+                "JobLeaseStopFailed",
+                job,
                 Map.of("reason", reason == null ? "" : reason),
                 "backend",
                 correlationId
         );
     }
 
-    private boolean shouldEnforce(Run run) {
-        return LEASE_ENFORCED_STATUSES.contains(run.getStatus())
-                && !Boolean.TRUE.equals(run.getLeaseSettled())
-                && run.getActiveLeaseExpiresAt() != null
-                && run.getCurrentLeaseReservedMinutes() != null
-                && run.getCurrentLeaseReservedMinutes() > 0;
+    private boolean shouldEnforce(Job job) {
+        return LEASE_ENFORCED_STATUSES.contains(job.getStatus())
+                && !Boolean.TRUE.equals(job.getLeaseSettled())
+                && job.getActiveLeaseExpiresAt() != null
+                && job.getCurrentLeaseReservedMinutes() != null
+                && job.getCurrentLeaseReservedMinutes() > 0;
     }
 
-    private void settleCurrentLeaseIfNeeded(Run run, OffsetDateTime now, String reason) {
-        if (Boolean.TRUE.equals(run.getLeaseSettled())) {
+    private void settleCurrentLeaseIfNeeded(Job job, OffsetDateTime now, String reason) {
+        if (Boolean.TRUE.equals(job.getLeaseSettled())) {
             return;
         }
 
-        long reservedMinutes = Math.max(0L, run.getCurrentLeaseReservedMinutes());
-        long consumedMinutes = calculateConsumedMinutes(run, now, reservedMinutes);
+        long reservedMinutes = Math.max(0L, job.getCurrentLeaseReservedMinutes());
+        long consumedMinutes = calculateConsumedMinutes(job, now, reservedMinutes);
 
-        quotaAccountingService.settleLeaseMinutes(run, reservedMinutes, consumedMinutes, reason);
-        runStateMachine.markCurrentLeaseSettled(run, consumedMinutes);
+        quotaAccountingService.settleLeaseMinutes(job, reservedMinutes, consumedMinutes, reason);
+        jobStateMachine.markCurrentLeaseSettled(job, consumedMinutes);
     }
 
-    private long calculateConsumedMinutes(Run run, OffsetDateTime now, long reservedMinutes) {
-        if (reservedMinutes <= 0 || run.getStartedAt() == null) {
+    private long calculateConsumedMinutes(Job job, OffsetDateTime now, long reservedMinutes) {
+        if (reservedMinutes <= 0 || job.getStartedAt() == null) {
             return 0L;
         }
 
-        var leaseStart = run.getActiveLeaseExpiresAt() != null
-                ? run.getActiveLeaseExpiresAt().minusMinutes(reservedMinutes)
-                : run.getStartedAt();
-        var effectiveStart = leaseStart.isAfter(run.getStartedAt()) ? leaseStart : run.getStartedAt();
+        var leaseStart = job.getActiveLeaseExpiresAt() != null
+                ? job.getActiveLeaseExpiresAt().minusMinutes(reservedMinutes)
+                : job.getStartedAt();
+        var effectiveStart = leaseStart.isAfter(job.getStartedAt()) ? leaseStart : job.getStartedAt();
         long elapsedSeconds = Math.max(0L, Duration.between(effectiveStart, now).getSeconds());
         long roundedUpMinutes = (elapsedSeconds + 59L) / 60L;
         return Math.min(reservedMinutes, roundedUpMinutes);

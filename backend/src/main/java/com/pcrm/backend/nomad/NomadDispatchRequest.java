@@ -6,9 +6,6 @@ import java.util.UUID;
 public record NomadDispatchRequest(
         UUID userId,
         UUID jobId,
-        UUID runId,
-        UUID quotaReservationId,
-        String resourceClass,
         String nomadJobId,
         String dockerImage,
         String executionCommand,

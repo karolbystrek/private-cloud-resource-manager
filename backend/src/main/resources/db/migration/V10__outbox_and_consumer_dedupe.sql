@@ -1,6 +1,6 @@
 CREATE TABLE outbox
 (
-    id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id            UUID PRIMARY KEY      DEFAULT uuid_generate_v4(),
     event_id      UUID         NOT NULL REFERENCES domain_events (id),
     topic         VARCHAR(160) NOT NULL,
     payload       JSONB        NOT NULL,
@@ -26,6 +26,6 @@ CREATE TABLE event_consumer_dedupe
     consumer_name VARCHAR(120) NOT NULL,
     source        VARCHAR(120) NOT NULL,
     event_id      UUID         NOT NULL,
-    processed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    processed_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
     PRIMARY KEY (consumer_name, source, event_id)
 );

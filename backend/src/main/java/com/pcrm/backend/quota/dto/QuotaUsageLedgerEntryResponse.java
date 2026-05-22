@@ -9,7 +9,6 @@ import java.util.UUID;
 public record QuotaUsageLedgerEntryResponse(
         UUID id,
         UUID jobId,
-        UUID runId,
         UUID quotaReservationId,
         QuotaUsageLedgerEntryType entryType,
         long computeMinutes,
@@ -23,7 +22,6 @@ public record QuotaUsageLedgerEntryResponse(
         return new QuotaUsageLedgerEntryResponse(
                 entry.getId(),
                 entry.getJob() == null ? null : entry.getJob().getId(),
-                entry.getRun() == null ? null : entry.getRun().getId(),
                 entry.getQuotaReservation() == null ? null : entry.getQuotaReservation().getId(),
                 entry.getEntryType(),
                 entry.getComputeMinutes(),

@@ -4,11 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pcrm.backend.exception.ResourceNotFoundException;
 import com.pcrm.backend.jobs.domain.Job;
-import com.pcrm.backend.jobs.domain.Run;
-import com.pcrm.backend.jobs.domain.RunStatus;
+import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.jobs.repository.JobRepository;
-import com.pcrm.backend.jobs.repository.RunRepository;
 import com.pcrm.backend.user.Profile;
 import com.pcrm.backend.user.repository.ProfileRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,8 +24,7 @@ public class JobSubmissionPersistenceService {
 
     private final JobRepository jobRepository;
     private final ProfileRepository profileRepository;
-    private final RunRepository runRepository;
-    private final JobRunEventPublisher eventPublisher;
+    private final JobEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
 
     public PreparedJobSubmission prepareSubmission(
@@ -41,16 +38,12 @@ public class JobSubmissionPersistenceService {
 
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         var savedJob = createSubmittedJob(profile, request, idempotencyKey, submissionFingerprint, now);
-        var savedRun = createSubmittedRun(savedJob, profile, now);
-        savedJob.setCurrentRun(savedRun);
-        jobRepository.save(savedJob);
 
         var correlationId = UUID.randomUUID();
         eventPublisher.jobSubmitted(savedJob, profileId.toString(), idempotencyKey, correlationId);
-        eventPublisher.runSubmitted(savedRun, correlationId);
 
         log.debug("Prepared submitted job intent for user {}: jobId#{}", profileId, savedJob.getId());
-        return PreparedJobSubmission.created(savedJob.getId(), savedRun.getId(), profileId);
+        return PreparedJobSubmission.created(savedJob.getId(), profileId);
     }
 
     private Job createSubmittedJob(
@@ -63,8 +56,7 @@ public class JobSubmissionPersistenceService {
         var job = Job.builder()
                 .id(UUID.randomUUID())
                 .profile(profile)
-                .nodeId(null)
-                .status(RunStatus.SUBMITTED)
+                .status(JobStatus.SUBMITTED)
                 .dockerImage(request.dockerImage())
                 .executionCommand(request.executionCommand())
                 .idempotencyKey(idempotencyKey)
@@ -78,31 +70,12 @@ public class JobSubmissionPersistenceService {
                 .leaseSequence(0L)
                 .leaseSettled(false)
                 .totalConsumedMinutes(0L)
+                .leaseRenewalAttemptCount(0L)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
 
         return jobRepository.save(job);
-    }
-
-    private Run createSubmittedRun(Job job, Profile profile, OffsetDateTime now) {
-        var run = Run.builder()
-                .id(UUID.randomUUID())
-                .job(job)
-                .profile(profile)
-                .runNumber(1)
-                .status(RunStatus.SUBMITTED)
-                .queuedAt(null)
-                .activeLeaseExpiresAt(null)
-                .currentLeaseReservedMinutes(0L)
-                .leaseSequence(0L)
-                .leaseSettled(false)
-                .totalConsumedMinutes(0L)
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
-
-        return runRepository.save(run);
     }
 
     private String serializeEnvVars(JobSubmissionRequest request) {

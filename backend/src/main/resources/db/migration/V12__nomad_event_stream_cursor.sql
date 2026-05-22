@@ -1,4 +1,5 @@
-CREATE TABLE nomad_event_stream_cursor (
+CREATE TABLE nomad_event_stream_cursor
+(
     id         INT PRIMARY KEY,
     last_index BIGINT NOT NULL
 );

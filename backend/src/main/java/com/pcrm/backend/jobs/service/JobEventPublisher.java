@@ -5,7 +5,6 @@ import com.pcrm.backend.events.service.DomainEventAppendRequest;
 import com.pcrm.backend.events.service.DomainEventAppender;
 import com.pcrm.backend.events.service.EventTopics;
 import com.pcrm.backend.jobs.domain.Job;
-import com.pcrm.backend.jobs.domain.Run;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -17,7 +16,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class JobRunEventPublisher {
+public class JobEventPublisher {
 
     private static final String SOURCE_BACKEND = "backend";
     private static final String SOURCE_NOMAD = "nomad";
@@ -44,54 +43,42 @@ public class JobRunEventPublisher {
         );
     }
 
-    public void runSubmitted(Run run, UUID correlationId) {
-        runEvent("RunSubmitted", run, Map.of(), SOURCE_BACKEND, correlationId, List.of(EventTopics.RUN_SUBMITTED));
+    public void jobEvent(String eventType, Job job, UUID correlationId) {
+        jobEvent(eventType, job, Map.of(), SOURCE_BACKEND, correlationId);
     }
 
-    public void runEvent(String eventType, Run run, Map<String, ?> extraPayload, String source, UUID correlationId) {
-        runEvent(eventType, run, extraPayload, source, correlationId, List.of(eventType));
+    public void jobEvent(String eventType, Job job, Map<String, ?> extraPayload, String source, UUID correlationId) {
+        appendJobLifecycleEvent(eventType, job, extraPayload, source, correlationId, List.of(eventType));
     }
 
-    public void runEvent(String eventType, Run run, UUID correlationId) {
-        runEvent(eventType, run, Map.of(), SOURCE_BACKEND, correlationId);
-    }
-
-    private void runEvent(
+    private void appendJobLifecycleEvent(
             String eventType,
-            Run run,
+            Job job,
             Map<String, ?> extraPayload,
             String source,
             UUID correlationId,
             List<String> topics
     ) {
         var payload = new java.util.LinkedHashMap<String, Object>();
-        payload.put("runId", run.getId());
-        payload.put("jobId", run.getJob().getId());
-        payload.put("userId", run.getProfile().getId());
-        payload.put("status", run.getStatus().name());
-        payload.put("runNumber", run.getRunNumber());
-        if (run.getNomadJobId() != null) {
-            payload.put("nomadJobId", run.getNomadJobId());
-        }
-        if (run.getNomadAllocationId() != null) {
-            payload.put("nomadAllocationId", run.getNomadAllocationId());
-        }
-        if (run.getTerminalReason() != null) {
-            payload.put("terminalReason", run.getTerminalReason());
+        payload.put("jobId", job.getId());
+        payload.put("userId", job.getProfile().getId());
+        payload.put("status", job.getStatus().name());
+        if (job.getTerminalReason() != null) {
+            payload.put("terminalReason", job.getTerminalReason());
         }
         payload.putAll(extraPayload);
 
         domainEventAppender.append(new DomainEventAppendRequest(
                 eventType,
-                AggregateIds.RUN,
-                AggregateIds.run(run.getId()),
+                AggregateIds.JOB,
+                AggregateIds.job(job.getId()),
                 payload,
                 Map.of(),
                 source,
                 ACTOR_TYPE_SYSTEM,
                 source.equals(SOURCE_NOMAD) ? "nomad-event-stream" : "backend",
-                run.getProfile().getId(),
-                run.getJob().getId(),
+                job.getProfile().getId(),
+                job.getId(),
                 null,
                 correlationId == null ? UUID.randomUUID() : correlationId,
                 null,

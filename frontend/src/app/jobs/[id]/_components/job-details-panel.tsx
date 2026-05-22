@@ -155,7 +155,6 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
           <CardContent>
             <FieldRow label="Status" value={job.status} />
             <FieldRow label="Docker Image" value={job.dockerImage} />
-            <FieldRow label="Node ID" value={job.nodeId} />
             <FieldRow label="Created At" value={formatDateForUser(job.createdAt, isClient)} />
           </CardContent>
         </Card>

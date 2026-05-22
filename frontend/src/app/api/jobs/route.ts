@@ -13,7 +13,6 @@ type JobSubmissionBody = {
 
 type JobSubmissionResponse = {
   jobId: string;
-  runId?: string;
 };
 
 type BrokerFieldError = {
@@ -239,7 +238,7 @@ export async function POST(request: Request) {
 
     const data = (await backendResponse.json()) as JobSubmissionResponse;
     const status = backendResponse.status === 201 ? 201 : 200;
-    return NextResponse.json({ jobId: data.jobId, runId: data.runId }, { status });
+    return NextResponse.json({ jobId: data.jobId }, { status });
   } catch {
     return NextResponse.json({ error: 'Unexpected error. Please try again.' }, { status: 500 });
   }
