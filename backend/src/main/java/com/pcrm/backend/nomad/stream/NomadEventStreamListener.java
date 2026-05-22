@@ -4,9 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.pcrm.backend.jobs.domain.Run;
 import com.pcrm.backend.jobs.domain.RunStatus;
-import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.jobs.repository.RunRepository;
 import com.pcrm.backend.jobs.service.JobRunEventPublisher;
+import com.pcrm.backend.jobs.service.RunStateMachine;
 import com.pcrm.backend.nodes.domain.Node;
 import com.pcrm.backend.nodes.repository.NodeRepository;
 import com.pcrm.backend.nomad.stream.dto.NomadEvent;
@@ -43,8 +43,8 @@ public class NomadEventStreamListener {
 
     private final String nomadBaseUrl;
     private final NomadStreamCursorRepository cursorRepository;
-    private final JobRepository jobRepository;
     private final RunRepository runRepository;
+    private final RunStateMachine runStateMachine;
     private final NodeRepository nodeRepository;
     private final QuotaAccountingService quotaAccountingService;
     private final JobRunEventPublisher eventPublisher;
@@ -61,8 +61,8 @@ public class NomadEventStreamListener {
     public NomadEventStreamListener(
             String nomadBaseUrl,
             NomadStreamCursorRepository cursorRepository,
-            JobRepository jobRepository,
             RunRepository runRepository,
+            RunStateMachine runStateMachine,
             NodeRepository nodeRepository,
             QuotaAccountingService quotaAccountingService,
             JobRunEventPublisher eventPublisher,
@@ -70,8 +70,8 @@ public class NomadEventStreamListener {
             TransactionTemplate transactionTemplate) {
         this.nomadBaseUrl = nomadBaseUrl;
         this.cursorRepository = cursorRepository;
-        this.jobRepository = jobRepository;
         this.runRepository = runRepository;
+        this.runStateMachine = runStateMachine;
         this.nodeRepository = nodeRepository;
         this.quotaAccountingService = quotaAccountingService;
         this.eventPublisher = eventPublisher;
@@ -244,10 +244,9 @@ public class NomadEventStreamListener {
                     var currentStatus = run.getStatus();
                     boolean metadataUpdated = updateNomadAllocationMetadata(run, alloc);
 
-                    if (isTerminal(currentStatus)) {
+                    if (runStateMachine.isTerminal(currentStatus)) {
                         if (metadataUpdated) {
-                            runRepository.save(run);
-                            syncJobProjection(run);
+                            runStateMachine.saveAndProject(run);
                         }
                         return;
                     }
@@ -255,34 +254,18 @@ public class NomadEventStreamListener {
                     var newStatus = determineRunStatus(alloc, currentStatus);
                     if (currentStatus != newStatus) {
                         var now = OffsetDateTime.now(ZoneOffset.UTC);
-                        run.setStatus(newStatus);
-                        if (newStatus == RunStatus.RUNNING && run.getStartedAt() == null) {
-                            run.setStartedAt(now);
-                        }
-                        if ((newStatus == RunStatus.FINALIZING || newStatus == RunStatus.SUCCEEDED) && run.getProcessFinishedAt() == null) {
-                            run.setProcessFinishedAt(now);
-                        }
-                        if (newStatus == RunStatus.SUCCEEDED && run.getFinalizedAt() == null) {
-                            run.setFinalizedAt(now);
-                        }
                         var terminalReason = determineTerminalReason(alloc, newStatus);
-                        if (terminalReason != null) {
-                            run.setTerminalReason(terminalReason);
-                        }
-                        if (isTerminal(newStatus)) {
-                            run.setProcessFinishedAt(now);
+                        if (runStateMachine.isTerminal(newStatus)) {
                             settleCurrentLeaseIfNeeded(run, now, "Lease settled after terminal Nomad allocation event");
                         }
-                        runRepository.save(run);
-                        syncJobProjection(run);
+                        runStateMachine.applyNomadTransition(run, newStatus, now, terminalReason);
                         eventPublisher.runEvent(eventTypeForTransition(newStatus), run, nomadPayload(alloc), "nomad", UUID.randomUUID());
                         log.info("Updated run {} status from {} to {}", run.getId(), currentStatus, newStatus);
                         return;
                     }
 
                     if (metadataUpdated) {
-                        runRepository.save(run);
-                        syncJobProjection(run);
+                        runStateMachine.saveAndProject(run);
                     }
                 });
     }
@@ -296,19 +279,15 @@ public class NomadEventStreamListener {
                     boolean updated = false;
 
                     if ("JobDeregistered".equals(eventType) || Boolean.TRUE.equals(eventJob.stop())) {
-                        if (!isTerminal(run.getStatus()) && run.getStatus() != RunStatus.FINALIZING) {
+                        if (!runStateMachine.isTerminal(run.getStatus()) && run.getStatus() != RunStatus.FINALIZING) {
                             var now = OffsetDateTime.now(ZoneOffset.UTC);
-                            run.setStatus(RunStatus.CANCELED);
-                            run.setProcessFinishedAt(now);
-                            run.setTerminalReason("NOMAD_JOB_STOPPED");
                             settleCurrentLeaseIfNeeded(run, now, "Lease settled after Nomad stop event");
+                            runStateMachine.markNomadStopped(run, now);
                             updated = true;
                         }
                     }
 
                     if (updated) {
-                        runRepository.save(run);
-                        syncJobProjection(run);
                         eventPublisher.runEvent("RunCanceled", run, Map.of("nomadEventType", eventType == null ? "" : eventType), "nomad", UUID.randomUUID());
                         log.info("Updated run {} to CANCELED from Nomad Job event", run.getId());
                     }
@@ -336,52 +315,10 @@ public class NomadEventStreamListener {
             return byNomadJobId;
         }
 
-        UUID runUuid = extractRunId(nomadJobId);
-        if (runUuid != null) {
-            return runRepository.findById(runUuid);
-        }
-
-        UUID jobUuid = extractJobId(nomadJobId);
-        if (jobUuid != null) {
-            return runRepository.findFirstByJob_IdOrderByRunNumberDesc(jobUuid);
-        }
-
-        return Optional.empty();
-    }
-
-    private UUID extractRunId(String nomadJobId) {
-        if (nomadJobId == null) return null;
         try {
-            if (!nomadJobId.contains("-run#") && !nomadJobId.contains("-job#")) {
-                return UUID.fromString(nomadJobId);
-            }
-            if (nomadJobId.contains("-run#")) {
-                String[] parts = nomadJobId.split("-run#");
-                if (parts.length == 2) {
-                    return UUID.fromString(parts[1]);
-                }
-            }
-            return null;
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private UUID extractJobId(String nomadJobId) {
-        if (nomadJobId == null) return null;
-        try {
-            if (nomadJobId.contains("-job#")) {
-                String[] parts = nomadJobId.split("-job#");
-                if (parts.length == 2) {
-                    if (parts[1].contains("-run#")) {
-                        return UUID.fromString(parts[1].split("-run#")[0]);
-                    }
-                    return UUID.fromString(parts[1]);
-                }
-            }
-            return null;
-        } catch (IllegalArgumentException e) {
-            return null; // Not our job format
+            return runRepository.findById(UUID.fromString(nomadJobId));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
         }
     }
 
@@ -486,14 +423,6 @@ public class NomadEventStreamListener {
         return false;
     }
 
-    private boolean isTerminal(RunStatus status) {
-        return status == RunStatus.SUCCEEDED
-                || status == RunStatus.FAILED
-                || status == RunStatus.CANCELED
-                || status == RunStatus.TIMED_OUT
-                || status == RunStatus.INFRA_FAILED;
-    }
-
     private void settleCurrentLeaseIfNeeded(Run run, OffsetDateTime now, String reason) {
         if (Boolean.TRUE.equals(run.getLeaseSettled())) {
             return;
@@ -503,10 +432,7 @@ public class NomadEventStreamListener {
         long consumedMinutes = calculateConsumedMinutes(run, now, reservedMinutes);
 
         quotaAccountingService.settleLeaseMinutes(run, reservedMinutes, consumedMinutes, reason);
-        run.setTotalConsumedMinutes(run.getTotalConsumedMinutes() + consumedMinutes);
-        run.setCurrentLeaseReservedMinutes(0L);
-        run.setLeaseSettled(true);
-        run.setActiveLeaseExpiresAt(null);
+        runStateMachine.markCurrentLeaseSettled(run, consumedMinutes);
     }
 
     private long calculateConsumedMinutes(Run run, OffsetDateTime now, long reservedMinutes) {
@@ -521,20 +447,6 @@ public class NomadEventStreamListener {
         long elapsedSeconds = Math.max(0L, Duration.between(effectiveStart, now).getSeconds());
         long roundedUpMinutes = (elapsedSeconds + 59L) / 60L;
         return Math.min(reservedMinutes, roundedUpMinutes);
-    }
-
-    private void syncJobProjection(Run run) {
-        var job = run.getJob();
-        job.setStatus(run.getStatus());
-        job.setCurrentRun(run);
-        job.setStartedAt(run.getStartedAt());
-        job.setFinishedAt(run.getProcessFinishedAt());
-        job.setActiveLeaseExpiresAt(run.getActiveLeaseExpiresAt());
-        job.setCurrentLeaseReservedMinutes(run.getCurrentLeaseReservedMinutes());
-        job.setLeaseSequence(run.getLeaseSequence());
-        job.setLeaseSettled(run.getLeaseSettled());
-        job.setTotalConsumedMinutes(run.getTotalConsumedMinutes());
-        jobRepository.save(job);
     }
 
     private String eventTypeForTransition(RunStatus status) {

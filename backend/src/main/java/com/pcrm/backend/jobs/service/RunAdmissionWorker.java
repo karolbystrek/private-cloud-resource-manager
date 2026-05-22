@@ -4,10 +4,8 @@ import com.pcrm.backend.events.domain.OutboxMessage;
 import com.pcrm.backend.events.service.*;
 import com.pcrm.backend.exception.InsufficientQuotaException;
 import com.pcrm.backend.exception.ResourceNotFoundException;
-import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.Run;
 import com.pcrm.backend.jobs.domain.RunStatus;
-import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.jobs.repository.RunRepository;
 import com.pcrm.backend.quota.service.QuotaAccountingService;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +28,7 @@ public class RunAdmissionWorker implements OutboxMessageHandler {
     private static final String INSUFFICIENT_QUOTA = "INSUFFICIENT_QUOTA";
 
     private final RunRepository runRepository;
-    private final JobRepository jobRepository;
+    private final RunStateMachine runStateMachine;
     private final QuotaAccountingService quotaAccountingService;
     private final EventConsumerDedupeService dedupeService;
     private final DomainEventAppender domainEventAppender;
@@ -72,47 +70,19 @@ public class RunAdmissionWorker implements OutboxMessageHandler {
                 "Initial lease reserved during admission"
         );
 
-        run.setStatus(RunStatus.QUEUED);
-        run.setResourceClass(COMPUTE_RESOURCE_CLASS);
-        run.setQueuedAt(now);
-        run.setCurrentLeaseReservedMinutes(reservedMinutes);
-        run.setActiveLeaseExpiresAt(now.plusMinutes(reservedMinutes));
-        run.setLeaseSequence(1L);
-        run.setLeaseSettled(false);
-        runRepository.save(run);
+        runStateMachine.markQueued(run, now, COMPUTE_RESOURCE_CLASS, reservedMinutes);
 
-        syncJobProjection(run);
         eventPublisher.runEvent("RunQueued", run, correlationId);
         log.debug("Admitted run {} with {} reserved minutes", run.getId(), reservedMinutes);
     }
 
     private void rejectForInsufficientQuota(Run run, UUID correlationId, InsufficientQuotaException ex) {
         var now = OffsetDateTime.now(ZoneOffset.UTC);
-        run.setStatus(RunStatus.FAILED);
-        run.setTerminalReason(INSUFFICIENT_QUOTA);
-        run.setProcessFinishedAt(now);
-        run.setLeaseSettled(true);
-        runRepository.save(run);
+        runStateMachine.markRejectedForInsufficientQuota(run, now, INSUFFICIENT_QUOTA);
 
-        syncJobProjection(run);
         appendQuotaRejected(run, correlationId, ex.getMessage(), now);
         eventPublisher.runEvent("RunFailed", run, correlationId);
         log.debug("Rejected run {} for insufficient quota", run.getId());
-    }
-
-    private void syncJobProjection(Run run) {
-        Job job = run.getJob();
-        job.setStatus(run.getStatus());
-        job.setCurrentRun(run);
-        job.setQueuedAt(run.getQueuedAt());
-        job.setStartedAt(run.getStartedAt());
-        job.setFinishedAt(run.getProcessFinishedAt());
-        job.setActiveLeaseExpiresAt(run.getActiveLeaseExpiresAt());
-        job.setCurrentLeaseReservedMinutes(run.getCurrentLeaseReservedMinutes());
-        job.setLeaseSequence(run.getLeaseSequence());
-        job.setLeaseSettled(run.getLeaseSettled());
-        job.setTotalConsumedMinutes(run.getTotalConsumedMinutes());
-        jobRepository.save(job);
     }
 
     private void appendQuotaRejected(Run run, UUID correlationId, String reason, OffsetDateTime occurredAt) {

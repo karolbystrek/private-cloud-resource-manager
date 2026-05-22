@@ -1,9 +1,7 @@
 package com.pcrm.backend.jobs.service;
 
-import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.Run;
 import com.pcrm.backend.jobs.domain.RunStatus;
-import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.jobs.repository.RunRepository;
 import com.pcrm.backend.nomad.NomadJobControlClient;
 import com.pcrm.backend.quota.service.QuotaAccountingService;
@@ -43,7 +41,7 @@ public class LeaseWorker {
     );
 
     private final RunRepository runRepository;
-    private final JobRepository jobRepository;
+    private final RunStateMachine runStateMachine;
     private final QuotaAccountingService quotaAccountingService;
     private final NomadJobControlClient nomadJobControlClient;
     private final JobRunEventPublisher eventPublisher;
@@ -161,14 +159,7 @@ public class LeaseWorker {
                 "Lease renewed before expiry"
         );
 
-        run.setCurrentLeaseReservedMinutes(run.getCurrentLeaseReservedMinutes() + additionalReservedMinutes);
-        run.setActiveLeaseExpiresAt(nextLeaseExpiresAt);
-        run.setLeaseSequence(run.getLeaseSequence() + 1L);
-        run.setLeaseRenewalAttemptCount(run.getLeaseRenewalAttemptCount() + 1L);
-        run.setLastLeaseRenewalError(null);
-        run.setLeaseStopRequestedAt(null);
-        runRepository.save(run);
-        syncJobProjection(run);
+        runStateMachine.markLeaseRenewed(run, nextLeaseExpiresAt, additionalReservedMinutes);
         eventPublisher.runEvent(
                 "RunLeaseRenewed",
                 run,
@@ -184,11 +175,7 @@ public class LeaseWorker {
     }
 
     private LeaseDecision prepareStop(Run run, String reason, OffsetDateTime now, UUID correlationId) {
-        run.setLeaseRenewalAttemptCount(run.getLeaseRenewalAttemptCount() + 1L);
-        run.setLastLeaseRenewalError(truncate(reason, MAX_ERROR_LENGTH));
-        run.setLeaseStopRequestedAt(now);
-        runRepository.save(run);
-        syncJobProjection(run);
+        runStateMachine.markLeaseStopRequested(run, now, truncate(reason, MAX_ERROR_LENGTH));
         eventPublisher.runEvent(
                 "RunLeaseStopRequested",
                 run,
@@ -205,18 +192,17 @@ public class LeaseWorker {
 
     private void markRunTimedOut(UUID runId, String reason, UUID correlationId) {
         var run = runRepository.findByIdForUpdate(runId).orElse(null);
-        if (run == null || isTerminal(run.getStatus())) {
+        if (run == null || runStateMachine.isTerminal(run.getStatus())) {
             return;
         }
 
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         settleCurrentLeaseIfNeeded(run, now, "Lease settled after enforcement timeout");
-        run.setStatus(RunStatus.TIMED_OUT);
-        run.setTerminalReason(reason == null || reason.isBlank() ? LEASE_RENEWAL_FAILED : truncate(reason, 120));
-        run.setProcessFinishedAt(now);
-        run.setLastLeaseRenewalError(null);
-        runRepository.save(run);
-        syncJobProjection(run);
+        runStateMachine.markTimedOut(
+                run,
+                now,
+                reason == null || reason.isBlank() ? LEASE_RENEWAL_FAILED : truncate(reason, 120)
+        );
         eventPublisher.runEvent(
                 "RunTimedOut",
                 run,
@@ -229,14 +215,15 @@ public class LeaseWorker {
 
     private void recordStopFailure(UUID runId, String reason, UUID correlationId) {
         var run = runRepository.findByIdForUpdate(runId).orElse(null);
-        if (run == null || isTerminal(run.getStatus())) {
+        if (run == null || runStateMachine.isTerminal(run.getStatus())) {
             return;
         }
 
-        run.setLastLeaseRenewalError(truncate(reason, MAX_ERROR_LENGTH));
-        run.setLeaseStopRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        runRepository.save(run);
-        syncJobProjection(run);
+        runStateMachine.recordLeaseStopFailure(
+                run,
+                OffsetDateTime.now(ZoneOffset.UTC),
+                truncate(reason, MAX_ERROR_LENGTH)
+        );
         eventPublisher.runEvent(
                 "RunLeaseStopFailed",
                 run,
@@ -263,10 +250,7 @@ public class LeaseWorker {
         long consumedMinutes = calculateConsumedMinutes(run, now, reservedMinutes);
 
         quotaAccountingService.settleLeaseMinutes(run, reservedMinutes, consumedMinutes, reason);
-        run.setTotalConsumedMinutes(run.getTotalConsumedMinutes() + consumedMinutes);
-        run.setCurrentLeaseReservedMinutes(0L);
-        run.setLeaseSettled(true);
-        run.setActiveLeaseExpiresAt(null);
+        runStateMachine.markCurrentLeaseSettled(run, consumedMinutes);
     }
 
     private long calculateConsumedMinutes(Run run, OffsetDateTime now, long reservedMinutes) {
@@ -281,29 +265,6 @@ public class LeaseWorker {
         long elapsedSeconds = Math.max(0L, Duration.between(effectiveStart, now).getSeconds());
         long roundedUpMinutes = (elapsedSeconds + 59L) / 60L;
         return Math.min(reservedMinutes, roundedUpMinutes);
-    }
-
-    private boolean isTerminal(RunStatus status) {
-        return status == RunStatus.SUCCEEDED
-                || status == RunStatus.FAILED
-                || status == RunStatus.CANCELED
-                || status == RunStatus.TIMED_OUT
-                || status == RunStatus.INFRA_FAILED;
-    }
-
-    private void syncJobProjection(Run run) {
-        Job job = run.getJob();
-        job.setStatus(run.getStatus());
-        job.setCurrentRun(run);
-        job.setQueuedAt(run.getQueuedAt());
-        job.setStartedAt(run.getStartedAt());
-        job.setFinishedAt(run.getProcessFinishedAt());
-        job.setActiveLeaseExpiresAt(run.getActiveLeaseExpiresAt());
-        job.setCurrentLeaseReservedMinutes(run.getCurrentLeaseReservedMinutes());
-        job.setLeaseSequence(run.getLeaseSequence());
-        job.setLeaseSettled(run.getLeaseSettled());
-        job.setTotalConsumedMinutes(run.getTotalConsumedMinutes());
-        jobRepository.save(job);
     }
 
     private String summarize(Exception ex) {

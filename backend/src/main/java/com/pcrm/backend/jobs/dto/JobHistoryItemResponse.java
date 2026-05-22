@@ -20,16 +20,17 @@ public record JobHistoryItemResponse(
 ) {
 
     public static JobHistoryItemResponse from(Job job) {
+        var run = job.getCurrentRun();
         return new JobHistoryItemResponse(
                 job.getId(),
-                job.getCurrentRun() == null ? null : job.getCurrentRun().getId(),
+                run == null ? null : run.getId(),
                 job.getNodeId(),
-                job.getStatus(),
+                run == null ? job.getStatus() : run.getStatus(),
                 job.getDockerImage(),
                 job.getExecutionCommand(),
                 job.getReqCpuCores(),
                 job.getReqRamGb(),
-                job.getTotalConsumedMinutes(),
+                run == null ? job.getTotalConsumedMinutes() : run.getTotalConsumedMinutes(),
                 job.getCreatedAt()
         );
     }

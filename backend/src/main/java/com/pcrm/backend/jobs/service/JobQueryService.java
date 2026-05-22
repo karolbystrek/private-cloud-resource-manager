@@ -37,7 +37,7 @@ public class JobQueryService {
         var pageable = PageRequest.of(page, size, Sort.by(sortDirection, "createdAt"));
         var jobsPage = statusFilters == null || statusFilters.isEmpty()
                 ? jobRepository.findByProfile_Id(userId, pageable)
-                : jobRepository.findByProfile_IdAndStatusIn(userId, statusFilters, pageable);
+                : jobRepository.findByProfile_IdAndCurrentRun_StatusIn(userId, statusFilters, pageable);
 
         var jobs = jobsPage.getContent()
                 .stream()

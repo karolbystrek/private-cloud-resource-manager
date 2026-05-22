@@ -19,7 +19,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
 
     Page<Job> findByProfile_Id(UUID userId, Pageable pageable);
 
-    Page<Job> findByProfile_IdAndStatusIn(UUID userId, List<RunStatus> statuses, Pageable pageable);
+    Page<Job> findByProfile_IdAndCurrentRun_StatusIn(UUID userId, List<RunStatus> statuses, Pageable pageable);
 
     Optional<Job> findByIdAndProfile_Id(UUID id, UUID userId);
 

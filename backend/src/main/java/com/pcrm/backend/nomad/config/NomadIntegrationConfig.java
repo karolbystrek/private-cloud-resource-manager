@@ -1,9 +1,9 @@
 package com.pcrm.backend.nomad.config;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.jobs.repository.RunRepository;
 import com.pcrm.backend.jobs.service.JobRunEventPublisher;
+import com.pcrm.backend.jobs.service.RunStateMachine;
 import com.pcrm.backend.nodes.repository.NodeRepository;
 import com.pcrm.backend.nomad.NomadDispatchClient;
 import com.pcrm.backend.nomad.NomadJobControlClient;
@@ -61,8 +61,8 @@ public class NomadIntegrationConfig {
     NomadEventStreamListener nomadEventStreamListener(
             @Value("${app.nomad.base-url}") String nomadBaseUrl,
             NomadStreamCursorRepository cursorRepository,
-            JobRepository jobRepository,
             RunRepository runRepository,
+            RunStateMachine runStateMachine,
             NodeRepository nodeRepository,
             QuotaAccountingService quotaAccountingService,
             JobRunEventPublisher eventPublisher,
@@ -72,8 +72,8 @@ public class NomadIntegrationConfig {
         return new NomadEventStreamListener(
                 nomadBaseUrl,
                 cursorRepository,
-                jobRepository,
                 runRepository,
+                runStateMachine,
                 nodeRepository,
                 quotaAccountingService,
                 eventPublisher,

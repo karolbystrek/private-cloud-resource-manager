@@ -30,9 +30,6 @@ public interface RunRepository extends JpaRepository<Run, UUID> {
     @EntityGraph(attributePaths = {"job", "job.profile", "profile"})
     Optional<Run> findByNomadAllocationId(String nomadAllocationId);
 
-    @EntityGraph(attributePaths = {"job", "job.profile", "profile"})
-    Optional<Run> findFirstByJob_IdOrderByRunNumberDesc(UUID jobId);
-
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = {"job", "job.profile", "profile"})
     @Query("""

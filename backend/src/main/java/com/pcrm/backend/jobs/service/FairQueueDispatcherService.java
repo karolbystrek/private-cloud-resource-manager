@@ -9,7 +9,6 @@ import com.pcrm.backend.events.service.OutboxMessageHandler;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.Run;
 import com.pcrm.backend.jobs.domain.RunStatus;
-import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.jobs.repository.RunRepository;
 import com.pcrm.backend.nodes.domain.NodeStatus;
 import com.pcrm.backend.nodes.repository.NodeRepository;
@@ -43,8 +42,8 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
     private static final String CONSUMER_NAME = "fair-queue-dispatcher";
     private static final int MAX_ERROR_LENGTH = 4000;
 
-    private final JobRepository jobRepository;
     private final RunRepository runRepository;
+    private final RunStateMachine runStateMachine;
     private final NodeRepository nodeRepository;
     private final NomadDispatchClient nomadDispatchClient;
     private final QuotaAccountingService quotaAccountingService;
@@ -251,13 +250,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
             return Optional.empty();
         }
 
-        run.setStatus(RunStatus.DISPATCHING);
-        run.setDispatchRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        run.setNomadJobId(run.getId().toString());
-        run.setDispatchAttemptCount((run.getDispatchAttemptCount() == null ? 0L : run.getDispatchAttemptCount()) + 1);
-        run.setLastDispatchError(null);
-        var savedRun = runRepository.save(run);
-        syncJobProjection(run);
+        var savedRun = runStateMachine.markDispatchRequested(run, OffsetDateTime.now(ZoneOffset.UTC));
         log.debug("Requested dispatch for run {} as Nomad job {}", run.getId(), run.getNomadJobId());
         return Optional.of(savedRun);
     }
@@ -268,13 +261,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
             return Optional.empty();
         }
 
-        run.setDispatchRequestedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        if (run.getNomadJobId() == null || run.getNomadJobId().isBlank()) {
-            run.setNomadJobId(run.getId().toString());
-        }
-        run.setDispatchAttemptCount((run.getDispatchAttemptCount() == null ? 0L : run.getDispatchAttemptCount()) + 1);
-        run.setLastDispatchError(null);
-        return Optional.of(runRepository.save(run));
+        return Optional.of(runStateMachine.markDispatchRetryRequested(run, OffsetDateTime.now(ZoneOffset.UTC)));
     }
 
     private NomadDispatchRequest toDispatchRequest(Run run, UUID correlationId) {
@@ -309,13 +296,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
             return;
         }
 
-        run.setNomadJobId(dispatchResult.nomadJobId());
-        run.setNomadEvalId(dispatchResult.nomadEvalId());
-        run.setDispatchedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        run.setStatus(RunStatus.SCHEDULING);
-        run.setLastDispatchError(null);
-        runRepository.save(run);
-        syncJobProjection(run);
+        runStateMachine.markDispatchAccepted(run, dispatchResult, OffsetDateTime.now(ZoneOffset.UTC));
         eventPublisher.runEvent(
                 "RunDispatched",
                 run,
@@ -334,7 +315,6 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
             return;
         }
 
-        run.setLastDispatchError(reason);
         if (!Boolean.TRUE.equals(run.getLeaseSettled())) {
             quotaAccountingService.refundLeaseReservation(
                     run,
@@ -342,16 +322,10 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
                     "Nomad dispatch failed, initial lease refunded"
             );
 
-            run.setCurrentLeaseReservedMinutes(0L);
-            run.setLeaseSettled(true);
-            run.setActiveLeaseExpiresAt(null);
+            runStateMachine.markCurrentLeaseSettled(run, 0L);
         }
 
-        run.setStatus(RunStatus.INFRA_FAILED);
-        run.setTerminalReason("NOMAD_DISPATCH_FAILED");
-        run.setProcessFinishedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        runRepository.save(run);
-        syncJobProjection(run);
+        runStateMachine.markDispatchFailed(run, reason, OffsetDateTime.now(ZoneOffset.UTC));
         eventPublisher.runEvent(
                 "RunInfraFailed",
                 run,
@@ -375,21 +349,6 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
             return UUID.randomUUID();
         }
         return UUID.fromString(rawCorrelationId);
-    }
-
-    private void syncJobProjection(Run run) {
-        var job = run.getJob();
-        job.setStatus(run.getStatus());
-        job.setCurrentRun(run);
-        job.setQueuedAt(run.getQueuedAt());
-        job.setStartedAt(run.getStartedAt());
-        job.setFinishedAt(run.getProcessFinishedAt());
-        job.setActiveLeaseExpiresAt(run.getActiveLeaseExpiresAt());
-        job.setCurrentLeaseReservedMinutes(run.getCurrentLeaseReservedMinutes());
-        job.setLeaseSequence(run.getLeaseSequence());
-        job.setLeaseSettled(run.getLeaseSettled());
-        job.setTotalConsumedMinutes(run.getTotalConsumedMinutes());
-        jobRepository.save(job);
     }
 
     private record ClusterCapacity(long totalCpu, long totalRamMb) {

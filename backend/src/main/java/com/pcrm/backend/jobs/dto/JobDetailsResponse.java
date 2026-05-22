@@ -22,15 +22,16 @@ public record JobDetailsResponse(
 ) {
 
     public static JobDetailsResponse from(Job job, String userEmail) {
+        var run = job.getCurrentRun();
         return new JobDetailsResponse(
                 job.getId(),
-                job.getCurrentRun() == null ? null : job.getCurrentRun().getId(),
-                job.getStatus(),
+                run == null ? null : run.getId(),
+                run == null ? job.getStatus() : run.getStatus(),
                 job.getDockerImage(),
                 job.getExecutionCommand(),
                 job.getReqCpuCores(),
                 job.getReqRamGb(),
-                job.getTotalConsumedMinutes(),
+                run == null ? job.getTotalConsumedMinutes() : run.getTotalConsumedMinutes(),
                 job.getNodeId(),
                 job.getCreatedAt(),
                 job.getProfile().getId(),

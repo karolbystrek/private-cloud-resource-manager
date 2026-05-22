@@ -32,6 +32,7 @@ class LeaseWorkerTest {
 
     private RunRepository runRepository;
     private JobRepository jobRepository;
+    private RunStateMachine runStateMachine;
     private QuotaAccountingService quotaAccountingService;
     private NomadJobControlClient nomadJobControlClient;
     private JobRunEventPublisher eventPublisher;
@@ -41,12 +42,15 @@ class LeaseWorkerTest {
     void setUp() {
         runRepository = mock(RunRepository.class);
         jobRepository = mock(JobRepository.class);
+        when(runRepository.save(any(Run.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(jobRepository.save(any(Job.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        runStateMachine = new RunStateMachine(runRepository, jobRepository);
         quotaAccountingService = mock(QuotaAccountingService.class);
         nomadJobControlClient = mock(NomadJobControlClient.class);
         eventPublisher = mock(JobRunEventPublisher.class);
         leaseWorker = new LeaseWorker(
                 runRepository,
-                jobRepository,
+                runStateMachine,
                 quotaAccountingService,
                 nomadJobControlClient,
                 eventPublisher,
