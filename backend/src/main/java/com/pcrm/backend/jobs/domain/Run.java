@@ -93,6 +93,16 @@ public class Run {
     @Builder.Default
     private Boolean leaseSettled = false;
 
+    @Column(name = "lease_renewal_attempt_count", nullable = false)
+    @Builder.Default
+    private Long leaseRenewalAttemptCount = 0L;
+
+    @Column(name = "last_lease_renewal_error")
+    private String lastLeaseRenewalError;
+
+    @Column(name = "lease_stop_requested_at")
+    private OffsetDateTime leaseStopRequestedAt;
+
     @Column(name = "total_consumed_minutes", nullable = false)
     @Builder.Default
     private Long totalConsumedMinutes = 0L;

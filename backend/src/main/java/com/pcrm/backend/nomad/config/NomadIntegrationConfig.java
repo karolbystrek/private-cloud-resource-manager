@@ -6,9 +6,11 @@ import com.pcrm.backend.jobs.repository.RunRepository;
 import com.pcrm.backend.jobs.service.JobRunEventPublisher;
 import com.pcrm.backend.nodes.repository.NodeRepository;
 import com.pcrm.backend.nomad.NomadDispatchClient;
+import com.pcrm.backend.nomad.NomadJobControlClient;
 import com.pcrm.backend.nomad.NomadLogsClient;
 import com.pcrm.backend.nomad.NomadNodeClient;
 import com.pcrm.backend.nomad.http.NomadHttpDispatchClient;
+import com.pcrm.backend.nomad.http.NomadHttpJobControlClient;
 import com.pcrm.backend.nomad.http.NomadHttpLogsClient;
 import com.pcrm.backend.nomad.http.NomadHttpNodeClient;
 import com.pcrm.backend.nomad.stream.NomadEventStreamListener;
@@ -48,6 +50,11 @@ public class NomadIntegrationConfig {
     @Bean
     NomadNodeClient nomadNodeClient(@Value("${app.nomad.base-url}") String nomadBaseUrl) {
         return new NomadHttpNodeClient(nomadBaseUrl);
+    }
+
+    @Bean
+    NomadJobControlClient nomadJobControlClient(@Value("${app.nomad.base-url}") String nomadBaseUrl) {
+        return new NomadHttpJobControlClient(nomadBaseUrl);
     }
 
     @Bean

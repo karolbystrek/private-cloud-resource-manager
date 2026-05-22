@@ -90,6 +90,36 @@ public class QuotaAccountingService {
     }
 
     @Transactional
+    public long reserveAdditionalLease(UUID profileId, Run run, OffsetDateTime nextLeaseExpiresAt, String reason) {
+        var profile = profileRepository.findById(profileId)
+                .orElseThrow(() -> new ResourceNotFoundException("Profile", profileId));
+        var now = OffsetDateTime.now(ZoneOffset.UTC);
+        var referencePoint = resolveRunReferencePoint(run);
+        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(profile, referencePoint);
+        var bounds = resolveBounds(referencePoint);
+        var balance = getOrCreateBalanceForUpdate(profile, bounds, effectivePolicy, now);
+        var reservation = findReservationForSettlement(run);
+
+        if (reservation == null || reservation.getStatus() != QuotaReservationStatus.ACTIVE) {
+            throw new IllegalStateException("Run %s has no active quota reservation to renew".formatted(run.getId()));
+        }
+
+        var computeMinutes = normalizeComputeMinutes(leaseMinutes, DEFAULT_MULTIPLIER);
+        if (!effectivePolicy.unlimited() && balance.getAvailableMinutes() < computeMinutes) {
+            throw new InsufficientQuotaException(balance.getAvailableMinutes(), computeMinutes);
+        }
+
+        reservation.setReservedComputeMinutes(reservation.getReservedComputeMinutes() + computeMinutes);
+        reservation.setExpiresAt(nextLeaseExpiresAt);
+        reservation.setUpdatedAt(now);
+        quotaReservationRepository.save(reservation);
+
+        reserveBalanceMinutes(balance, computeMinutes, now);
+        appendQuotaEvent("QuotaReserved", profile, run, reservation, "LEASE_RENEWED", computeMinutes, reason, now);
+        return computeMinutes;
+    }
+
+    @Transactional
     public void refundLeaseReservation(Run run, long minutes, String reason) {
         settleLeaseMinutes(run, minutes, 0L, reason);
     }

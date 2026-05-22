@@ -48,6 +48,10 @@ app:
       interval-ms: ${SCHEDULER_DISPATCH_INTERVAL_MS:3000}
       base-quantum: ${SCHEDULER_BASE_QUANTUM:25}
       age-boost-per-minute: ${SCHEDULER_AGE_BOOST_PER_MINUTE:2}
+    lease:
+      interval-ms: ${LEASE_ENFORCER_INTERVAL_MS:30000}
+      safety-window-ms: ${LEASE_ENFORCER_SAFETY_WINDOW_MS:120000}
+      batch-size: ${LEASE_ENFORCER_BATCH_SIZE:50}
   events:
     outbox:
       enabled: ${EVENTS_OUTBOX_ENABLED:true}

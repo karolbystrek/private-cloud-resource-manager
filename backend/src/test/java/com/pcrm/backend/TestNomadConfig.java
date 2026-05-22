@@ -3,6 +3,7 @@ package com.pcrm.backend;
 import com.pcrm.backend.nomad.NomadDispatchClient;
 import com.pcrm.backend.nomad.NomadDispatchRequest;
 import com.pcrm.backend.nomad.NomadDispatchResult;
+import com.pcrm.backend.nomad.NomadJobControlClient;
 import com.pcrm.backend.nomad.NomadLogsClient;
 import com.pcrm.backend.nomad.NomadNodeClient;
 import org.springframework.context.annotation.Bean;
@@ -49,5 +50,11 @@ class TestNomadConfig {
     @Bean
     NomadNodeClient nomadNodeClient() {
         return List::of;
+    }
+
+    @Bean
+    NomadJobControlClient nomadJobControlClient() {
+        return _ -> {
+        };
     }
 }

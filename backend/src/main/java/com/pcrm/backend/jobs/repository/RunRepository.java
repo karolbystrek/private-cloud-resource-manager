@@ -8,9 +8,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,6 +41,23 @@ public interface RunRepository extends JpaRepository<Run, UUID> {
             WHERE run.id = :runId
             """)
     Optional<Run> findByIdForUpdate(@Param("runId") UUID runId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"job", "job.profile", "profile"})
+    @Query("""
+            SELECT run
+            FROM Run run
+            WHERE run.status IN :statuses
+              AND run.leaseSettled = false
+              AND run.activeLeaseExpiresAt IS NOT NULL
+              AND run.activeLeaseExpiresAt <= :threshold
+            ORDER BY run.activeLeaseExpiresAt ASC
+            """)
+    List<Run> findLeaseEnforcementCandidatesForUpdate(
+            @Param("statuses") Collection<RunStatus> statuses,
+            @Param("threshold") OffsetDateTime threshold,
+            Pageable pageable
+    );
 
     @Modifying
     @Query("""

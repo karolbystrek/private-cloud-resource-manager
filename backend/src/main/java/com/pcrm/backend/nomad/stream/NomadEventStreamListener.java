@@ -242,9 +242,17 @@ public class NomadEventStreamListener {
                 .flatMap(run -> runRepository.findByIdForUpdate(run.getId()))
                 .ifPresent(run -> {
                     var currentStatus = run.getStatus();
-                    var newStatus = determineRunStatus(alloc, currentStatus);
                     boolean metadataUpdated = updateNomadAllocationMetadata(run, alloc);
 
+                    if (isTerminal(currentStatus)) {
+                        if (metadataUpdated) {
+                            runRepository.save(run);
+                            syncJobProjection(run);
+                        }
+                        return;
+                    }
+
+                    var newStatus = determineRunStatus(alloc, currentStatus);
                     if (currentStatus != newStatus) {
                         var now = OffsetDateTime.now(ZoneOffset.UTC);
                         run.setStatus(newStatus);
