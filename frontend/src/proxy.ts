@@ -10,6 +10,10 @@ const LOGIN_PATH = '/login';
 const SIGNUP_PATH = '/signup';
 const AUTH_PATHS = new Set([LOGIN_PATH, SIGNUP_PATH]);
 
+function isAuthRedirectTarget(target: string, requestUrl: string): boolean {
+  return AUTH_PATHS.has(new URL(target, requestUrl).pathname);
+}
+
 function isAuthenticated(request: NextRequest): boolean {
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
@@ -21,10 +25,10 @@ export function proxy(request: NextRequest) {
   const hasSession = isAuthenticated(request);
   const isAuthPath = AUTH_PATHS.has(pathname);
 
-  if (pathname === SIGNUP_PATH && hasSession) {
+  if (isAuthPath && hasSession) {
     const nextParam = request.nextUrl.searchParams.get('next');
     const redirectTarget
-      = isSafeRedirectTarget(nextParam) && !AUTH_PATHS.has(nextParam)
+      = isSafeRedirectTarget(nextParam) && !isAuthRedirectTarget(nextParam, request.url)
         ? nextParam
         : '/';
     return NextResponse.redirect(new URL(redirectTarget, request.url));
