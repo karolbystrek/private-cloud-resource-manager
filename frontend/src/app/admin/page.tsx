@@ -7,7 +7,8 @@ import type { NodeSummary } from '@/app/nodes/_components/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatUtcDateTime } from '@/lib/date-time';
-import { getBackendUrlForServer } from '@/lib/backend-url';
+import { USER_ROLE_COOKIE } from '@/lib/auth';
+import { brokerFetch, getRequiredAccessToken } from '@/lib/server-auth';
 import { isUserRole } from '@/lib/user-role';
 
 export const metadata: Metadata = {
@@ -23,16 +24,10 @@ function getCountByStatus(nodes: NodeSummary[], status: string): number {
   return nodes.filter((node) => node.status === status).length;
 }
 
-async function fetchNodes(accessToken: string): Promise<NodesResult> {
-  const BACKEND_URL = getBackendUrlForServer();
-  const response = await fetch(`${BACKEND_URL}/api/nodes`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+async function fetchNodes(): Promise<NodesResult> {
+  const response = await brokerFetch('/api/nodes', {
     cache: 'no-store',
-  });
-
-  if (response.status === 401) {
-    redirect('/login?next=/admin');
-  }
+  }, '/admin');
 
   if (response.status === 403) {
     redirect('/');
@@ -47,19 +42,16 @@ async function fetchNodes(accessToken: string): Promise<NodesResult> {
 }
 
 export default async function AdminDashboardPage() {
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get('access_token')?.value;
-  if (!accessToken) {
-    redirect('/login?next=/admin');
-  }
+  await getRequiredAccessToken('/admin');
 
-  const roleCookie = cookieStore.get('user_role')?.value;
+  const cookieStore = await cookies();
+  const roleCookie = cookieStore.get(USER_ROLE_COOKIE)?.value;
   const userRole = isUserRole(roleCookie) ? roleCookie : null;
   if (userRole !== 'ADMIN') {
     redirect('/');
   }
 
-  const { nodes, error } = await fetchNodes(accessToken);
+  const { nodes, error } = await fetchNodes();
   const totalNodes = nodes.length;
   const activeNodes = getCountByStatus(nodes, 'AVAILABLE');
   const unavailableNodes = totalNodes - activeNodes;

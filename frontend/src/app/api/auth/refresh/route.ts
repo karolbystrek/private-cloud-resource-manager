@@ -1,22 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { clearAuthCookies, REFRESH_TOKEN_COOKIE, setAuthCookies } from '@/lib/auth';
 import { getBackendUrlForServer } from '@/lib/backend-url';
 import { isUserRole, type UserRole } from '@/lib/user-role';
-
-const USER_ROLE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 type QuotaMeResponse = {
   role: string;
 };
 
+function refreshFailedResponse() {
+  const response = NextResponse.json({ error: 'Refresh failed' }, { status: 401 });
+  clearAuthCookies(response);
+  return response;
+}
+
 export async function POST() {
   try {
     const cookieStore = await cookies();
-    const refreshToken = cookieStore.get('refresh_token')?.value;
+    const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value;
 
     if (!refreshToken) {
-      return NextResponse.json({ error: 'No refresh token.' }, { status: 401 });
+      return refreshFailedResponse();
     }
 
     const url = process.env.SUPABASE_URL;
@@ -28,7 +33,7 @@ export async function POST() {
     const supabase = createClient(url, anonKey);
     const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
     if (error || !data.session) {
-      return NextResponse.json({ error: 'Refresh failed' }, { status: 401 });
+      return refreshFailedResponse();
     }
 
     const accessToken = data.session.access_token;
@@ -48,31 +53,7 @@ export async function POST() {
     }
 
     const response = NextResponse.json({ success: true }, { status: 200 });
-
-    const accessMaxAge = Math.max(60, (data.session.expires_in ?? 3600) - 30);
-    response.cookies.set('access_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: accessMaxAge,
-    });
-
-    response.cookies.set('refresh_token', nextRefresh, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30,
-    });
-
-    response.cookies.set('user_role', role, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: USER_ROLE_COOKIE_MAX_AGE_SECONDS,
-    });
+    setAuthCookies(response, accessToken, nextRefresh, data.session.expires_in, role);
 
     return response;
   } catch {

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { ACCESS_TOKEN_COOKIE } from '@/lib/auth';
 import { getBackendUrlForServer } from '@/lib/backend-url';
 
 type JobSubmissionBody = {
@@ -197,7 +198,7 @@ export async function POST(request: Request) {
   }
 
   const cookieStore = await cookies();
-  const accessToken = cookieStore.get('access_token')?.value;
+  const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
 
   if (!accessToken) {
     return NextResponse.json({ error: 'Session expired. Please log in again.' }, { status: 401 });

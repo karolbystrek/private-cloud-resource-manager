@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { JobsHistoryView } from './_components/jobs-history-view';
 import type { JobHistorySortDirection, JobsPageResponse, JobStatus } from './_components/types';
-import { getBackendUrlForServer } from '@/lib/backend-url';
+import { brokerFetch } from '@/lib/server-auth';
 
 export const metadata: Metadata = {
   title: 'Jobs - Private Cloud Resource Manager',
@@ -104,11 +102,6 @@ export default async function JobsPage({ searchParams }: { searchParams: JobsPag
   const statusFilters = parseStatuses(resolvedSearchParams.status);
   const jobsPath = buildJobsPath(page, size, sort, statusFilters);
 
-  const accessToken = (await cookies()).get('access_token')?.value;
-  if (!accessToken) {
-    redirect(`/login?next=${encodeURIComponent(jobsPath)}`);
-  }
-
   const backendParams = new URLSearchParams({
     page: String(page),
     size: String(size),
@@ -118,17 +111,9 @@ export default async function JobsPage({ searchParams }: { searchParams: JobsPag
     backendParams.append('status', status);
   }
 
-  const BACKEND_URL = getBackendUrlForServer();
-  const response = await fetch(`${BACKEND_URL}/api/jobs?${backendParams.toString()}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+  const response = await brokerFetch(`/api/jobs?${backendParams.toString()}`, {
     cache: 'no-store',
-  });
-
-  if (response.status === 401) {
-    redirect(`/login?next=${encodeURIComponent(jobsPath)}`);
-  }
+  }, jobsPath);
 
   if (!response.ok) {
     throw new Error('Failed to load jobs.');

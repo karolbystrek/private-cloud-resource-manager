@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import '@/app/globals.css';
 import { Header } from '@/components/header';
 import { ThemeProvider } from '@/components/theme-provider';
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, USER_ROLE_COOKIE } from '@/lib/auth';
 import { isUserRole, type UserRole } from '@/lib/user-role';
 import { cn } from '@/lib/utils';
 
@@ -28,9 +29,9 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
   const hasSession = Boolean(
-    cookieStore.get('access_token')?.value || cookieStore.get('refresh_token')?.value,
+    cookieStore.get(ACCESS_TOKEN_COOKIE)?.value || cookieStore.get(REFRESH_TOKEN_COOKIE)?.value,
   );
-  const roleCookie = cookieStore.get('user_role')?.value;
+  const roleCookie = cookieStore.get(USER_ROLE_COOKIE)?.value;
   const userRole: UserRole | null = isUserRole(roleCookie) ? roleCookie : null;
 
   return (

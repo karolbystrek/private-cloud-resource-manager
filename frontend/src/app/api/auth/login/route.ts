@@ -1,9 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { setAuthCookies } from '@/lib/auth';
 import { getBackendUrlForServer } from '@/lib/backend-url';
 import { isUserRole, type UserRole } from '@/lib/user-role';
-
-const USER_ROLE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 type QuotaMeResponse = {
   role: string;
@@ -47,33 +46,7 @@ export async function POST(request: Request) {
     }
 
     const response = NextResponse.json({ success: true }, { status: 200 });
-
-    const accessMaxAge = Math.max(60, (data.session.expires_in ?? 3600) - 30);
-    response.cookies.set('access_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: accessMaxAge,
-    });
-
-    if (refreshToken) {
-      response.cookies.set('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60 * 24 * 30,
-      });
-    }
-
-    response.cookies.set('user_role', role, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: USER_ROLE_COOKIE_MAX_AGE_SECONDS,
-    });
+    setAuthCookies(response, accessToken, refreshToken, data.session.expires_in, role);
 
     return response;
   } catch {

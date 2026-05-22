@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { RiRefreshLine } from '@remixicon/react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { buildClearSessionPath } from '@/lib/auth';
 import { formatLocalDateTime, formatUtcDateTime } from '@/lib/date-time';
 import type { NodeSummary } from './types';
 
@@ -69,7 +70,7 @@ export function NodesList({ initialNodes, pollIntervalMs, initialUpdatedAt }: No
         const response = await fetch('/api/nodes', { cache: 'no-store' });
 
         if (response.status === 401) {
-          window.location.href = '/login?next=/nodes';
+          window.location.href = buildClearSessionPath('/nodes');
           return;
         }
 

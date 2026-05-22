@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { NodesList } from './_components/nodes-list';
 import type { NodeSummary } from './_components/types';
-import { getBackendUrlForServer } from '@/lib/backend-url';
+import { brokerFetch } from '@/lib/server-auth';
 
 export const metadata: Metadata = {
   title: 'Nodes - Private Cloud Resource Manager',
@@ -20,22 +19,9 @@ function resolvePollIntervalMs(): number {
 }
 
 export default async function NodesPage() {
-  const accessToken = (await cookies()).get('access_token')?.value;
-  if (!accessToken) {
-    redirect('/login?next=/nodes');
-  }
-
-  const BACKEND_URL = getBackendUrlForServer();
-  const response = await fetch(`${BACKEND_URL}/api/nodes`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+  const response = await brokerFetch('/api/nodes', {
     cache: 'no-store',
-  });
-
-  if (response.status === 401) {
-    redirect('/login?next=/nodes');
-  }
+  }, '/nodes');
 
   if (response.status === 403) {
     redirect('/');

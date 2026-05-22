@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { HomeDashboard } from '@/app/_components/home-dashboard';
 import type { JobHistoryItem, JobsPageResponse, JobStatus } from '@/app/jobs/_components/types';
-import { getBackendUrlForServer } from '@/lib/backend-url';
+import { brokerFetch } from '@/lib/server-auth';
 
 export const metadata: Metadata = {
   title: 'Dashboard - Private Cloud Resource Manager',
@@ -30,16 +28,10 @@ type QuotaResult = {
   error: string | null;
 };
 
-async function fetchRecentJobs(accessToken: string): Promise<JobsResult> {
-  const BACKEND_URL = getBackendUrlForServer();
-  const response = await fetch(`${BACKEND_URL}/api/jobs?page=0&size=${RECENT_JOBS_SIZE}&sort=desc`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+async function fetchRecentJobs(): Promise<JobsResult> {
+  const response = await brokerFetch(`/api/jobs?page=0&size=${RECENT_JOBS_SIZE}&sort=desc`, {
     cache: 'no-store',
-  });
-
-  if (response.status === 401) {
-    redirect('/login?next=/');
-  }
+  }, '/');
   if (!response.ok) {
     return { jobs: [], error: 'Recent jobs are currently unavailable.' };
   }
@@ -51,21 +43,15 @@ async function fetchRecentJobs(accessToken: string): Promise<JobsResult> {
 const RUNNING_STATUSES: JobStatus[] = ['DISPATCHING', 'SCHEDULING', 'RUNNING'];
 const FAILED_STATUSES: JobStatus[] = ['FAILED', 'TIMED_OUT', 'INFRA_FAILED', 'CANCELED'];
 
-async function fetchStatusCount(accessToken: string, statuses: JobStatus[]): Promise<number> {
-  const BACKEND_URL = getBackendUrlForServer();
+async function fetchStatusCount(statuses: JobStatus[]): Promise<number> {
   const params = new URLSearchParams({ page: '0', size: '1', sort: 'desc' });
   for (const status of statuses) {
     params.append('status', status);
   }
 
-  const response = await fetch(`${BACKEND_URL}/api/jobs?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+  const response = await brokerFetch(`/api/jobs?${params.toString()}`, {
     cache: 'no-store',
-  });
-
-  if (response.status === 401) {
-    redirect('/login?next=/');
-  }
+  }, '/');
   if (!response.ok) {
     return 0;
   }
@@ -74,26 +60,20 @@ async function fetchStatusCount(accessToken: string, statuses: JobStatus[]): Pro
   return data.totalElements ?? 0;
 }
 
-async function fetchStatusCounts(accessToken: string) {
+async function fetchStatusCounts() {
   const [queued, running, completed, failed] = await Promise.all([
-    fetchStatusCount(accessToken, ['SUBMITTED', 'QUEUED']),
-    fetchStatusCount(accessToken, RUNNING_STATUSES),
-    fetchStatusCount(accessToken, ['SUCCEEDED']),
-    fetchStatusCount(accessToken, FAILED_STATUSES),
+    fetchStatusCount(['SUBMITTED', 'QUEUED']),
+    fetchStatusCount(RUNNING_STATUSES),
+    fetchStatusCount(['SUCCEEDED']),
+    fetchStatusCount(FAILED_STATUSES),
   ]);
   return { queued, running, completed, failed };
 }
 
-async function fetchQuotaSummary(accessToken: string): Promise<QuotaResult> {
-  const BACKEND_URL = getBackendUrlForServer();
-  const response = await fetch(`${BACKEND_URL}/api/quota/me`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+async function fetchQuotaSummary(): Promise<QuotaResult> {
+  const response = await brokerFetch('/api/quota/me', {
     cache: 'no-store',
-  });
-
-  if (response.status === 401) {
-    redirect('/login?next=/');
-  }
+  }, '/');
 
   if (!response.ok) {
     return { quota: null, error: 'Quota summary is currently unavailable.' };
@@ -104,16 +84,10 @@ async function fetchQuotaSummary(accessToken: string): Promise<QuotaResult> {
 }
 
 export default async function Home() {
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get('access_token')?.value;
-  if (!accessToken) {
-    redirect('/login?next=/');
-  }
-
   const [{ jobs, error: jobsError }, { quota, error: quotaError }, statusCounts] = await Promise.all([
-    fetchRecentJobs(accessToken),
-    fetchQuotaSummary(accessToken),
-    fetchStatusCounts(accessToken),
+    fetchRecentJobs(),
+    fetchQuotaSummary(),
+    fetchStatusCounts(),
   ]);
 
   return (

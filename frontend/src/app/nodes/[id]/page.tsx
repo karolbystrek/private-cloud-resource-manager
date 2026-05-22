@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 
 import { NodeDetailsPanel } from './_components/node-details';
 import type { NodeDetails } from '@/app/nodes/_components/types';
-import { getBackendUrlForServer } from '@/lib/backend-url';
+import { brokerFetch } from '@/lib/server-auth';
 
 const DEFAULT_POLL_INTERVAL_MS = 30000;
 
@@ -26,22 +25,11 @@ type NodeDetailPageProps = {
 
 export default async function NodeDetailPage({ params }: NodeDetailPageProps) {
   const { id } = await params;
-  const accessToken = (await cookies()).get('access_token')?.value;
-  if (!accessToken) {
-    redirect(`/login?next=${encodeURIComponent(`/nodes/${id}`)}`);
-  }
+  const nextPath = `/nodes/${id}`;
 
-  const BACKEND_URL = getBackendUrlForServer();
-  const response = await fetch(`${BACKEND_URL}/api/nodes/${encodeURIComponent(id)}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+  const response = await brokerFetch(`/api/nodes/${encodeURIComponent(id)}`, {
     cache: 'no-store',
-  });
-
-  if (response.status === 401) {
-    redirect(`/login?next=${encodeURIComponent(`/nodes/${id}`)}`);
-  }
+  }, nextPath);
 
   if (response.status === 403) {
     redirect('/');

@@ -7,6 +7,7 @@ import type { JobDetails, JobStatus } from '@/app/jobs/_components/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { buildClearSessionPath } from '@/lib/auth';
 import { formatLocalDateTime } from '@/lib/date-time';
 import { formatMinutesAsHoursAndMinutes } from '@/lib/duration';
 import { JobLogsPanel } from './job-logs-panel';
@@ -81,7 +82,7 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
         );
 
         if (response.status === 401) {
-          window.location.href = `/login?next=${encodeURIComponent(`/jobs/${jobId}`)}`;
+          window.location.href = buildClearSessionPath(`/jobs/${jobId}`);
           return;
         }
 

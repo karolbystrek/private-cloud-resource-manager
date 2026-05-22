@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { ACCESS_TOKEN_COOKIE } from '@/lib/auth';
 import { getBackendUrlForServer } from '@/lib/backend-url';
 
 type BackendProblem = {
@@ -14,7 +15,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Backend URL is not configured.' }, { status: 500 });
   }
 
-  const accessToken = (await cookies()).get('access_token')?.value;
+  const accessToken = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
   if (!accessToken) {
     return NextResponse.json({ error: 'Session expired. Please log in again.' }, { status: 401 });
   }

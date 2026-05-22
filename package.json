@@ -9,8 +9,5 @@
   ],
   "devDependencies": {
     "husky": "^9.1.7"
-  },
-  "overrides": {
-    "axios": "1.14.0"
   }
 }

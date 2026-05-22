@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { JobDetailsPanel } from './_components/job-details-panel';
 import type { JobDetails } from '@/app/jobs/_components/types';
-import { getBackendUrlForServer } from '@/lib/backend-url';
+import { brokerFetch } from '@/lib/server-auth';
 
 export const metadata: Metadata = {
   title: 'Job Details - Private Cloud Resource Manager',
@@ -15,22 +14,11 @@ type JobDetailPageProps = {
 
 export default async function JobDetailPage({ params }: JobDetailPageProps) {
   const { id } = await params;
-  const accessToken = (await cookies()).get('access_token')?.value;
-  if (!accessToken) {
-    redirect(`/login?next=${encodeURIComponent(`/jobs/${id}`)}`);
-  }
+  const nextPath = `/jobs/${id}`;
 
-  const BACKEND_URL = getBackendUrlForServer();
-  const response = await fetch(`${BACKEND_URL}/api/jobs/${encodeURIComponent(id)}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+  const response = await brokerFetch(`/api/jobs/${encodeURIComponent(id)}`, {
     cache: 'no-store',
-  });
-
-  if (response.status === 401) {
-    redirect(`/login?next=${encodeURIComponent(`/jobs/${id}`)}`);
-  }
+  }, nextPath);
 
   if (response.status === 404) {
     notFound();
