@@ -24,7 +24,7 @@ public class JobSubmissionPersistenceService {
 
     private final JobRepository jobRepository;
     private final ProfileRepository profileRepository;
-    private final JobEventPublisher eventPublisher;
+    private final JobOutboxPublisher outboxPublisher;
     private final ObjectMapper objectMapper;
 
     public PreparedJobSubmission prepareSubmission(
@@ -40,7 +40,7 @@ public class JobSubmissionPersistenceService {
         var savedJob = createSubmittedJob(profile, request, idempotencyKey, submissionFingerprint, now);
 
         var correlationId = UUID.randomUUID();
-        eventPublisher.jobSubmitted(savedJob, profileId.toString(), idempotencyKey, correlationId);
+        outboxPublisher.jobSubmitted(savedJob, idempotencyKey, correlationId);
 
         log.debug("Prepared submitted job intent for user {}: jobId#{}", profileId, savedJob.getId());
         return PreparedJobSubmission.created(savedJob.getId(), profileId);

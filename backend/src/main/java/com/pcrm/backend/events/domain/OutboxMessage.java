@@ -31,9 +31,6 @@ public class OutboxMessage {
     @Id
     private UUID id;
 
-    @Column(name = "event_id", nullable = false)
-    private UUID eventId;
-
     @Column(nullable = false, length = 160)
     private String topic;
 

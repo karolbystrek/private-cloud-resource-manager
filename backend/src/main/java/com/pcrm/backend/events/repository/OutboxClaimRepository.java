@@ -48,7 +48,6 @@ public class OutboxClaimRepository {
                         FROM candidate
                         WHERE outbox_message.id = candidate.id
                         RETURNING outbox_message.id,
-                                  outbox_message.event_id,
                                   outbox_message.topic,
                                   outbox_message.payload::text AS payload,
                                   outbox_message.headers::text AS headers,
@@ -106,7 +105,6 @@ public class OutboxClaimRepository {
     private OutboxMessage mapOutboxMessage(ResultSet resultSet) throws SQLException {
         return OutboxMessage.builder()
                 .id(resultSet.getObject("id", UUID.class))
-                .eventId(resultSet.getObject("event_id", UUID.class))
                 .topic(resultSet.getString("topic"))
                 .payload(readJson(resultSet.getString("payload"), "payload"))
                 .headers(readJson(resultSet.getString("headers"), "headers"))

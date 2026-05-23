@@ -20,7 +20,6 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -44,7 +43,6 @@ public class LeaseWorker {
     private final JobStateMachine jobStateMachine;
     private final QuotaAccountingService quotaAccountingService;
     private final NomadJobControlClient nomadJobControlClient;
-    private final JobEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
 
     @Value("${app.scheduler.lease.safety-window-ms:120000}")
@@ -160,33 +158,11 @@ public class LeaseWorker {
         );
 
         jobStateMachine.markLeaseRenewed(job, nextLeaseExpiresAt, additionalReservedMinutes);
-        eventPublisher.jobEvent(
-                "JobLeaseRenewed",
-                job,
-                Map.of(
-                        "additionalReservedMinutes", additionalReservedMinutes,
-                        "activeLeaseExpiresAt", nextLeaseExpiresAt,
-                        "renewedAt", now
-                ),
-                "backend",
-                correlationId
-        );
         log.debug("Renewed lease for job {} until {}", job.getId(), nextLeaseExpiresAt);
     }
 
     private LeaseDecision prepareStop(Job job, String reason, OffsetDateTime now, UUID correlationId) {
         jobStateMachine.markLeaseStopRequested(job, now, truncate(reason, MAX_ERROR_LENGTH));
-        eventPublisher.jobEvent(
-                "JobLeaseStopRequested",
-                job,
-                Map.of(
-                        "reason", reason == null ? "" : reason,
-                        "activeLeaseExpiresAt", job.getActiveLeaseExpiresAt(),
-                        "leaseStopRequestedAt", now
-                ),
-                "backend",
-                correlationId
-        );
         return LeaseDecision.stop(job.getId().toString(), reason, correlationId);
     }
 
@@ -203,13 +179,6 @@ public class LeaseWorker {
                 now,
                 reason == null || reason.isBlank() ? LEASE_RENEWAL_FAILED : truncate(reason, 120)
         );
-        eventPublisher.jobEvent(
-                "JobTimedOut",
-                job,
-                Map.of("reason", job.getTerminalReason()),
-                "backend",
-                correlationId
-        );
         log.info("Marked job {} as TIMED_OUT after lease enforcement", job.getId());
     }
 
@@ -223,13 +192,6 @@ public class LeaseWorker {
                 job,
                 OffsetDateTime.now(ZoneOffset.UTC),
                 truncate(reason, MAX_ERROR_LENGTH)
-        );
-        eventPublisher.jobEvent(
-                "JobLeaseStopFailed",
-                job,
-                Map.of("reason", reason == null ? "" : reason),
-                "backend",
-                correlationId
         );
     }
 

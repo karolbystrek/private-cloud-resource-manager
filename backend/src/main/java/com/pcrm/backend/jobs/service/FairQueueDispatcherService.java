@@ -3,8 +3,8 @@ package com.pcrm.backend.jobs.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pcrm.backend.events.domain.OutboxMessage;
-import com.pcrm.backend.events.service.EventConsumerDedupeService;
-import com.pcrm.backend.events.service.EventTopics;
+import com.pcrm.backend.events.service.OutboxConsumerDedupeService;
+import com.pcrm.backend.events.service.OutboxTopics;
 import com.pcrm.backend.events.service.OutboxMessageHandler;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
@@ -48,8 +48,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
     private final NomadDispatchClient nomadDispatchClient;
     private final QuotaAccountingService quotaAccountingService;
     private final JobArtifactService jobArtifactService;
-    private final EventConsumerDedupeService dedupeService;
-    private final JobEventPublisher eventPublisher;
+    private final OutboxConsumerDedupeService dedupeService;
     private final TransactionTemplate transactionTemplate;
     private final ObjectMapper objectMapper;
 
@@ -66,12 +65,12 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
 
     @Override
     public String topic() {
-        return EventTopics.JOB_QUEUED;
+        return OutboxTopics.JOB_QUEUED;
     }
 
     @Override
     public void handle(OutboxMessage message) {
-        dedupeService.runOnce(CONSUMER_NAME, message.getEventId(), () ->
+        dedupeService.runOnce(CONSUMER_NAME, message.getId(), () ->
                 requestNextDispatch(extractCorrelationId(message))
         );
     }
@@ -293,16 +292,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
         }
 
         jobStateMachine.markDispatchAccepted(job, OffsetDateTime.now(ZoneOffset.UTC));
-        eventPublisher.jobEvent(
-                "JobDispatched",
-                job,
-                Map.of(
-                        "nomadJobId", dispatchResult.nomadJobId() == null ? "" : dispatchResult.nomadJobId(),
-                        "nomadEvalId", dispatchResult.nomadEvalId() == null ? "" : dispatchResult.nomadEvalId()
-                ),
-                "backend",
-                correlationId
-        );
+        log.info("Dispatched job {} to Nomad job {} eval {}", job.getId(), dispatchResult.nomadJobId(), dispatchResult.nomadEvalId());
     }
 
     private String nomadJobId(Job job) {
@@ -326,13 +316,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
         }
 
         jobStateMachine.markDispatchFailed(job, OffsetDateTime.now(ZoneOffset.UTC));
-        eventPublisher.jobEvent(
-                "JobInfraFailed",
-                job,
-                Map.of("reason", reason == null ? "" : reason),
-                "backend",
-                correlationId
-        );
+        log.warn("Marked job {} as INFRA_FAILED after dispatch failure: {}", job.getId(), reason);
     }
 
     private String summarize(Exception ex) {

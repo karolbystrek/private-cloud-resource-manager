@@ -2,7 +2,6 @@ package com.pcrm.backend.nomad.config;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.pcrm.backend.jobs.repository.JobRepository;
-import com.pcrm.backend.jobs.service.JobEventPublisher;
 import com.pcrm.backend.jobs.service.JobStateMachine;
 import com.pcrm.backend.nodes.repository.NodeRepository;
 import com.pcrm.backend.nomad.NomadDispatchClient;
@@ -67,7 +66,6 @@ public class NomadIntegrationConfig {
             NodeRepository nodeRepository,
             QuotaAccountingService quotaAccountingService,
             JobArtifactService jobArtifactService,
-            JobEventPublisher eventPublisher,
             JsonMapper jsonMapper,
             TransactionTemplate transactionTemplate
     ) {
@@ -79,7 +77,6 @@ public class NomadIntegrationConfig {
                 nodeRepository,
                 quotaAccountingService,
                 jobArtifactService,
-                eventPublisher,
                 jsonMapper,
                 transactionTemplate
         );

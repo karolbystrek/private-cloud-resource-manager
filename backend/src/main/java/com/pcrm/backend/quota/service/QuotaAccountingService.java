@@ -1,8 +1,5 @@
 package com.pcrm.backend.quota.service;
 
-import com.pcrm.backend.events.service.AggregateIds;
-import com.pcrm.backend.events.service.DomainEventAppendRequest;
-import com.pcrm.backend.events.service.DomainEventAppender;
 import com.pcrm.backend.exception.InsufficientQuotaException;
 import com.pcrm.backend.exception.ResourceNotFoundException;
 import com.pcrm.backend.jobs.domain.Job;
@@ -27,7 +24,6 @@ import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -41,8 +37,6 @@ public class QuotaAccountingService {
     private final QuotaUsageLedgerRepository quotaUsageLedgerRepository;
     private final UserQuotaBalanceCurrentRepository userQuotaBalanceCurrentRepository;
     private final QuotaPolicyResolverService quotaPolicyResolverService;
-    private final DomainEventAppender domainEventAppender;
-
     @Value("${app.quota.lease-minutes:15}")
     private long leaseMinutes;
 
@@ -80,7 +74,6 @@ public class QuotaAccountingService {
                 .updatedAt(now)
                 .build());
         reserveBalanceMinutes(balance, computeMinutes, now);
-        appendQuotaEvent("QuotaReserved", profile, job, reservation, "RESERVATION_CREATED", computeMinutes, reason, now);
         return computeMinutes;
     }
 
@@ -110,7 +103,6 @@ public class QuotaAccountingService {
         quotaReservationRepository.save(reservation);
 
         reserveBalanceMinutes(balance, computeMinutes, now);
-        appendQuotaEvent("QuotaReserved", profile, job, reservation, "LEASE_RENEWED", computeMinutes, reason, now);
         return computeMinutes;
     }
 
@@ -249,7 +241,6 @@ public class QuotaAccountingService {
         bumpVersionAndUpdatedAt(balance, now);
         userQuotaBalanceCurrentRepository.save(balance);
 
-        appendGrantEvent("QuotaGrantAdded", grant, balance, actor, idempotencyKey, now);
         return AdminQuotaGrantResponse.from(
                 grant,
                 balance.getGrantedMinutes(),
@@ -311,7 +302,6 @@ public class QuotaAccountingService {
                         .createdAt(now)
                         .updatedAt(now)
                         .build());
-                appendGrantEvent("QuotaGrantAdded", grant, newBalance, null, null, now);
             }
         } catch (DataIntegrityViolationException ignored) {
         }
@@ -381,7 +371,6 @@ public class QuotaAccountingService {
                     reason,
                     now
             ));
-            appendQuotaEvent("QuotaConsumed", profile, job, reservation, QuotaUsageLedgerEntryType.USAGE_DEBITED.name(), settlement.consumedMinutes(), reason, now);
         }
         if (settlement.refundedMinutes() > 0) {
             quotaUsageLedgerRepository.save(buildUsageLedgerEntry(
@@ -393,7 +382,6 @@ public class QuotaAccountingService {
                     reason,
                     now
             ));
-            appendQuotaEvent("QuotaReleased", profile, job, reservation, QuotaUsageLedgerEntryType.USAGE_RELEASED.name(), settlement.refundedMinutes(), reason, now);
         }
     }
 
@@ -418,85 +406,6 @@ public class QuotaAccountingService {
                 .correlationId(UUID.randomUUID())
                 .createdAt(createdAt)
                 .build();
-    }
-
-    private void appendQuotaEvent(
-            String eventType,
-            Profile profile,
-            Job job,
-            QuotaReservation reservation,
-            String factType,
-            long minutes,
-            String reason,
-            OffsetDateTime occurredAt
-    ) {
-        var reference = occurredAt == null ? OffsetDateTime.now(ZoneOffset.UTC) : occurredAt;
-        var aggregateId = AggregateIds.quotaBalance(profile.getId(), resolveBounds(reference).start());
-        domainEventAppender.append(new DomainEventAppendRequest(
-                eventType,
-                AggregateIds.QUOTA_BALANCE,
-                aggregateId,
-                Map.of(
-                        "profileId", profile.getId(),
-                        "jobId", job.getId(),
-                        "quotaReservationId", reservation == null ? "" : reservation.getId(),
-                        "factType", factType,
-                        "minutes", Math.max(0L, minutes),
-                        "reason", reason == null ? "" : reason
-                ),
-                Map.of(),
-                "backend",
-                "SYSTEM",
-                "quota-accounting",
-                profile.getId(),
-                job.getId(),
-                null,
-                UUID.randomUUID(),
-                null,
-                occurredAt,
-                1,
-                List.of(eventType)
-        ));
-    }
-
-    private void appendGrantEvent(
-            String eventType,
-            QuotaGrant grant,
-            UserQuotaBalanceCurrent balance,
-            Profile actor,
-            String idempotencyKey,
-            OffsetDateTime occurredAt
-    ) {
-        var aggregateId = AggregateIds.quotaBalance(grant.getProfile().getId(), grant.getIntervalStart());
-        domainEventAppender.append(new DomainEventAppendRequest(
-                eventType,
-                AggregateIds.QUOTA_BALANCE,
-                aggregateId,
-                Map.of(
-                        "profileId", grant.getProfile().getId(),
-                        "quotaGrantId", grant.getId(),
-                        "grantType", grant.getGrantType().name(),
-                        "minutes", grant.getMinutes(),
-                        "remainingMinutes", grant.getRemainingMinutes(),
-                        "intervalStart", grant.getIntervalStart(),
-                        "intervalEnd", grant.getIntervalEnd(),
-                        "grantedMinutes", balance.getGrantedMinutes(),
-                        "availableMinutes", balance.getAvailableMinutes(),
-                        "reason", grant.getReason() == null ? "" : grant.getReason()
-                ),
-                Map.of(),
-                "backend",
-                actor == null ? "SYSTEM" : "USER",
-                actor == null ? "quota-accounting" : actor.getId().toString(),
-                grant.getProfile().getId(),
-                null,
-                null,
-                UUID.randomUUID(),
-                idempotencyKey,
-                occurredAt,
-                1,
-                List.of(eventType)
-        ));
     }
 
     private void recalculateAvailable(UserQuotaBalanceCurrent balance) {

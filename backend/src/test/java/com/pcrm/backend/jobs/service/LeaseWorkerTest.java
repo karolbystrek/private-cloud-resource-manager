@@ -32,7 +32,6 @@ class LeaseWorkerTest {
     private JobStateMachine jobStateMachine;
     private QuotaAccountingService quotaAccountingService;
     private NomadJobControlClient nomadJobControlClient;
-    private JobEventPublisher eventPublisher;
     private LeaseWorker leaseWorker;
 
     @BeforeEach
@@ -42,13 +41,11 @@ class LeaseWorkerTest {
         jobStateMachine = new JobStateMachine(jobRepository);
         quotaAccountingService = mock(QuotaAccountingService.class);
         nomadJobControlClient = mock(NomadJobControlClient.class);
-        eventPublisher = mock(JobEventPublisher.class);
         leaseWorker = new LeaseWorker(
                 jobRepository,
                 jobStateMachine,
                 quotaAccountingService,
                 nomadJobControlClient,
-                eventPublisher,
                 immediateTransactionTemplate()
         );
         ReflectionTestUtils.setField(leaseWorker, "safetyWindowMs", 120_000L);

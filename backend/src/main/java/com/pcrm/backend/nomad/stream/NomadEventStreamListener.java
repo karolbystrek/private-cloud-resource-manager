@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.repository.JobRepository;
-import com.pcrm.backend.jobs.service.JobEventPublisher;
 import com.pcrm.backend.jobs.service.JobStateMachine;
 import com.pcrm.backend.nodes.domain.Node;
 import com.pcrm.backend.nodes.repository.NodeRepository;
@@ -49,7 +48,6 @@ public class NomadEventStreamListener {
     private final NodeRepository nodeRepository;
     private final QuotaAccountingService quotaAccountingService;
     private final JobArtifactService jobArtifactService;
-    private final JobEventPublisher eventPublisher;
     private final JsonMapper jsonMapper;
     private final TransactionTemplate transactionTemplate;
 
@@ -68,7 +66,6 @@ public class NomadEventStreamListener {
             NodeRepository nodeRepository,
             QuotaAccountingService quotaAccountingService,
             JobArtifactService jobArtifactService,
-            JobEventPublisher eventPublisher,
             JsonMapper jsonMapper,
             TransactionTemplate transactionTemplate) {
         this.nomadBaseUrl = nomadBaseUrl;
@@ -78,7 +75,6 @@ public class NomadEventStreamListener {
         this.nodeRepository = nodeRepository;
         this.quotaAccountingService = quotaAccountingService;
         this.jobArtifactService = jobArtifactService;
-        this.eventPublisher = eventPublisher;
         this.jsonMapper = jsonMapper;
         this.transactionTemplate = transactionTemplate;
         this.httpClient = HttpClient.newBuilder()
@@ -262,7 +258,6 @@ public class NomadEventStreamListener {
                             settleCurrentLeaseIfNeeded(job, now, "Lease settled after terminal Nomad allocation event");
                         }
                         jobStateMachine.applyNomadTransition(job, newStatus, now, terminalReason);
-                        eventPublisher.jobEvent(eventTypeForTransition(newStatus), job, nomadPayload(alloc), "nomad", UUID.randomUUID());
                         log.info("Updated job {} status from {} to {}", job.getId(), currentStatus, newStatus);
                         return;
                     }
@@ -288,7 +283,6 @@ public class NomadEventStreamListener {
                     }
 
                     if (updated) {
-                        eventPublisher.jobEvent("JobCanceled", job, Map.of("nomadEventType", eventType == null ? "" : eventType), "nomad", UUID.randomUUID());
                         log.info("Updated job {} to CANCELED from Nomad Job event", job.getId());
                     }
                 });
@@ -418,22 +412,6 @@ public class NomadEventStreamListener {
         long elapsedSeconds = Math.max(0L, Duration.between(effectiveStart, now).getSeconds());
         long roundedUpMinutes = (elapsedSeconds + 59L) / 60L;
         return Math.min(reservedMinutes, roundedUpMinutes);
-    }
-
-    private String eventTypeForTransition(JobStatus status) {
-        return switch (status) {
-            case SUBMITTED -> "JobSubmitted";
-            case RUNNING -> "JobStarted";
-            case FINALIZING -> "JobFinalizing";
-            case FAILED -> "JobFailed";
-            case CANCELED -> "JobCanceled";
-            case TIMED_OUT -> "JobTimedOut";
-            case INFRA_FAILED -> "JobInfraFailed";
-            case SUCCEEDED -> "JobSucceeded";
-            case QUEUED -> "JobQueued";
-            case DISPATCHING -> "JobDispatchRequested";
-            case SCHEDULING -> "JobScheduled";
-        };
     }
 
     private Map<String, Object> nomadPayload(NomadEventPayload.NomadEventAllocation alloc) {

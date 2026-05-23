@@ -1,11 +1,8 @@
 package com.pcrm.backend.jobs.service;
 
 import com.pcrm.backend.events.domain.OutboxMessage;
-import com.pcrm.backend.events.service.AggregateIds;
-import com.pcrm.backend.events.service.DomainEventAppendRequest;
-import com.pcrm.backend.events.service.DomainEventAppender;
-import com.pcrm.backend.events.service.EventConsumerDedupeService;
-import com.pcrm.backend.events.service.EventTopics;
+import com.pcrm.backend.events.service.OutboxConsumerDedupeService;
+import com.pcrm.backend.events.service.OutboxTopics;
 import com.pcrm.backend.events.service.OutboxMessageHandler;
 import com.pcrm.backend.exception.InsufficientQuotaException;
 import com.pcrm.backend.exception.ResourceNotFoundException;
@@ -19,8 +16,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -34,18 +29,17 @@ public class JobAdmissionWorker implements OutboxMessageHandler {
     private final JobRepository jobRepository;
     private final JobStateMachine jobStateMachine;
     private final QuotaAccountingService quotaAccountingService;
-    private final EventConsumerDedupeService dedupeService;
-    private final DomainEventAppender domainEventAppender;
-    private final JobEventPublisher eventPublisher;
+    private final OutboxConsumerDedupeService dedupeService;
+    private final JobOutboxPublisher outboxPublisher;
 
     @Override
     public String topic() {
-        return EventTopics.JOB_SUBMITTED;
+        return OutboxTopics.JOB_SUBMITTED;
     }
 
     @Override
     public void handle(OutboxMessage message) {
-        dedupeService.runOnce(CONSUMER_NAME, message.getEventId(), () -> admitJob(message));
+        dedupeService.runOnce(CONSUMER_NAME, message.getId(), () -> admitJob(message));
     }
 
     private void admitJob(OutboxMessage message) {
@@ -76,7 +70,7 @@ public class JobAdmissionWorker implements OutboxMessageHandler {
 
         jobStateMachine.markQueued(job, now, reservedMinutes);
 
-        eventPublisher.jobEvent("JobQueued", job, correlationId);
+        outboxPublisher.jobQueued(job, correlationId);
         log.debug("Admitted job {} with {} reserved minutes", job.getId(), reservedMinutes);
     }
 
@@ -84,42 +78,13 @@ public class JobAdmissionWorker implements OutboxMessageHandler {
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         jobStateMachine.markRejectedForInsufficientQuota(job, now, INSUFFICIENT_QUOTA);
 
-        appendQuotaRejected(job, correlationId, ex.getMessage(), now);
-        eventPublisher.jobEvent("JobFailed", job, correlationId);
         log.debug("Rejected job {} for insufficient quota", job.getId());
-    }
-
-    private void appendQuotaRejected(Job job, UUID correlationId, String reason, OffsetDateTime occurredAt) {
-        var bounds = quotaAccountingService.resolveMonthlyBounds(occurredAt);
-        domainEventAppender.append(new DomainEventAppendRequest(
-                "QuotaRejected",
-                AggregateIds.QUOTA_BALANCE,
-                AggregateIds.quotaBalance(job.getProfile().getId(), bounds.start()),
-                Map.of(
-                        "userId", job.getProfile().getId(),
-                        "jobId", job.getId(),
-                        "factType", INSUFFICIENT_QUOTA,
-                        "reason", reason == null ? "" : reason
-                ),
-                Map.of(),
-                "backend",
-                "SYSTEM",
-                CONSUMER_NAME,
-                job.getProfile().getId(),
-                job.getId(),
-                null,
-                correlationId,
-                null,
-                occurredAt,
-                1,
-                List.of(EventTopics.QUOTA_REJECTED)
-        ));
     }
 
     private UUID extractJobId(OutboxMessage message) {
         var rawJobId = message.getPayload().path("jobId").asText(null);
         if (rawJobId == null || rawJobId.isBlank()) {
-            throw new IllegalArgumentException(EventTopics.JOB_SUBMITTED + " payload is missing jobId");
+            throw new IllegalArgumentException(OutboxTopics.JOB_SUBMITTED + " payload is missing jobId");
         }
         return UUID.fromString(rawJobId);
     }

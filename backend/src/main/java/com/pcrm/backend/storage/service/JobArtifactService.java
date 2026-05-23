@@ -4,7 +4,6 @@ import com.pcrm.backend.exception.ResourceNotFoundException;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.repository.JobRepository;
-import com.pcrm.backend.jobs.service.JobEventPublisher;
 import com.pcrm.backend.jobs.service.JobStateMachine;
 import com.pcrm.backend.storage.domain.JobArtifact;
 import com.pcrm.backend.storage.domain.JobArtifactStatus;
@@ -23,7 +22,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -39,7 +37,6 @@ public class JobArtifactService {
     private final JobRepository jobRepository;
     private final StorageService storageService;
     private final JobStateMachine jobStateMachine;
-    private final JobEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
 
     @Value("${app.storage.artifacts.finalizer-batch-size:50}")
@@ -164,13 +161,6 @@ public class JobArtifactService {
             artifactRepository.save(artifact);
 
             jobStateMachine.markArtifactAvailable(job, now);
-            eventPublisher.jobEvent(
-                    "JobSucceeded",
-                    job,
-                    Map.of("artifactObjectKey", artifact.getObjectKey()),
-                    "backend",
-                    check.correlationId()
-            );
             log.info("Finalized artifact for job {}", job.getId());
             return;
         }
@@ -207,16 +197,6 @@ public class JobArtifactService {
         artifactRepository.save(artifact);
 
         jobStateMachine.markArtifactFailed(job, now, reason);
-        eventPublisher.jobEvent(
-                "JobFailed",
-                job,
-                Map.of(
-                        "reason", reason,
-                        "artifactObjectKey", artifact.getObjectKey()
-                ),
-                "backend",
-                correlationId
-        );
         log.warn("Marked job {} failed because artifact was missing", job.getId());
     }
 
