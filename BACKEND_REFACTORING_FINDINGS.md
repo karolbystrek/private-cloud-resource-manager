@@ -34,9 +34,8 @@ Most important reliability gaps:
    The SSE endpoint streams from Nomad allocation logs directly. This is simple, but completed-job logs may disappear.
    There is no durable log index, no archival path, and no backend-side log state.
 
-4. **`jobs` and `runs` duplicate important mutable state.**
-   Status, lease fields, timestamps, and consumed minutes exist on both tables. Several services manually copy run state
-   into the job row. This is a coupling hotspot.
+4. **The original `jobs` and `runs` duplication has been removed.**
+   One `jobs` row now represents one submission, one Nomad job, and one billable execution.
 
 5. **The event/outbox architecture is only partially the source of truth.**
    Events are appended, but most business state is still mutated directly by workers and Nomad listeners. This gives the
@@ -50,22 +49,22 @@ Observed flow:
 
 1. `JobsResource.submitJob` accepts `POST /jobs`.
 2. `JobSubmissionService` wraps submission in `IdempotencyService`.
-3. `JobSubmissionPersistenceService` creates a `jobs` row and a first `runs` row.
-4. `JobRunEventPublisher` appends `JobSubmitted` and `RunSubmitted`.
-5. `OutboxPoller` delivers `RunSubmitted`.
-6. `RunAdmissionWorker` reserves the initial lease and moves the run to `QUEUED`.
-7. `FairQueueDispatcherService` picks queued runs and registers Nomad jobs.
-8. `NomadEventStreamListener` reads Nomad events and updates run/job status.
+3. `JobSubmissionPersistenceService` creates one `jobs` row.
+4. `JobOutboxPublisher` appends `JobSubmitted`.
+5. `OutboxPoller` delivers `JobSubmitted`.
+6. `JobAdmissionWorker` reserves the initial lease and moves the job to `QUEUED`.
+7. `FifoJobDispatcherService` claims queued jobs and registers Nomad jobs.
+8. `NomadEventStreamListener` reads Nomad events and updates job status through the state machine.
 
-This is workable, but it is difficult to reason about because creation, admission, dispatch, Nomad event ingestion,
-quota settlement, and job projection all mutate overlapping fields.
+This flow is much smaller than the original job/run split. The remaining correctness risk is keeping all job lifecycle
+changes routed through the state machine and quota/artifact services.
 
 ### Logs
 
 Observed flow:
 
 - `GET /jobs/{id}/logs/stream` returns an SSE stream.
-- `JobLogsService` resolves the current run and Nomad job id.
+- `JobLogsService` uses `jobs.id` as the Nomad job id.
 - It asks Nomad for allocations and streams stdout/stderr from the selected allocation.
 - The frontend reconnects with byte offsets and keeps up to 2000 lines in memory.
 
@@ -99,13 +98,9 @@ Strengths:
 
 Risks:
 
-- The user-facing job form does not document the output directory contract.
-- There is no durable artifact status.
-- The backend returns a download URL without checking whether the object exists.
-- Artifacts are keyed by job id, not run id, so retries or future multiple runs can overwrite or confuse output.
-- A run is marked `SUCCEEDED` from Nomad allocation status before artifact upload is verified.
-- The upload presigned URL is generated at dispatch time with a default 15-minute TTL. Long-running jobs can outlive the
-  upload URL, making artifact upload fail after the workload finishes.
+- The artifact uploader still depends on a presigned upload URL. Keep its TTL aligned with the maximum supported job
+  runtime, or keep the internal upload URL endpoint available for poststop-time URL generation.
+- Missing output is handled as a finalization result, but operators should still have metrics for `MISSING` artifacts.
 
 ## Schema Findings
 
@@ -115,7 +110,6 @@ These tables support the required product behavior and should remain, though som
 
 - `profiles`
 - `jobs`
-- `runs`
 - `quota_policy`
 - `user_quota_balance_current`
 - `quota_reservations`
@@ -127,46 +121,32 @@ These tables support the required product behavior and should remain, though som
 
 These are defensible, but currently add complexity beyond what the implementation fully uses:
 
-- `domain_events`
-- `aggregate_sequences`
 - `outbox`
 - `event_consumer_dedupe`
 - `quota_grants`
 - `user_quota_override`
 - `nodes`
 
-They are not necessarily wrong. The question is whether the project wants a full event-sourced/event-log architecture or
-a simpler transactional state-machine architecture with an outbox only for side effects.
+They are not necessarily wrong. The current direction is a transactional state-machine architecture with an outbox for
+side effects, plus explicit admin/operator features for grants, overrides, and node visibility.
 
 ### Duplicated Mutable Fields
 
-`jobs` and `runs` both contain:
+Status: completed.
 
-- `status`
-- `queued_at`
-- `started_at` / `process_finished_at` or `finished_at`
-- `active_lease_expires_at`
-- `current_lease_reserved_minutes`
-- `lease_sequence`
-- `lease_settled`
-- `total_consumed_minutes`
-
-Recommendation:
-
-- Make `runs` the source of truth for execution state.
-- Make `jobs` immutable job intent plus `current_run_id`.
-- Either remove duplicated job fields or explicitly treat them as a read projection maintained by one projection
-  component, not manually copied in every worker.
+The backend collapsed job intent and execution into one `jobs` row. There is no duplicated `runs` execution source of
+truth.
 
 ### Missing Artifact State
 
-There is no table for artifacts. Add a small durable table before adding more artifact features:
+Status: completed.
+
+Artifacts are durable application state in `job_artifacts`:
 
 ```sql
 job_artifacts
 - id
 - job_id
-- run_id
 - profile_id
 - status -- PENDING, UPLOADING, AVAILABLE, MISSING, FAILED
 - object_key
@@ -177,10 +157,10 @@ job_artifacts
 - failure_reason
 ```
 
-If keeping one zip per run, the object key should be run-scoped:
+The object key is job-scoped because one user submission is now one execution:
 
 ```text
-artifacts/<profile_id>/<job_id>/<run_id>/output.zip
+artifacts/<profile_id>/<job_id>/output.zip
 ```
 
 ## Architecture Findings
@@ -199,16 +179,16 @@ This creates many moving parts:
 - direct JPA mutation;
 - manual job projection sync.
 
-Recommendation:
+Decision:
 
 - Keep an outbox for asynchronous side effects.
 - Do not try to make every state change event-sourced unless you need replay.
-- Use a single transactional state-machine service for run transitions.
+- Use a single transactional state-machine service for job transitions.
 - Emit events after state transitions for observability and side effects.
 
 Example target boundary:
 
-- `RunStateMachine`: only place allowed to change `runs.status`, lease fields, and terminal fields.
+- `JobStateMachine`: only place allowed to change job status, lease fields, and terminal fields.
 - `QuotaService`: only place allowed to reserve, renew, consume, and release quota.
 - `NomadGateway`: only place allowed to call Nomad.
 - `ArtifactService`: only place allowed to create/finalize artifact records and presigned URLs.
@@ -228,9 +208,9 @@ Required for "No Unbilled Compute":
 
 Minimum table/query support:
 
-- index active runs by `active_lease_expires_at`;
-- query non-terminal runs where `active_lease_expires_at <= now + safety_window`;
-- store renewal attempts and last renewal error, either on `runs` or a dedicated lease table.
+- index active jobs by `active_lease_expires_at`;
+- query non-terminal jobs where `active_lease_expires_at <= now + safety_window`;
+- store renewal attempts and last renewal error on `jobs`.
 
 ### Dispatch Fairness Is Probably Premature
 
@@ -294,10 +274,10 @@ This is the highest-priority backend gap.
 Design target:
 
 - `LeaseWorker` runs frequently.
-- It locks expiring active runs.
+- It locks expiring active jobs.
 - It renews quota if possible.
 - It updates `active_lease_expires_at` and increments `lease_sequence`.
-- If renewal fails, it stops the Nomad job and marks the run terminal when confirmed or after timeout.
+- If renewal fails, it stops the Nomad job and marks the job terminal when confirmed or after timeout.
 
 Avoid relying only on Nomad terminal events for settlement. Nomad events can be delayed, lost, or unavailable during
 outages.
@@ -359,12 +339,10 @@ For a university batch system, Option A is acceptable if clearly documented and 
 
 ### Remove Submission-Specific Idempotency Fields From `jobs`
 
-`jobs.idempotency_key` and `jobs.submission_fingerprint` duplicate `idempotency_records`.
+Status: completed.
 
-Recommendation:
-
-- Keep `idempotency_records` as the generic idempotency mechanism.
-- Remove job-specific idempotency columns once no frontend/backend code depends on them.
+`idempotency_records` is the generic idempotency mechanism. Job submission no longer stores duplicate
+`jobs.idempotency_key` or `jobs.submission_fingerprint` columns.
 
 ### Reduce Quota Grant Complexity
 
@@ -384,35 +362,30 @@ For a simple prepaid university system, the minimum reliable model is:
 - `quota_usage_ledger` for append-only audit;
 - `quota_policy` for default monthly grants.
 
-`quota_grants` and `user_quota_override` are useful only if admins truly need historical grant records and per-user
-policy overrides. Otherwise, they increase mental load.
+Decision: keep `quota_grants` and `user_quota_override` for now because they back explicit admin/operator features:
+manual quota grants, historical grant responses, and per-user quota policy overrides. They should stay documented as
+admin policy features, not as part of the core job lifecycle.
 
 ### Replace `env_vars_json TEXT` With `JSONB`
 
-`jobs.env_vars_json` is stored as `TEXT`. Since the database is PostgreSQL, use `JSONB` if keeping env vars in the
-database. This improves validation/querying and avoids manual serialization/deserialization.
+Status: completed.
+
+`jobs.env_vars_json` is stored as PostgreSQL `JSONB`, and backend code maps it as structured data instead of manually
+serializing/deserializing text.
 
 ### Avoid Long-Running SSE Threads Per Client
 
-`JobLogsService` uses `Executors.newCachedThreadPool()` and one blocking task per SSE connection. That is simple, but
-can grow without bound under many users.
+Status: completed for the current MVC design.
 
-Options:
-
-- set a bounded executor;
-- set SSE timeout and heartbeat policy;
-- move to WebFlux only if the rest of the stack justifies it;
-- keep MVC but enforce connection limits.
+`JobLogsService` keeps direct Nomad SSE streaming, but uses a bounded executor and configurable stream timeout. WebFlux
+or durable log archival should only be added if the product needs completed-job log retention beyond Nomad.
 
 ### Make Nomad Job ID Format One Thing
 
-The code supports several Nomad job id patterns, including UUID, `-run#`, and `-job#`. Current dispatch sets
-`nomadJobId = run.id.toString()`.
+Status: completed.
 
-Recommendation:
-
-- Standardize on `run.id` as the Nomad job id.
-- Remove legacy parsing branches after migration.
+The backend uses `jobs.id` as the Nomad job id. Legacy run/job id parsing branches were removed with the job/run
+unification.
 
 ## Observability Recommendations
 
@@ -425,10 +398,10 @@ Add:
 - metrics for lease renewals, renewal failures, and forced kills;
 - metrics for Nomad dispatch latency and failures;
 - metrics for artifact upload success/failure/missing;
-- logs that always include `jobId`, `runId`, `profileId`, `nomadJobId`, and `correlationId`;
-- admin endpoint or dashboard for stuck runs and stuck outbox messages.
+- logs that always include `jobId`, `profileId`, `nomadJobId`, and `correlationId`;
+- admin endpoint or dashboard for stuck jobs and stuck outbox messages.
 
-Stuck-run checks should detect:
+Stuck-job checks should detect:
 
 - `DISPATCHING` too long;
 - `SCHEDULING` too long;
@@ -443,15 +416,15 @@ Stuck-run checks should detect:
 
 - Add lease renewal worker.
 - Add lease expiry killer/enforcer.
-- Add reconciliation for active runs on startup.
+- Add reconciliation for active jobs on startup.
 - Add tests around reservation, renewal, expiry, dispatch failure, and terminal settlement.
 
 ### Phase 2: Simplify Execution State (Completed)
 
-- Make `runs` the execution source of truth.
+- Make one execution row the source of truth.
 - Remove or isolate manual `syncJobProjection` calls.
-- Create a `RunStateMachine` and route all transitions through it.
-- Standardize Nomad job id on `run.id`.
+- Create a state-machine service and route transitions through it.
+- Standardize Nomad job id on `jobs.id`.
 
 ### Phase 3: Unify Job And Run (Completed)
 
@@ -482,11 +455,19 @@ Stuck-run checks should detect:
 - Keep outbox for side effects and async workers.
 - Remove unused topics and future-only event constants.
 
-### Phase 6: Make Scheduling Boring
+### Phase 6: Make Scheduling Boring (Completed)
 
 - Replace in-memory fair queue deficits with a durable simple claim loop.
 - Add fairness later only if real usage shows starvation.
 - Treat node data as a cache or query Nomad directly.
+
+### Phase 7: Cleanup Remaining Complexity (Completed)
+
+- Remove duplicate job idempotency fields and rely on `idempotency_records`.
+- Store job environment variables as `JSONB`.
+- Bound direct Nomad log-streaming concurrency.
+- Keep quota grants, quota overrides, and node cache as explicit admin/operator features rather than accidental lifecycle
+  complexity.
 
 ## High-Value Tests To Add Later
 
@@ -514,7 +495,6 @@ your-command --output "$OUTPUT_DIR"
 System-provided environment variables should include:
 
 - `JOB_ID`
-- `RUN_ID`
 - `OUTPUT_DIR`
 
 The service should promise:

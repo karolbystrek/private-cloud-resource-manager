@@ -1,16 +1,16 @@
 # Graph Report - private-cloud-resource-manager  (2026-05-23)
 
 ## Corpus Check
-- 254 files · ~45,907 words
+- 254 files · ~46,007 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1239 nodes · 2097 edges · 147 communities (93 shown, 54 thin omitted)
-- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 316 edges (avg confidence: 0.8)
+- 1262 nodes · 2176 edges · 159 communities (93 shown, 66 thin omitted)
+- Extraction: 84% EXTRACTED · 16% INFERRED · 0% AMBIGUOUS · INFERRED: 345 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f691d098`
+- Built from commit: `b2d80daa`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -113,65 +113,77 @@
 - [[_COMMUNITY_Community 144|Community 144]]
 - [[_COMMUNITY_Community 145|Community 145]]
 - [[_COMMUNITY_Community 146|Community 146]]
+- [[_COMMUNITY_Community 147|Community 147]]
+- [[_COMMUNITY_Community 148|Community 148]]
+- [[_COMMUNITY_Community 149|Community 149]]
+- [[_COMMUNITY_Community 150|Community 150]]
+- [[_COMMUNITY_Community 151|Community 151]]
+- [[_COMMUNITY_Community 152|Community 152]]
+- [[_COMMUNITY_Community 153|Community 153]]
+- [[_COMMUNITY_Community 154|Community 154]]
+- [[_COMMUNITY_Community 155|Community 155]]
+- [[_COMMUNITY_Community 156|Community 156]]
+- [[_COMMUNITY_Community 157|Community 157]]
+- [[_COMMUNITY_Community 158|Community 158]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `cn()` - 66 edges
-2. `build` - 32 edges
-3. `QuotaAccountingService` - 27 edges
+2. `build` - 34 edges
+3. `QuotaAccountingService` - 25 edges
 4. `FairQueueDispatcherService` - 24 edges
 5. `NomadEventStreamListener` - 23 edges
-6. `brokerFetch()` - 20 edges
-7. `JobStateMachine` - 18 edges
-8. `Button()` - 17 edges
-9. `compilerOptions` - 16 edges
-10. `getBackendUrlForServer()` - 16 edges
+6. `FifoJobDispatcherService` - 21 edges
+7. `brokerFetch()` - 20 edges
+8. `JobStateMachine` - 18 edges
+9. `Button()` - 17 edges
+10. `status()` - 17 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Prepaid Quota Lease Minutes` --semantically_similar_to--> `On-Prem Batch Cloud`  [INFERRED] [semantically similar]
-  backend/src/main/resources/application.yaml → README.md
-- `Kong Key-Auth and ACL Pattern` --semantically_similar_to--> `Supabase JWT Validation`  [INFERRED] [semantically similar]
-  volumes/api/kong.yml → backend/src/main/resources/application.yaml
+- `Spring Boot Control Plane` --references--> `Spring Boot Backend Service`  [INFERRED]
+  README.md → docker-compose.yml
 - `Self-Hosted Supabase` --references--> `Kong API Gateway Service`  [INFERRED]
   README.md → docker-compose.yml
-- `S3-Compatible Storage Config` --shares_data_with--> `Supabase Storage API Service`  [INFERRED]
-  backend/src/main/resources/application.yaml → docker-compose.yml
 - `cn()` --calls--> `clsx`  [INFERRED]
   frontend/src/lib/utils.ts → frontend/package.json
+- `Nomad Workload Execution` --references--> `HashiCorp Nomad Agent`  [INFERRED]
+  README.md → docker-compose.yml
+- `reset.sh Stack Reset` --references--> `private-cloud-resource-manager Compose Stack`  [EXTRACTED]
+  README.md → docker-compose.yml
 
 ## Hyperedges (group relationships)
 - **PCRM Control Plane, Nomad Execution, Supabase Identity/Storage** — readme_spring_boot_control_plane, readme_nomad_execution, readme_self_hosted_supabase [EXTRACTED 1.00]
 - **Kong Gateway Routing to Supabase Microservices** — docker_compose_kong, kong_declarative_config, docker_compose_auth, docker_compose_rest, docker_compose_storage, docker_compose_studio [INFERRED 0.88]
 - **Docker Log Collection to Logflare Analytics** — docker_compose_vector, vector_log_pipeline, vector_logflare_sinks, docker_compose_analytics [EXTRACTED 0.95]
 
-## Communities (147 total, 54 thin omitted)
+## Communities (159 total, 66 thin omitted)
 
-### Community 1 - "Community 1"
+### Community 0 - "Community 0"
 Cohesion: 0.06
-Nodes (11): QuotaReservation, start, status(), QuotaReservationRepository, UserQuotaBalanceCurrentRepository, UserQuotaOverrideRepository, AdminQuotaGrantService, AggregateIds (+3 more)
+Nodes (16): Node, envVars, envVarsObj, error, isValidHybridJWT(), isValidJWT(), isValidLegacyJWT(), JWT_SECRET (+8 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.16
-Nodes (14): cn(), Avatar(), AvatarBadge(), AvatarFallback(), AvatarGroup(), AvatarGroupCount(), AvatarImage(), Separator() (+6 more)
+Cohesion: 0.15
+Nodes (15): cn(), Avatar(), AvatarBadge(), AvatarFallback(), AvatarGroup(), AvatarGroupCount(), AvatarImage(), Separator() (+7 more)
 
-### Community 4 - "Community 4"
-Cohesion: 0.06
-Nodes (52): Development Spring Profile, Production Spring Profile, H2 In-Memory Test Database, Test Spring Profile, Backend Base Configuration, Transactional Outbox Pattern, Flyway Database Migrations, Idempotency Key Cleanup (+44 more)
-
-### Community 5 - "Community 5"
-Cohesion: 0.24
-Nodes (12): buildLoginPath(), buildRefreshPath(), isSafeRedirectTarget(), requireSession(), ServerSession, metadata, NewJobPage(), AUTH_PATHS (+4 more)
-
-### Community 7 - "Community 7"
-Cohesion: 0.14
-Nodes (12): EnvVarsEditor(), EnvVarsEditorProps, JobCommandFields(), JobCommandFieldsProps, JobResourceFields(), JobResourceFieldsProps, LoginForm(), LoginPayload (+4 more)
-
-### Community 8 - "Community 8"
-Cohesion: 0.14
+### Community 3 - "Community 3"
+Cohesion: 0.13
 Nodes (3): JobRepository, ProfileRepository, JobQueryService
 
+### Community 4 - "Community 4"
+Cohesion: 0.09
+Nodes (38): H2 In-Memory Test Database, Test Spring Profile, Backend Build Job, Backend Test Job, Frontend Build Job, Frontend Test Job, GitHub Actions CI Workflow, Logflare Analytics Service (+30 more)
+
+### Community 6 - "Community 6"
+Cohesion: 0.15
+Nodes (3): AggregateIds, EventConsumerDedupeService, JobAdmissionWorker
+
+### Community 7 - "Community 7"
+Cohesion: 0.20
+Nodes (6): LoginForm(), LoginPayload, SignupForm(), SignupPayload, Button(), buttonVariants
+
 ### Community 9 - "Community 9"
-Cohesion: 0.19
-Nodes (4): JacksonConfig, JwtDecoderConfig, build, QuotaPolicyResolverService
+Cohesion: 0.16
+Nodes (4): JacksonConfig, JwtDecoderConfig, StorageConfig, build
 
 ### Community 10 - "Community 10"
 Cohesion: 0.05
@@ -182,20 +194,24 @@ Cohesion: 0.09
 Nodes (6): SupabaseJwtAuthenticationConverter, getAuthorities(), IdempotencyRecordRepository, IdempotencyCleanupService, IdempotencyService, ProfileProvisioningService
 
 ### Community 12 - "Community 12"
-Cohesion: 0.15
-Nodes (15): buildJobsHistoryHref(), clampPercentage(), getQuotaBarSegments(), HomeDashboard(), HomeDashboardProps, HomeDashboardSkeleton(), StatusCounts, JobHistoryItem (+7 more)
+Cohesion: 0.12
+Nodes (16): HomeDashboardSkeleton(), ChunkEventPayload, ConnectionState, getConnectionBadgeClassName(), getConnectionBadgeLabel(), JobLogsPanel(), JobLogsPanelProps, LogStream (+8 more)
 
 ### Community 13 - "Community 13"
 Cohesion: 0.08
 Nodes (9): IdempotencyConflictException, IdempotencyInProgressException, InsufficientQuotaException, InvalidIdempotencyKeyException, NomadDispatchException, NomadJobControlException, ResourceNotFoundException, NomadLogsUnavailableException (+1 more)
+
+### Community 14 - "Community 14"
+Cohesion: 0.23
+Nodes (4): start, status(), UserQuotaOverrideRepository, Profile
 
 ### Community 15 - "Community 15"
 Cohesion: 0.09
 Nodes (21): aliases, components, hooks, lib, ui, utils, iconLibrary, menuAccent (+13 more)
 
 ### Community 16 - "Community 16"
-Cohesion: 0.16
-Nodes (17): buildJobsHref(), JobsHistoryView(), JobsHistoryViewProps, STATUS_OPTIONS, JobHistorySortDirection, JobsPageResponse, JobStatus, buildJobsPath() (+9 more)
+Cohesion: 0.14
+Nodes (17): buildJobsHref(), JobsHistoryView(), JobsHistoryViewProps, STATUS_OPTIONS, JobHistorySortDirection, JobsPageResponse, buildJobsPath(), JobsPage() (+9 more)
 
 ### Community 17 - "Community 17"
 Cohesion: 0.15
@@ -206,28 +222,16 @@ Cohesion: 0.10
 Nodes (19): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+11 more)
 
 ### Community 19 - "Community 19"
-Cohesion: 0.04
-Nodes (47): 1. Build A Real Run State Machine, 2. Add Lease Renewal And Expiry Enforcement, 3. Make Artifact Finalization Durable, 4. Decide Log Retention Strategy, Architecture Findings, Artifacts, Avoid Long-Running SSE Threads Per Client, Backend Refactoring Findings (+39 more)
-
-### Community 20 - "Community 20"
-Cohesion: 0.17
-Nodes (14): ApiErrorResponse, BrokerFieldError, BrokerProblemDetail, buildFieldErrors(), envVarErrorMessages, isRecord(), JobSubmissionBody, JobSubmissionFieldErrors (+6 more)
+Cohesion: 0.18
+Nodes (11): Phase 1: Protect The Billing Invariant (Completed), Phase 2: Simplify Execution State (Completed), Phase 3: Unify Job And Run (Completed), Phase 4: Make Artifacts First-Class, Phase 4: Make Artifacts First-Class (Completed), Phase 5: Reduce Event Complexity, Phase 5: Reduce Event Complexity (Completed), Phase 6: Make Scheduling Boring (+3 more)
 
 ### Community 21 - "Community 21"
-Cohesion: 0.21
+Cohesion: 0.25
 Nodes (4): NomadHttpLogsClient, chunk(), heartbeat(), NomadLogsClient
-
-### Community 22 - "Community 22"
-Cohesion: 0.22
-Nodes (10): ArtifactDownloadResponse, GET(), Params, GET(), Params, BackendProblem, BrokerAccessTokenResult, BrokerJsonProxyOptions (+2 more)
 
 ### Community 23 - "Community 23"
 Cohesion: 0.13
 Nodes (14): arrowParens, bracketSameLine, bracketSpacing, endOfLine, importOrder, jsxSingleQuote, plugins, printWidth (+6 more)
-
-### Community 24 - "Community 24"
-Cohesion: 0.20
-Nodes (9): ChunkEventPayload, ConnectionState, getConnectionBadgeClassName(), getConnectionBadgeLabel(), JobLogsPanel(), JobLogsPanelProps, LogStream, StatusEventPayload (+1 more)
 
 ### Community 25 - "Community 25"
 Cohesion: 0.16
@@ -246,12 +250,8 @@ Cohesion: 0.22
 Nodes (8): code:bash (npm install), code:bash (cp .env.example .env), code:bash (docker compose up --build), Local service URLs, Private Cloud Resource Manager, Resetting the local stack (`reset.sh`), Run locally (Docker), Supabase Dashboard (Studio)
 
 ### Community 30 - "Community 30"
-Cohesion: 0.20
-Nodes (17): GET(), baseCookieOptions, clearAuthCookies(), setAuthCookies(), isUserRole(), USER_ROLES, UserRole, POST() (+9 more)
-
-### Community 32 - "Community 32"
-Cohesion: 0.14
-Nodes (3): OutboxMessageHandler, FairQueueDispatcherService, usageRatio()
+Cohesion: 0.05
+Nodes (65): ArtifactDownloadResponse, BackendProblem, buildFileName(), GET(), Params, ArtifactDownloadResponse, GET(), Params (+57 more)
 
 ### Community 33 - "Community 33"
 Cohesion: 0.25
@@ -263,83 +263,95 @@ Nodes (3): AggregateSequenceId, EventConsumerDedupeId, Serializable
 
 ### Community 117 - "Community 117"
 Cohesion: 0.15
-Nodes (12): ThemeOption, DropdownMenu(), DropdownMenuCheckboxItem(), DropdownMenuContent(), DropdownMenuLabel(), DropdownMenuRadioGroup(), DropdownMenuRadioItem(), DropdownMenuSeparator() (+4 more)
+Nodes (12): ThemeOption, DropdownMenu(), DropdownMenuContent(), DropdownMenuItem(), DropdownMenuLabel(), DropdownMenuRadioGroup(), DropdownMenuRadioItem(), DropdownMenuSeparator() (+4 more)
 
 ### Community 118 - "Community 118"
-Cohesion: 0.17
-Nodes (16): FieldRowProps, formatDateForUser(), formatRamGb(), NodeDetailsPanel(), NodeDetailsProps, NodeDetails, metadata, NodeDetailPage() (+8 more)
+Cohesion: 0.18
+Nodes (15): FieldRowProps, formatDateForUser(), formatRamGb(), NodeDetailsPanel(), NodeDetailsProps, NodeDetails, NodeDetailPage(), NodeDetailPageProps (+7 more)
 
 ### Community 119 - "Community 119"
 Cohesion: 0.22
 Nodes (11): formatCountdown(), formatDateForUser(), formatHeartbeat(), NodesList(), NodesListProps, NodeSummary, buildClearSessionPath(), redirectToLoginAfterAuthFailure() (+3 more)
 
-### Community 120 - "Community 120"
-Cohesion: 0.06
-Nodes (18): TestNomadConfig, NomadIntegrationConfig, NomadHttpDispatchClient, NomadHttpJobControlClient, envVars, envVarsObj, error, isValidHybridJWT() (+10 more)
-
 ### Community 121 - "Community 121"
-Cohesion: 0.19
-Nodes (4): JobSubmissionPersistenceService, JobSubmissionService, created(), replayed()
+Cohesion: 0.18
+Nodes (3): AdminQuotaResource, JobSubmissionService, replayed()
 
 ### Community 124 - "Community 124"
 Cohesion: 0.22
-Nodes (4): url, StorageResource, missing(), StorageService
-
-### Community 125 - "Community 125"
-Cohesion: 0.26
-Nodes (3): NomadHttpNodeClient, id, QuotaResource
+Nodes (4): url, InternalStorageResource, missing(), StorageService
 
 ### Community 126 - "Community 126"
-Cohesion: 0.24
-Nodes (12): ArtifactDownloadResponse, BackendProblem, buildFileName(), GET(), Params, POST(), getBackendUrlForServer(), getBrokerAccessToken() (+4 more)
+Cohesion: 0.18
+Nodes (3): AggregateSequenceService, DomainEventAppender, EventTopics
 
 ### Community 127 - "Community 127"
-Cohesion: 0.21
-Nodes (13): AlertDialog(), AlertDialogAction(), AlertDialogCancel(), AlertDialogContent(), AlertDialogDescription(), AlertDialogFooter(), AlertDialogHeader(), AlertDialogMedia() (+5 more)
+Cohesion: 0.23
+Nodes (11): AlertDialog(), AlertDialogAction(), AlertDialogCancel(), AlertDialogContent(), AlertDialogDescription(), AlertDialogFooter(), AlertDialogHeader(), AlertDialogMedia() (+3 more)
 
 ### Community 128 - "Community 128"
 Cohesion: 0.25
 Nodes (7): format, version, xl, distributionAlgo, sets, this, version
 
 ### Community 131 - "Community 131"
-Cohesion: 0.22
-Nodes (11): collectEnvVarErrorMessages(), createEnvVarRow(), envVarFieldErrorMessages, EnvVarRow, toEnvVarFieldErrors(), toEnvVarsMap(), initialFormData, JobSubmissionFieldErrors (+3 more)
-
-### Community 132 - "Community 132"
-Cohesion: 0.16
-Nodes (3): OutboxClaimRepository, OutboxHandlerRegistry, OutboxPoller
+Cohesion: 0.14
+Nodes (19): collectEnvVarErrorMessages(), createEnvVarRow(), EnvVarsEditor(), EnvVarsEditorProps, envVarFieldErrorMessages, EnvVarRow, toEnvVarFieldErrors(), toEnvVarsMap() (+11 more)
 
 ### Community 135 - "Community 135"
-Cohesion: 0.23
-Nodes (10): HeaderProps, LogoutButton(), Breadcrumb(), BreadcrumbEllipsis(), BreadcrumbItem(), BreadcrumbLink(), BreadcrumbList(), BreadcrumbPage() (+2 more)
+Cohesion: 0.26
+Nodes (9): HeaderProps, LogoutButton(), Breadcrumb(), BreadcrumbEllipsis(), BreadcrumbItem(), BreadcrumbLink(), BreadcrumbList(), BreadcrumbPage() (+1 more)
 
 ### Community 136 - "Community 136"
 Cohesion: 0.29
 Nodes (6): ibmPlexMono, ibmPlexSans, metadata, RootLayout(), Header(), ThemeProvider()
 
-### Community 138 - "Community 138"
-Cohesion: 0.24
-Nodes (3): LeaseWorker, none(), stop()
+### Community 141 - "Community 141"
+Cohesion: 0.27
+Nodes (9): buildJobsHistoryHref(), clampPercentage(), getQuotaBarSegments(), HomeDashboard(), HomeDashboardProps, StatusCounts, JobHistoryItem, JobStatus (+1 more)
+
+### Community 146 - "Community 146"
+Cohesion: 0.22
+Nodes (8): Backend Refactoring Findings, Bottom Line, code:sh (mkdir -p "$OUTPUT_DIR"), code:text (submit -> reserve lease -> dispatch -> run -> renew/kill -> ), Executive Summary, High-Value Tests To Add Later, Observability Recommendations, Recommended Product Contract For Users
+
+### Community 149 - "Community 149"
+Cohesion: 0.25
+Nodes (8): 1. Build A Real Run State Machine, 2. Add Lease Renewal And Expiry Enforcement, 3. Make Artifact Finalization Durable, 4. Decide Log Retention Strategy, code:text (SUBMITTED), code:sh (mkdir -p "$NOMAD_ALLOC_DIR/data"), code:sh (mkdir -p "$OUTPUT_DIR"), Reliability Gaps To Address First
+
+### Community 151 - "Community 151"
+Cohesion: 0.29
+Nodes (7): code:sql (job_artifacts), code:text (artifacts/<profile_id>/<job_id>/<run_id>/output.zip), Duplicated Mutable Fields, Missing Artifact State, Schema Findings, Tables That Are Core, Tables That May Be Overbuilt For Current Needs
+
+### Community 153 - "Community 153"
+Cohesion: 0.33
+Nodes (6): Avoid Long-Running SSE Threads Per Client, Make Nomad Job ID Format One Thing, Reduce Quota Grant Complexity, Remove Submission-Specific Idempotency Fields From `jobs`, Replace `env_vars_json TEXT` With `JSONB`, Simplification Opportunities
+
+### Community 154 - "Community 154"
+Cohesion: 0.40
+Nodes (5): Architecture Findings, Dispatch Fairness Is Probably Premature, Event-Driven Design Needs A Narrower Role, Missing Lease Enforcer, Node Table Is Mostly A Cache
+
+### Community 158 - "Community 158"
+Cohesion: 0.50
+Nodes (4): Artifacts, Current Backend Flow, Job Submission, Logs
 
 ## Knowledge Gaps
-- **243 isolated node(s):** `name`, `private`, `prepare`, `workspaces`, `husky` (+238 more)
+- **247 isolated node(s):** `name`, `private`, `prepare`, `workspaces`, `husky` (+242 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **54 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **66 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `cn()` connect `Community 2` to `Community 7`, `Community 136`, `Community 135`, `Community 10`, `Community 12`, `Community 117`, `Community 118`, `Community 28`, `Community 127`?**
-  _High betweenness centrality (0.253) - this node is a cross-community bridge._
-- **Why does `scripts` connect `Community 10` to `Community 9`, `Community 1`?**
-  _High betweenness centrality (0.252) - this node is a cross-community bridge._
-- **Are the 31 inferred relationships involving `build` (e.g. with `.job()` and `.jsonMapper()`) actually correct?**
-  _`build` has 31 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `scripts` connect `Community 10` to `Community 9`, `Community 14`?**
+  _High betweenness centrality (0.268) - this node is a cross-community bridge._
+- **Why does `cn()` connect `Community 2` to `Community 131`, `Community 135`, `Community 136`, `Community 7`, `Community 10`, `Community 12`, `Community 16`, `Community 117`, `Community 118`, `Community 28`, `Community 127`?**
+  _High betweenness centrality (0.266) - this node is a cross-community bridge._
+- **Are the 33 inferred relationships involving `build` (e.g. with `.queuedJob()` and `.node()`) actually correct?**
+  _`build` has 33 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 23 inferred relationships involving `id` (e.g. with `.queuedJob()` and `.node()`) actually correct?**
+  _`id` has 23 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `name`, `private`, `prepare` to the rest of the system?**
-  _248 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _251 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.14333333333333334 - nodes in this community are weakly interconnected._
-- **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.061569416498993966 - nodes in this community are weakly interconnected._
-- **Should `Community 4` be split into smaller, more focused modules?**
-  _Cohesion score 0.0641025641025641 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.059395801331285206 - nodes in this community are weakly interconnected._
+- **Should `Community 2` be split into smaller, more focused modules?**
+  _Cohesion score 0.14855072463768115 - nodes in this community are weakly interconnected._

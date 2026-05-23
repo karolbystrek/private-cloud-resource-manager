@@ -3,9 +3,13 @@ package com.pcrm.backend.jobs.domain;
 import com.pcrm.backend.user.Profile;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -34,12 +38,6 @@ public class Job {
     @Column(name = "execution_command", nullable = false)
     private String executionCommand;
 
-    @Column(name = "idempotency_key", length = 64)
-    private String idempotencyKey;
-
-    @Column(name = "submission_fingerprint", length = 64)
-    private String submissionFingerprint;
-
     @Column(name = "req_cpu_cores", nullable = false)
     private Integer reqCpuCores;
 
@@ -51,8 +49,9 @@ public class Job {
     private Long totalConsumedMinutes = 0L;
 
     @Column(name = "env_vars_json", nullable = false)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Builder.Default
-    private String envVarsJson = "{}";
+    private Map<String, String> envVarsJson = new LinkedHashMap<>();
 
     @Column(name = "queued_at")
     private OffsetDateTime queuedAt;

@@ -41,8 +41,7 @@ public class JobSubmissionService {
                         context -> persistenceService.prepareSubmission(
                                 userId,
                                 request,
-                                context.key(),
-                                context.requestFingerprint()
+                                context.key()
                         ),
                         responseBody -> PreparedJobSubmission.replayed(
                                 UUID.fromString(responseBody.get("jobId").asText()),

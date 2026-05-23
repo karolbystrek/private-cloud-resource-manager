@@ -6,8 +6,8 @@ import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.nomad.NomadLogsClient;
 import com.pcrm.backend.nomad.NomadLogsUnavailableException;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -19,12 +19,15 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class JobLogsService {
 
     private static final Set<JobStatus> TERMINAL_STATUSES = Set.of(
@@ -38,7 +41,22 @@ public class JobLogsService {
     private final JobQueryService jobQueryService;
     private final JobRepository jobRepository;
     private final NomadLogsClient nomadLogsClient;
-    private final ExecutorService streamExecutor = Executors.newCachedThreadPool();
+    private final ExecutorService streamExecutor;
+    private final long streamTimeoutMs;
+
+    public JobLogsService(
+            JobQueryService jobQueryService,
+            JobRepository jobRepository,
+            NomadLogsClient nomadLogsClient,
+            @Value("${app.logs.stream.max-connections:64}") int maxConnections,
+            @Value("${app.logs.stream.timeout-ms:1800000}") long streamTimeoutMs
+    ) {
+        this.jobQueryService = jobQueryService;
+        this.jobRepository = jobRepository;
+        this.nomadLogsClient = nomadLogsClient;
+        this.streamExecutor = boundedExecutor(Math.max(1, maxConnections));
+        this.streamTimeoutMs = Math.max(1L, streamTimeoutMs);
+    }
 
     @PreDestroy
     void shutdown() {
@@ -55,16 +73,44 @@ public class JobLogsService {
         boolean follow = !TERMINAL_STATUSES.contains(jobDetails.status());
         String nomadJobId = jobId.toString();
 
-        SseEmitter emitter = new SseEmitter(0L);
-        streamExecutor.execute(() -> streamToClient(
-                emitter,
-                jobId,
-                nomadJobId,
-                streamType,
-                follow,
-                initialOffset
-        ));
+        SseEmitter emitter = new SseEmitter(streamTimeoutMs);
+        try {
+            streamExecutor.execute(() -> streamToClient(
+                    emitter,
+                    jobId,
+                    nomadJobId,
+                    streamType,
+                    follow,
+                    initialOffset
+            ));
+        } catch (RejectedExecutionException rejected) {
+            sendEvent(emitter, "unavailable", new UnavailableEvent(
+                    "connection_limit_reached",
+                    "Too many log streams are open. Reconnect later.",
+                    streamType.nomadValue()
+            ));
+            sendEvent(emitter, "end", new EndEvent("connection_limit_reached", Math.max(0L, initialOffset), OffsetDateTime.now()));
+            emitter.complete();
+        }
         return emitter;
+    }
+
+    private ExecutorService boundedExecutor(int maxConnections) {
+        AtomicInteger threadNumber = new AtomicInteger();
+        return new ThreadPoolExecutor(
+                maxConnections,
+                maxConnections,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new SynchronousQueue<>(),
+                task -> {
+                    var thread = new Thread(task);
+                    thread.setName("job-log-stream-" + threadNumber.incrementAndGet());
+                    thread.setDaemon(true);
+                    return thread;
+                },
+                new ThreadPoolExecutor.AbortPolicy()
+        );
     }
 
     private void streamToClient(

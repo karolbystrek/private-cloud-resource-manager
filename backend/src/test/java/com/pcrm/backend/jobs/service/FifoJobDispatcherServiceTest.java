@@ -1,6 +1,5 @@
 package com.pcrm.backend.jobs.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pcrm.backend.events.service.OutboxConsumerDedupeService;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
@@ -27,6 +26,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -60,8 +60,7 @@ class FifoJobDispatcherServiceTest {
                 quotaAccountingService,
                 jobArtifactService,
                 mock(OutboxConsumerDedupeService.class),
-                immediateTransactionTemplate(),
-                new ObjectMapper()
+                immediateTransactionTemplate()
         );
         ReflectionTestUtils.setField(dispatcherService, "retryStaleAfterMs", 60_000L);
     }
@@ -174,7 +173,7 @@ class FifoJobDispatcherServiceTest {
                 .executionCommand("echo ok")
                 .reqCpuCores(cpuCores)
                 .reqRamGb(ramGb)
-                .envVarsJson("{}")
+                .envVarsJson(Map.of())
                 .queuedAt(now.minusMinutes(5))
                 .activeLeaseExpiresAt(now.plusMinutes(10))
                 .currentLeaseReservedMinutes(15L)

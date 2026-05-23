@@ -5,12 +5,10 @@ CREATE TABLE jobs
     status                         VARCHAR(40)  NOT NULL DEFAULT 'SUBMITTED',
     docker_image                   VARCHAR(255) NOT NULL,
     execution_command              TEXT         NOT NULL,
-    idempotency_key                VARCHAR(64),
-    submission_fingerprint         CHAR(64),
     req_cpu_cores                  INTEGER      NOT NULL,
     req_ram_gb                     INTEGER      NOT NULL,
     total_consumed_minutes         BIGINT       NOT NULL DEFAULT 0,
-    env_vars_json                  TEXT         NOT NULL DEFAULT '{}',
+    env_vars_json                  JSONB        NOT NULL DEFAULT '{}'::jsonb,
     queued_at                      TIMESTAMPTZ,
     dispatch_requested_at          TIMESTAMPTZ,
     dispatched_at                  TIMESTAMPTZ,
@@ -27,10 +25,6 @@ CREATE TABLE jobs
     terminal_reason                VARCHAR(120),
     created_at                     TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at                     TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_jobs_idempotency_pair CHECK (
-        (idempotency_key IS NULL AND submission_fingerprint IS NULL)
-            OR (idempotency_key IS NOT NULL AND submission_fingerprint IS NOT NULL)
-        ),
     CONSTRAINT chk_jobs_reserved_minutes_nn CHECK (current_lease_reserved_minutes >= 0),
     CONSTRAINT chk_jobs_lease_sequence_nn CHECK (lease_sequence >= 0),
     CONSTRAINT chk_jobs_consumed_nn CHECK (total_consumed_minutes >= 0),
@@ -51,10 +45,6 @@ CREATE TABLE jobs
             )
         )
 );
-
-CREATE UNIQUE INDEX uq_jobs_profile_idempotency_key
-    ON jobs (profile_id, idempotency_key)
-    WHERE idempotency_key IS NOT NULL;
 
 CREATE INDEX idx_jobs_profile_id ON jobs (profile_id);
 

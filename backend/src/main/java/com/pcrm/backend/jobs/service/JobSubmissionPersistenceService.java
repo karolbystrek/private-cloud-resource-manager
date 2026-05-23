@@ -1,7 +1,5 @@
 package com.pcrm.backend.jobs.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pcrm.backend.exception.ResourceNotFoundException;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
@@ -25,19 +23,17 @@ public class JobSubmissionPersistenceService {
     private final JobRepository jobRepository;
     private final ProfileRepository profileRepository;
     private final JobOutboxPublisher outboxPublisher;
-    private final ObjectMapper objectMapper;
 
     public PreparedJobSubmission prepareSubmission(
             UUID profileId,
             JobSubmissionRequest request,
-            String idempotencyKey,
-            String submissionFingerprint
+            String idempotencyKey
     ) {
         var profile = profileRepository.findById(profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("Profile", profileId));
 
         var now = OffsetDateTime.now(ZoneOffset.UTC);
-        var savedJob = createSubmittedJob(profile, request, idempotencyKey, submissionFingerprint, now);
+        var savedJob = createSubmittedJob(profile, request, now);
 
         var correlationId = UUID.randomUUID();
         outboxPublisher.jobSubmitted(savedJob, idempotencyKey, correlationId);
@@ -49,8 +45,6 @@ public class JobSubmissionPersistenceService {
     private Job createSubmittedJob(
             Profile profile,
             JobSubmissionRequest request,
-            String idempotencyKey,
-            String submissionFingerprint,
             OffsetDateTime now
     ) {
         var job = Job.builder()
@@ -59,11 +53,9 @@ public class JobSubmissionPersistenceService {
                 .status(JobStatus.SUBMITTED)
                 .dockerImage(request.dockerImage())
                 .executionCommand(request.executionCommand())
-                .idempotencyKey(idempotencyKey)
-                .submissionFingerprint(submissionFingerprint)
                 .reqCpuCores(request.reqCpuCores())
                 .reqRamGb(request.reqRamGb())
-                .envVarsJson(serializeEnvVars(request))
+                .envVarsJson(request.envVars())
                 .queuedAt(null)
                 .activeLeaseExpiresAt(null)
                 .currentLeaseReservedMinutes(0L)
@@ -76,13 +68,5 @@ public class JobSubmissionPersistenceService {
                 .build();
 
         return jobRepository.save(job);
-    }
-
-    private String serializeEnvVars(JobSubmissionRequest request) {
-        try {
-            return objectMapper.writeValueAsString(request.envVars());
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Failed to serialize environment variables", ex);
-        }
     }
 }

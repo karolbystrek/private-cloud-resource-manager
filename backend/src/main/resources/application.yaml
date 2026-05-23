@@ -38,6 +38,10 @@ app:
       stale-timeout-sec: ${NOMAD_SYNC_STALE_TIMEOUT_SEC}
   quota:
     lease-minutes: ${QUOTA_LEASE_MINUTES:15}
+  logs:
+    stream:
+      max-connections: ${LOG_STREAM_MAX_CONNECTIONS:64}
+      timeout-ms: ${LOG_STREAM_TIMEOUT_MS:1800000}
   idempotency:
     cleanup:
       enabled: ${IDEMPOTENCY_CLEANUP_ENABLED:true}

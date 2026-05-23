@@ -1,7 +1,5 @@
 package com.pcrm.backend.jobs.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pcrm.backend.events.domain.OutboxMessage;
 import com.pcrm.backend.events.service.OutboxConsumerDedupeService;
 import com.pcrm.backend.events.service.OutboxMessageHandler;
@@ -37,8 +35,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class FifoJobDispatcherService implements OutboxMessageHandler {
 
-    private static final TypeReference<Map<String, String>> ENV_VARS_TYPE = new TypeReference<>() {
-    };
     private static final String CONSUMER_NAME = "fifo-job-dispatcher";
     private static final int MAX_ERROR_LENGTH = 4000;
 
@@ -50,7 +46,6 @@ public class FifoJobDispatcherService implements OutboxMessageHandler {
     private final JobArtifactService jobArtifactService;
     private final OutboxConsumerDedupeService dedupeService;
     private final TransactionTemplate transactionTemplate;
-    private final ObjectMapper objectMapper;
 
     @Value("${app.scheduler.dispatch.retry-stale-after-ms:60000}")
     private long retryStaleAfterMs;
@@ -205,11 +200,7 @@ public class FifoJobDispatcherService implements OutboxMessageHandler {
     }
 
     private Map<String, String> deserializeEnvVars(Job job) {
-        try {
-            return objectMapper.readValue(job.getEnvVarsJson(), ENV_VARS_TYPE);
-        } catch (Exception ex) {
-            throw new IllegalStateException("Failed to deserialize job environment variables", ex);
-        }
+        return job.getEnvVarsJson();
     }
 
     private void markDispatchAccepted(UUID jobId, NomadDispatchResult dispatchResult) {
