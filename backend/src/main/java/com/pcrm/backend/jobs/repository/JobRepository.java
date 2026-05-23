@@ -31,6 +31,25 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     @EntityGraph(attributePaths = {"profile"})
     List<Job> findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus status);
 
+    @Query(value = """
+            SELECT id
+            FROM jobs
+            WHERE status = 'QUEUED'
+              AND current_lease_reserved_minutes > 0
+              AND active_lease_expires_at IS NOT NULL
+              AND active_lease_expires_at > :now
+              AND req_cpu_cores <= :totalCpu
+              AND (req_ram_gb * 1024) <= :totalRamMb
+            ORDER BY queued_at ASC NULLS LAST, created_at ASC
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
+    Optional<UUID> findNextQueuedDispatchCandidateIdForUpdate(
+            @Param("now") OffsetDateTime now,
+            @Param("totalCpu") long totalCpu,
+            @Param("totalRamMb") long totalRamMb
+    );
+
     @EntityGraph(attributePaths = {"profile"})
     List<Job> findTop100ByStatusOrderByProcessFinishedAtAscCreatedAtAsc(JobStatus status);
 

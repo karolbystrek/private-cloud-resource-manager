@@ -148,26 +148,6 @@ public class QuotaAccountingService {
         appendSettlementFacts(profile, job, reservation, settlement, reason, now);
     }
 
-    @Transactional(readOnly = true)
-    public QuotaFairnessSnapshot loadFairnessSnapshot(UUID profileId, OffsetDateTime at) {
-        var profile = profileRepository.findById(profileId)
-                .orElseThrow(() -> new ResourceNotFoundException("Profile", profileId));
-        var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(profile, at);
-        var bounds = resolveBounds(at);
-        var existingBalance = userQuotaBalanceCurrentRepository.findByProfile_IdAndIntervalStart(profileId, bounds.start());
-
-        long allocatedMinutes = existingBalance.map(UserQuotaBalanceCurrent::getGrantedMinutes)
-                .orElse(effectivePolicy.monthlyMinutes());
-        long consumedMinutes = existingBalance.map(UserQuotaBalanceCurrent::getConsumedMinutes).orElse(0L);
-
-        return new QuotaFairnessSnapshot(
-                allocatedMinutes,
-                consumedMinutes,
-                effectivePolicy.roleWeight(),
-                effectivePolicy.unlimited()
-        );
-    }
-
     @Transactional
     public QuotaSummaryResponse getQuotaSummary(UUID profileId) {
         var profile = profileRepository.findById(profileId)

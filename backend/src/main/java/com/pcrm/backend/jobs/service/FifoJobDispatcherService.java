@@ -4,8 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pcrm.backend.events.domain.OutboxMessage;
 import com.pcrm.backend.events.service.OutboxConsumerDedupeService;
-import com.pcrm.backend.events.service.OutboxTopics;
 import com.pcrm.backend.events.service.OutboxMessageHandler;
+import com.pcrm.backend.events.service.OutboxTopics;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.repository.JobRepository;
@@ -15,7 +15,6 @@ import com.pcrm.backend.nomad.NomadDispatchClient;
 import com.pcrm.backend.nomad.NomadDispatchRequest;
 import com.pcrm.backend.nomad.NomadDispatchResult;
 import com.pcrm.backend.quota.service.QuotaAccountingService;
-import com.pcrm.backend.quota.service.QuotaFairnessSnapshot;
 import com.pcrm.backend.storage.service.JobArtifactService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,18 +27,19 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @Service
 @ConditionalOnProperty(name = "app.nomad.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
-public class FairQueueDispatcherService implements OutboxMessageHandler {
+public class FifoJobDispatcherService implements OutboxMessageHandler {
 
     private static final TypeReference<Map<String, String>> ENV_VARS_TYPE = new TypeReference<>() {
     };
-    private static final String CONSUMER_NAME = "fair-queue-dispatcher";
+    private static final String CONSUMER_NAME = "fifo-job-dispatcher";
     private static final int MAX_ERROR_LENGTH = 4000;
 
     private final JobRepository jobRepository;
@@ -51,14 +51,6 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
     private final OutboxConsumerDedupeService dedupeService;
     private final TransactionTemplate transactionTemplate;
     private final ObjectMapper objectMapper;
-
-    private final Map<UUID, Double> userDeficits = new ConcurrentHashMap<>();
-
-    @Value("${app.scheduler.dispatch.base-quantum:25}")
-    private double baseQuantum;
-
-    @Value("${app.scheduler.dispatch.age-boost-per-minute:2}")
-    private double ageBoostPerMinute;
 
     @Value("${app.scheduler.dispatch.retry-stale-after-ms:60000}")
     private long retryStaleAfterMs;
@@ -85,26 +77,17 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
             return;
         }
 
-        var selected = selectCandidate();
-        if (selected.isEmpty()) {
+        var clusterCapacity = loadClusterCapacity();
+        if (clusterCapacity.totalCpu() <= 0 || clusterCapacity.totalRamMb() <= 0) {
             return;
         }
 
-        var candidate = selected.get();
-        var claimedJob = transactionTemplate.execute(_ -> claimForDispatch(candidate.job().getId()));
-
+        var claimedJob = transactionTemplate.execute(_ -> claimNextDispatchableJob(clusterCapacity));
         if (claimedJob == null || claimedJob.isEmpty()) {
             return;
         }
 
-        var job = claimedJob.get();
-        var dispatched = dispatchClaimedJob(job, correlationId);
-        if (!dispatched) {
-            return;
-        }
-
-        userDeficits.compute(candidate.job().getProfile().getId(), (_, value) ->
-                (value == null ? 0.0d : value) - candidate.cost());
+        dispatchClaimedJob(claimedJob.get(), correlationId);
     }
 
     private boolean retryStaleDispatchingJob(UUID correlationId) {
@@ -131,50 +114,46 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
         } catch (Exception ex) {
             log.error("Failed to dispatch queued job {}", job.getId(), ex);
             transactionTemplate.executeWithoutResult(_ ->
-                    compensateDispatchFailure(job.getId(), summarize(ex), correlationId)
+                    compensateDispatchFailure(job.getId(), summarize(ex))
             );
             return false;
         }
 
         transactionTemplate.executeWithoutResult(_ ->
-                markDispatchAccepted(job.getId(), dispatchResult, correlationId)
+                markDispatchAccepted(job.getId(), dispatchResult)
         );
         return true;
     }
 
-    private Optional<CandidateJob> selectCandidate() {
-        var queuedJobs = jobRepository.findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus.QUEUED);
-        if (queuedJobs.isEmpty()) {
-            return Optional.empty();
-        }
-
-        var clusterCapacity = loadClusterCapacity();
-        if (clusterCapacity.totalCpu() <= 0 || clusterCapacity.totalRamMb() <= 0) {
-            return Optional.empty();
-        }
-
+    private Optional<Job> claimNextDispatchableJob(ClusterCapacity clusterCapacity) {
         var now = OffsetDateTime.now(ZoneOffset.UTC);
-        var cycleDeficits = new HashMap<UUID, Double>();
-        var candidate = pickBestCandidate(queuedJobs, clusterCapacity, now, cycleDeficits);
-        if (candidate.isPresent()) {
-            userDeficits.putAll(cycleDeficits);
+        var jobId = jobRepository.findNextQueuedDispatchCandidateIdForUpdate(
+                now,
+                clusterCapacity.totalCpu(),
+                clusterCapacity.totalRamMb()
+        );
+        if (jobId.isEmpty()) {
+            return Optional.empty();
         }
-        return candidate;
+
+        var job = jobRepository.findByIdForUpdate(jobId.get()).orElseThrow();
+        if (job.getStatus() != JobStatus.QUEUED || !hasDispatchableReservation(job, now) || !isRunnable(job, clusterCapacity)) {
+            return Optional.empty();
+        }
+
+        jobArtifactService.ensurePendingArtifact(job);
+        var savedJob = jobStateMachine.markDispatchRequested(job, now);
+        log.debug("Requested dispatch for job {} as Nomad job {}", job.getId(), nomadJobId(job));
+        return Optional.of(savedJob);
     }
 
-    private Optional<CandidateJob> pickBestCandidate(
-            java.util.List<Job> queuedJobs,
-            ClusterCapacity clusterCapacity,
-            OffsetDateTime now,
-            Map<UUID, Double> cycleDeficits
-    ) {
-        return queuedJobs.stream()
-                .filter(job -> hasDispatchableReservation(job, now))
-                .filter(job -> isRunnable(job, clusterCapacity))
-                .map(job -> scoreCandidate(job, clusterCapacity, now, cycleDeficits))
-                .max(Comparator
-                        .comparingDouble(CandidateJob::score)
-                        .thenComparingLong(CandidateJob::queueAgeMinutes));
+    private Optional<Job> prepareDispatchRetry(UUID jobId) {
+        var job = jobRepository.findByIdForUpdate(jobId).orElseThrow();
+        if (job.getStatus() != JobStatus.DISPATCHING || job.getDispatchedAt() != null) {
+            return Optional.empty();
+        }
+
+        return Optional.of(jobStateMachine.markDispatchRetryRequested(job, OffsetDateTime.now(ZoneOffset.UTC)));
     }
 
     private boolean hasDispatchableReservation(Job job, OffsetDateTime now) {
@@ -183,40 +162,9 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
                 && job.getActiveLeaseExpiresAt().isAfter(now);
     }
 
-    private CandidateJob scoreCandidate(
-            Job job,
-            ClusterCapacity clusterCapacity,
-            OffsetDateTime now,
-            Map<UUID, Double> cycleDeficits
-    ) {
-        var profileId = job.getProfile().getId();
-        QuotaFairnessSnapshot fairnessSnapshot = quotaAccountingService.loadFairnessSnapshot(profileId, now);
-
-        double usageRatio = fairnessSnapshot.usageRatio();
-        double quantum = baseQuantum * fairnessSnapshot.roleWeight() * (1.0d + (1.0d - usageRatio));
-        double updatedDeficit = cycleDeficits.computeIfAbsent(
-                profileId,
-                ignored -> userDeficits.getOrDefault(profileId, 0.0d) + quantum
-        );
-
-        double cost = calculateDominantCost(job, clusterCapacity);
-        OffsetDateTime queuedAt = job.getQueuedAt() != null ? job.getQueuedAt() : job.getCreatedAt();
-        long queueMinutes = queuedAt == null ? 0L : Math.max(0L, Duration.between(queuedAt, now).toMinutes());
-        double ageBoost = queueMinutes * ageBoostPerMinute;
-        double score = updatedDeficit - cost + ageBoost;
-
-        return new CandidateJob(job, score, cost, queueMinutes);
-    }
-
     private boolean isRunnable(Job job, ClusterCapacity clusterCapacity) {
         return job.getReqCpuCores() <= clusterCapacity.totalCpu()
                 && (job.getReqRamGb() * 1024L) <= clusterCapacity.totalRamMb();
-    }
-
-    private double calculateDominantCost(Job job, ClusterCapacity clusterCapacity) {
-        double cpuShare = job.getReqCpuCores() / (double) clusterCapacity.totalCpu();
-        double ramShare = (job.getReqRamGb() * 1024.0d) / clusterCapacity.totalRamMb();
-        return Math.max(cpuShare, ramShare) * 100.0d;
     }
 
     private ClusterCapacity loadClusterCapacity() {
@@ -242,27 +190,6 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
         return new ClusterCapacity(totalCpu, totalRamMb);
     }
 
-    private Optional<Job> claimForDispatch(UUID jobId) {
-        var job = jobRepository.findByIdForUpdate(jobId).orElseThrow();
-        if (job.getStatus() != JobStatus.QUEUED) {
-            return Optional.empty();
-        }
-
-        jobArtifactService.ensurePendingArtifact(job);
-        var savedJob = jobStateMachine.markDispatchRequested(job, OffsetDateTime.now(ZoneOffset.UTC));
-        log.debug("Requested dispatch for job {} as Nomad job {}", job.getId(), nomadJobId(job));
-        return Optional.of(savedJob);
-    }
-
-    private Optional<Job> prepareDispatchRetry(UUID jobId) {
-        var job = jobRepository.findByIdForUpdate(jobId).orElseThrow();
-        if (job.getStatus() != JobStatus.DISPATCHING || job.getDispatchedAt() != null) {
-            return Optional.empty();
-        }
-
-        return Optional.of(jobStateMachine.markDispatchRetryRequested(job, OffsetDateTime.now(ZoneOffset.UTC)));
-    }
-
     private NomadDispatchRequest toDispatchRequest(Job job, UUID correlationId) {
         return new NomadDispatchRequest(
                 job.getProfile().getId(),
@@ -285,7 +212,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
         }
     }
 
-    private void markDispatchAccepted(UUID jobId, NomadDispatchResult dispatchResult, UUID correlationId) {
+    private void markDispatchAccepted(UUID jobId, NomadDispatchResult dispatchResult) {
         var job = jobRepository.findByIdForUpdate(jobId).orElseThrow();
         if (job.getStatus() != JobStatus.DISPATCHING) {
             return;
@@ -299,7 +226,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
         return job.getId().toString();
     }
 
-    private void compensateDispatchFailure(UUID jobId, String reason, UUID correlationId) {
+    private void compensateDispatchFailure(UUID jobId, String reason) {
         var job = jobRepository.findByIdForUpdate(jobId).orElse(null);
         if (job == null || job.getStatus() != JobStatus.DISPATCHING) {
             return;
@@ -336,8 +263,5 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
     }
 
     private record ClusterCapacity(long totalCpu, long totalRamMb) {
-    }
-
-    private record CandidateJob(Job job, double score, double cost, long queueAgeMinutes) {
     }
 }

@@ -46,8 +46,7 @@ app:
   scheduler:
     dispatch:
       interval-ms: ${SCHEDULER_DISPATCH_INTERVAL_MS:3000}
-      base-quantum: ${SCHEDULER_BASE_QUANTUM:25}
-      age-boost-per-minute: ${SCHEDULER_AGE_BOOST_PER_MINUTE:2}
+      retry-stale-after-ms: ${SCHEDULER_DISPATCH_RETRY_STALE_AFTER_MS:60000}
     lease:
       interval-ms: ${LEASE_ENFORCER_INTERVAL_MS:30000}
       safety-window-ms: ${LEASE_ENFORCER_SAFETY_WINDOW_MS:120000}
