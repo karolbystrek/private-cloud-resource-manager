@@ -12,6 +12,25 @@ type BrokerJsonProxyOptions = {
   fallbackError: string;
 };
 
+type BrokerAccessTokenResult =
+  | { ok: true; accessToken: string }
+  | { ok: false; response: NextResponse };
+
+export async function getBrokerAccessToken(): Promise<BrokerAccessTokenResult> {
+  const accessToken = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
+  if (!accessToken) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: 'Session expired. Please log in again.' },
+        { status: 401 },
+      ),
+    };
+  }
+
+  return { ok: true, accessToken };
+}
+
 export async function proxyBrokerJsonGet<T = unknown>({
   path,
   fallbackError,
@@ -23,16 +42,16 @@ export async function proxyBrokerJsonGet<T = unknown>({
     return NextResponse.json({ error: 'Backend URL is not configured.' }, { status: 500 });
   }
 
-  const accessToken = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
-  if (!accessToken) {
-    return NextResponse.json({ error: 'Session expired. Please log in again.' }, { status: 401 });
+  const accessTokenResult = await getBrokerAccessToken();
+  if (!accessTokenResult.ok) {
+    return accessTokenResult.response;
   }
 
   try {
     const backendResponse = await fetch(`${backendUrl}${path}`, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessTokenResult.accessToken}`,
       },
       cache: 'no-store',
     });

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import {
   ACCESS_TOKEN_COOKIE,
   buildLoginPath,
+  buildRefreshPath,
   isSafeRedirectTarget,
   REFRESH_TOKEN_COOKIE,
 } from '@/lib/auth';
@@ -14,18 +15,13 @@ function isAuthRedirectTarget(target: string, requestUrl: string): boolean {
   return AUTH_PATHS.has(new URL(target, requestUrl).pathname);
 }
 
-function isAuthenticated(request: NextRequest): boolean {
-  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
-  const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
-  return Boolean(accessToken || refreshToken);
-}
-
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const hasSession = isAuthenticated(request);
+  const hasAccessToken = Boolean(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value);
+  const hasRefreshToken = Boolean(request.cookies.get(REFRESH_TOKEN_COOKIE)?.value);
   const isAuthPath = AUTH_PATHS.has(pathname);
 
-  if (isAuthPath && hasSession) {
+  if (isAuthPath && hasAccessToken) {
     const nextParam = request.nextUrl.searchParams.get('next');
     const redirectTarget
       = isSafeRedirectTarget(nextParam) && !isAuthRedirectTarget(nextParam, request.url)
@@ -34,7 +30,18 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(redirectTarget, request.url));
   }
 
-  if (!isAuthPath && !hasSession) {
+  if (hasRefreshToken && !hasAccessToken) {
+    const nextParam = request.nextUrl.searchParams.get('next');
+    const nextPath
+      = isAuthPath
+        ? isSafeRedirectTarget(nextParam) && !isAuthRedirectTarget(nextParam, request.url)
+          ? nextParam
+          : '/'
+        : `${pathname}${search}`;
+    return NextResponse.redirect(new URL(buildRefreshPath(nextPath), request.url));
+  }
+
+  if (!isAuthPath && !hasAccessToken) {
     const loginUrl = request.nextUrl.clone();
     const loginPath = buildLoginPath(`${pathname}${search}`);
     loginUrl.pathname = LOGIN_PATH;

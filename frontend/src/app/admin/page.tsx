@@ -1,14 +1,12 @@
 import type { Metadata } from 'next';
 import { RiAlertLine, RiArrowRightLine, RiServerLine } from '@remixicon/react';
 import Link from 'next/link';
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { NodeSummary } from '@/app/nodes/_components/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatUtcDateTime } from '@/lib/date-time';
-import { USER_ROLE_COOKIE } from '@/lib/auth';
-import { brokerFetch, getRequiredAccessToken } from '@/lib/server-auth';
+import { brokerFetch } from '@/lib/server-auth';
 import { isUserRole } from '@/lib/user-role';
 
 export const metadata: Metadata = {
@@ -20,8 +18,25 @@ type NodesResult = {
   error: string | null;
 };
 
+type QuotaMeResponse = {
+  role: string;
+};
+
 function getCountByStatus(nodes: NodeSummary[], status: string): number {
   return nodes.filter((node) => node.status === status).length;
+}
+
+async function fetchCurrentUserRole(): Promise<string | null> {
+  const response = await brokerFetch('/api/quota/me', {
+    cache: 'no-store',
+  }, '/admin');
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const quota = (await response.json()) as QuotaMeResponse;
+  return isUserRole(quota.role) ? quota.role : null;
 }
 
 async function fetchNodes(): Promise<NodesResult> {
@@ -42,11 +57,7 @@ async function fetchNodes(): Promise<NodesResult> {
 }
 
 export default async function AdminDashboardPage() {
-  await getRequiredAccessToken('/admin');
-
-  const cookieStore = await cookies();
-  const roleCookie = cookieStore.get(USER_ROLE_COOKIE)?.value;
-  const userRole = isUserRole(roleCookie) ? roleCookie : null;
+  const userRole = await fetchCurrentUserRole();
   if (userRole !== 'ADMIN') {
     redirect('/');
   }

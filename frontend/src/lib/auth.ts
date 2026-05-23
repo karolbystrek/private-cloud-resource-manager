@@ -40,6 +40,15 @@ export function buildClearSessionPath(nextPath: string): string {
   return `/api/auth/clear-session${query ? `?${query}` : ''}`;
 }
 
+export function buildRefreshPath(nextPath: string): string {
+  const params = new URLSearchParams();
+  if (isSafeRedirectTarget(nextPath)) {
+    params.set('next', nextPath);
+  }
+  const query = params.toString();
+  return `/api/auth/refresh${query ? `?${query}` : ''}`;
+}
+
 export function clearAuthCookies(response: NextResponse): void {
   response.cookies.delete(ACCESS_TOKEN_COOKIE);
   response.cookies.delete(REFRESH_TOKEN_COOKIE);

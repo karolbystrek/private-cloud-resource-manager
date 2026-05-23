@@ -5,7 +5,7 @@ import { RiArrowLeftLine } from '@remixicon/react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { buildClearSessionPath } from '@/lib/auth';
+import { redirectToLoginAfterAuthFailure } from '@/lib/client-auth';
 import { formatLocalDateTime, formatUtcDateTime } from '@/lib/date-time';
 
 import type { NodeDetails } from '@/app/nodes/_components/types';
@@ -66,7 +66,7 @@ export function NodeDetailsPanel({
         const response = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}`, { cache: 'no-store' });
 
         if (response.status === 401) {
-          window.location.href = buildClearSessionPath(`/nodes/${nodeId}`);
+          redirectToLoginAfterAuthFailure(`/nodes/${nodeId}`);
           return;
         }
 

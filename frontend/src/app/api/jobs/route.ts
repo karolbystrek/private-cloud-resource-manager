@@ -1,7 +1,6 @@
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { ACCESS_TOKEN_COOKIE } from '@/lib/auth';
 import { getBackendUrlForServer } from '@/lib/backend-url';
+import { getBrokerAccessToken } from '@/lib/broker-proxy';
 
 type JobSubmissionBody = {
   dockerImage: string;
@@ -196,11 +195,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Backend URL is not configured.' }, { status: 500 });
   }
 
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
-
-  if (!accessToken) {
-    return NextResponse.json({ error: 'Session expired. Please log in again.' }, { status: 401 });
+  const accessTokenResult = await getBrokerAccessToken();
+  if (!accessTokenResult.ok) {
+    return accessTokenResult.response;
   }
 
   const parsedBody = parseBody(await request.json().catch(() => null));
@@ -221,7 +218,7 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${accessTokenResult.accessToken}`,
         'Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify(parsedBody),

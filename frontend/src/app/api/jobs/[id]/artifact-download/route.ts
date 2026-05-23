@@ -1,7 +1,6 @@
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { ACCESS_TOKEN_COOKIE } from '@/lib/auth';
 import { getBackendUrlForServer } from '@/lib/backend-url';
+import { getBrokerAccessToken } from '@/lib/broker-proxy';
 
 type BackendProblem = {
   detail?: string;
@@ -36,9 +35,9 @@ export async function GET(_request: Request, { params }: Params) {
     return NextResponse.json({ error: 'Backend URL is not configured.' }, { status: 500 });
   }
 
-  const accessToken = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
-  if (!accessToken) {
-    return NextResponse.json({ error: 'Session expired. Please log in again.' }, { status: 401 });
+  const accessTokenResult = await getBrokerAccessToken();
+  if (!accessTokenResult.ok) {
+    return accessTokenResult.response;
   }
 
   const { id } = await params;
@@ -49,7 +48,7 @@ export async function GET(_request: Request, { params }: Params) {
       {
         method: 'GET',
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessTokenResult.accessToken}`,
         },
         cache: 'no-store',
       },
