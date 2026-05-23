@@ -182,43 +182,7 @@ if [ -n "$signup_user_id" ]; then
 fi
 
 # ---------------------------------------------
-# 4. PostgREST: query
-# ---------------------------------------------
-
-echo ""
-echo "--- PostgREST ---"
-check "REST API query" "200" \
-    "$(http_status "$BASE_URL/rest/v1/" \
-        -H "apikey: $ANON_KEY")"
-
-# ---------------------------------------------
-# 5. GraphQL
-# ---------------------------------------------
-
-echo ""
-echo "--- GraphQL ---"
-gql_resp=$(http_body "$BASE_URL/graphql/v1" \
-    -H "apikey: $ANON_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{"query":"{ __typename }"}')
-gql_has_data=$(echo "$gql_resp" | jq -r 'if .data then "true" else "false" end' 2>/dev/null)
-check "GraphQL introspection" "true" "$gql_has_data"
-
-# ---------------------------------------------
-# 6. Edge Functions
-# ---------------------------------------------
-
-echo ""
-echo "--- Edge Functions ---"
-fn_resp=$(http_body "$BASE_URL/functions/v1/hello" \
-    -X POST \
-    -H "Authorization: Bearer $ANON_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{}')
-check "Call hello function" '"Hello from Edge Functions!"' "$fn_resp"
-
-# ---------------------------------------------
-# 7. pg-meta (Studio backend)
+# 4. pg-meta (Studio backend)
 # ---------------------------------------------
 
 echo ""
@@ -238,16 +202,6 @@ check "/api/mcp blocked" "403" \
     "$(http_status "$BASE_URL/api/mcp")"
 check "/mcp blocked" "403" \
     "$(http_status "$BASE_URL/mcp")"
-
-# ---------------------------------------------
-# 9. Realtime
-# ---------------------------------------------
-
-echo ""
-echo "--- Realtime ---"
-check "Realtime health" "true" \
-    "$([ "$(http_status "$BASE_URL/realtime/v1/api/tenants" \
-        -H "apikey: $ANON_KEY")" != "401" ] && echo true || echo false)"
 
 # ---------------------------------------------
 # Summary

@@ -3,7 +3,7 @@
 # Add asymmetric key pair and opaque API keys to a self-hosted Supabase installation.
 #
 # Reads JWT_SECRET from .env and generates:
-#   - EC P-256 key pair (JWT_KEYS, JWT_JWKS)
+#   - EC P-256 key pair (JWT_KEYS)
 #   - Opaque API keys (SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY)
 #   - Internal: ES256 JWT API keys (ANON_KEY_ASYMMETRIC, SERVICE_ROLE_KEY_ASYMMETRIC)
 #
@@ -50,7 +50,7 @@ openssl ecparam -name prime256v1 -genkey -noout -out "$tmpdir/ec_private.pem" 2>
 
 # Node.js does the crypto-heavy work:
 #   - PEM -> JWK conversion
-#   - JWKS construction (with symmetric key included)
+#   - JWKS construction for Auth (with symmetric key included)
 #   - ES256 JWT signing
 #   - Opaque API key generation with checksum
 node -e '
@@ -77,13 +77,6 @@ const octKey = {
 const jwksKeypair = { keys: [
     { kty: "EC", kid, use: "sig", key_ops: ["sign", "verify"], alg: "ES256", ext: true,
       crv: jwkPrivate.crv, x: jwkPrivate.x, y: jwkPrivate.y, d: jwkPrivate.d },
-    octKey
-]};
-
-// JWKS with public key only (for PostgREST, Realtime, Storage to verify)
-const jwksPublic = { keys: [
-    { kty: "EC", kid, use: "sig", key_ops: ["verify"], alg: "ES256", ext: true,
-      crv: jwkPrivate.crv, x: jwkPrivate.x, y: jwkPrivate.y },
     octKey
 ]};
 
@@ -128,7 +121,6 @@ console.log("SUPABASE_SECRET_KEY=" + secretKey);
 console.log("ANON_KEY_ASYMMETRIC=" + anonJwt);
 console.log("SERVICE_ROLE_KEY_ASYMMETRIC=" + serviceJwt);
 console.log("JWT_KEYS=" + JSON.stringify(jwksKeypair.keys));
-console.log("JWT_JWKS=" + JSON.stringify(jwksPublic));
 ' "$tmpdir/ec_private.pem" "$jwt_secret" > "$tmpdir/output"
 
 # Read generated values
@@ -137,7 +129,6 @@ SUPABASE_SECRET_KEY=$(grep '^SUPABASE_SECRET_KEY=' "$tmpdir/output" | cut -d= -f
 ANON_KEY_ASYMMETRIC=$(grep '^ANON_KEY_ASYMMETRIC=' "$tmpdir/output" | cut -d= -f2-)
 SERVICE_ROLE_KEY_ASYMMETRIC=$(grep '^SERVICE_ROLE_KEY_ASYMMETRIC=' "$tmpdir/output" | cut -d= -f2-)
 JWT_KEYS=$(grep '^JWT_KEYS=' "$tmpdir/output" | cut -d= -f2-)
-JWT_JWKS=$(grep '^JWT_JWKS=' "$tmpdir/output" | cut -d= -f2-)
 
 echo ""
 echo "SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
@@ -145,13 +136,9 @@ echo "SUPABASE_SECRET_KEY=${SUPABASE_SECRET_KEY}"
 echo ""
 echo "JWT_KEYS=${JWT_KEYS}"
 echo ""
-echo "JWT_JWKS=${JWT_JWKS}"
-echo ""
 echo "To enable asymmetric key pair, the following should be enabled in docker-compose.yml:"
 echo ""
-echo "  Auth:     GOTRUE_JWT_KEYS: \${JWT_KEYS:-[]}"
-echo "  Realtime: API_JWT_JWKS: \${JWT_JWKS:-{\"keys\":[]}}"
-echo "  Storage:  JWT_JWKS: \${JWT_JWKS:-{\"keys\":[]}}"
+echo "  Auth: GOTRUE_JWT_KEYS: \${JWT_KEYS:-[]}"
 echo ""
 
 if [ "$1" = "--update-env" ]; then
@@ -175,7 +162,7 @@ fi
 echo "Updating .env..."
 
 # Append new variables if they don't exist, or update them if they do
-for var in SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY ANON_KEY_ASYMMETRIC SERVICE_ROLE_KEY_ASYMMETRIC JWT_KEYS JWT_JWKS; do
+for var in SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY ANON_KEY_ASYMMETRIC SERVICE_ROLE_KEY_ASYMMETRIC JWT_KEYS; do
     eval "val=\$$var"
     if grep -q "^${var}=" .env; then
         sed -i.old -e "s|^${var}=.*$|${var}=${val}|" .env
@@ -194,13 +181,9 @@ fi
 # Always fall through to the grep check
 sed -i.old \
     -e '/^[ ]*#GOTRUE_JWT_KEYS:/ s/#//' \
-    -e '/^[ ]*#API_JWT_JWKS:/ s/#//' \
-    -e '/^[ ]*#JWT_JWKS:/ s/#//' \
     docker-compose.yml || true
 
-if grep -q '^[ ]*GOTRUE_JWT_KEYS:' docker-compose.yml && \
-   grep -q '^[ ]*API_JWT_JWKS:' docker-compose.yml && \
-   grep -q '^[ ]*JWT_JWKS:' docker-compose.yml; then
+if grep -q '^[ ]*GOTRUE_JWT_KEYS:' docker-compose.yml; then
     echo "Done."
 else
     echo "Warning: could not edit docker-compose.yml. Uncomment auth configuration manually."

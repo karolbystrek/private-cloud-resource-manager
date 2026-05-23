@@ -26,7 +26,7 @@ from self-hosted Supabase.
 
 ## Resetting the local stack (`reset.sh`)
 
-`reset.sh` tears down the Compose stack with volumes, can wipe bind-mounted Postgres and Storage data under `volumes/`,
+`reset.sh` tears down the Compose stack with volumes, can wipe bind-mounted Postgres and MinIO data under `volumes/`,
 and replaces `.env` from `.env.example` (after renaming the old file to `.env.old`). Use it when you want a clean local
 install (corrupted or unwanted DB state, bad migration experiments, storage you do not need, or Compose left volumes in
 a confusing state). It is destructive; do not run it if you care about data in those paths.
@@ -39,7 +39,7 @@ stack up again with `docker compose up --build` (and `docker compose pull` if yo
 | Service                                        | URL (defaults)            |
 |------------------------------------------------|---------------------------|
 | Frontend                                       | http://localhost:3000     |
-| Supabase Studio + REST/Auth API (Kong)         | http://localhost:8000     |
+| Supabase Studio + Auth API (Kong)              | http://localhost:8000     |
 | Backend                                        | http://localhost:8080/api |
 | Nomad                                          | http://localhost:4646     |
 | MinIO S3 API                                   | http://localhost:9000     |

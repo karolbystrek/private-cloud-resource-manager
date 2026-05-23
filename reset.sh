@@ -43,7 +43,7 @@ else
 fi
 
 echo "===> Cleaning up bind-mounted directories..."
-BIND_MOUNTS="./volumes/db/data ./volumes/minio ./volumes/storage"
+BIND_MOUNTS="./volumes/db/data ./volumes/minio"
 
 for dir in $BIND_MOUNTS; do
     if [ -d "$dir" ]; then
