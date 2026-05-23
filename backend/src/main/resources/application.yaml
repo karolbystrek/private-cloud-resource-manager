@@ -39,9 +39,14 @@ app:
   quota:
     lease-minutes: ${QUOTA_LEASE_MINUTES:15}
   logs:
-    stream:
-      max-connections: ${LOG_STREAM_MAX_CONNECTIONS:64}
-      timeout-ms: ${LOG_STREAM_TIMEOUT_MS:1800000}
+    capture:
+      enabled: ${LOG_CAPTURE_ENABLED:true}
+      interval-ms: ${LOG_CAPTURE_INTERVAL_MS:5000}
+      batch-size: ${LOG_CAPTURE_BATCH_SIZE:50}
+  jobs:
+    details-stream:
+      interval-ms: ${JOB_DETAILS_STREAM_INTERVAL_MS:2000}
+      timeout-ms: ${JOB_DETAILS_STREAM_TIMEOUT_MS:1800000}
   idempotency:
     cleanup:
       enabled: ${IDEMPOTENCY_CLEANUP_ENABLED:true}

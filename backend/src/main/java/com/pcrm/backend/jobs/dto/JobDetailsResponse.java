@@ -15,6 +15,7 @@ public record JobDetailsResponse(
         int reqRamGb,
         long totalConsumedMinutes,
         OffsetDateTime createdAt,
+        OffsetDateTime updatedAt,
         UUID userId,
         String userEmail
 ) {
@@ -29,6 +30,7 @@ public record JobDetailsResponse(
                 job.getReqRamGb(),
                 job.getTotalConsumedMinutes(),
                 job.getCreatedAt(),
+                job.getUpdatedAt(),
                 job.getProfile().getId(),
                 userEmail
         );

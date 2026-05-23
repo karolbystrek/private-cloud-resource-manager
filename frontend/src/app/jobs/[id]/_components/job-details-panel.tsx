@@ -12,7 +12,16 @@ import { formatLocalDateTime } from '@/lib/date-time';
 import { formatMinutesAsHoursAndMinutes } from '@/lib/duration';
 import { JobLogsPanel } from './job-logs-panel';
 
-const ACTIVE_STATUSES = new Set<JobStatus>(['SUBMITTED', 'QUEUED', 'DISPATCHING', 'SCHEDULING', 'RUNNING']);
+const ACTIVE_STATUSES = new Set<JobStatus>([
+  'SUBMITTED',
+  'QUEUED',
+  'DISPATCHING',
+  'SCHEDULING',
+  'RUNNING',
+  'FINALIZING',
+]);
+const MAX_LOG_LINES = 2000;
+type LogStream = 'stdout' | 'stderr';
 
 type JobDetailsPanelProps = {
   jobId: string;
@@ -27,6 +36,27 @@ type FieldRowProps = {
 type ArtifactDownloadPayload = {
   url: string;
 };
+
+type LogEventPayload = {
+  stream?: LogStream;
+  data?: string;
+};
+
+function parsePayload<T>(rawPayload: string): T | null {
+  try {
+    return JSON.parse(rawPayload) as T;
+  } catch {
+    return null;
+  }
+}
+
+function trimLogTextByLineCount(logText: string): string {
+  const lines = logText.split('\n');
+  if (lines.length <= MAX_LOG_LINES) {
+    return logText;
+  }
+  return lines.slice(lines.length - MAX_LOG_LINES).join('\n');
+}
 
 function formatDateForUser(value: Date | string | null | undefined, isClient: boolean): string {
   if (!isClient) {
@@ -45,10 +75,14 @@ function FieldRow({ label, value }: FieldRowProps) {
 }
 
 export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
-  const [job] = useState<JobDetails>(initialJob);
+  const [job, setJob] = useState<JobDetails>(initialJob);
   const [artifactDownloadUrl, setArtifactDownloadUrl] = useState<string | null>(null);
   const [isCheckingArtifact, setIsCheckingArtifact] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [streamedLogs, setStreamedLogs] = useState<Record<LogStream, string>>({
+    stdout: '',
+    stderr: '',
+  });
   const isJobActive = ACTIVE_STATUSES.has(job.status);
   const isClient = useSyncExternalStore(
     () => () => {},
@@ -63,6 +97,60 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
       setErrorMessage('Failed to copy execution command.');
     }
   }
+
+  useEffect(() => {
+    if (!ACTIVE_STATUSES.has(initialJob.status)) {
+      return;
+    }
+
+    const source = new EventSource(`/api/jobs/${encodeURIComponent(jobId)}/events`);
+
+    source.addEventListener('job', (event) => {
+      const nextJob = parsePayload<JobDetails>(event.data);
+      if (!nextJob) {
+        return;
+      }
+
+      setJob((current) => {
+        if (Date.parse(nextJob.updatedAt) < Date.parse(current.updatedAt)) {
+          return current;
+        }
+        return nextJob;
+      });
+
+      if (!ACTIVE_STATUSES.has(nextJob.status)) {
+        source.close();
+      }
+    });
+
+    source.addEventListener('log', (event) => {
+      const payload = parsePayload<LogEventPayload>(event.data);
+      if (!payload?.stream || typeof payload.data !== 'string') {
+        return;
+      }
+
+      const normalized = payload.data.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+      setStreamedLogs((current) => ({
+        ...current,
+        [payload.stream as LogStream]: trimLogTextByLineCount(
+          `${current[payload.stream as LogStream]}${normalized}`,
+        ),
+      }));
+    });
+
+    source.addEventListener('end', () => {
+      source.close();
+    });
+
+    source.onerror = () => {
+      source.close();
+      setErrorMessage('Live job updates were interrupted. Refresh the page to reconnect.');
+    };
+
+    return () => {
+      source.close();
+    };
+  }, [initialJob.status, jobId]);
 
   useEffect(() => {
     if (isJobActive) {
@@ -209,7 +297,13 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
         </CardContent>
       </Card>
 
-      <JobLogsPanel key={jobId} jobId={jobId} isJobActive={isJobActive} jobStatus={job.status} />
+      <JobLogsPanel
+        key={jobId}
+        jobId={jobId}
+        jobStatus={job.status}
+        isJobActive={isJobActive}
+        streamedLogs={streamedLogs}
+      />
     </section>
   );
 }

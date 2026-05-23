@@ -16,6 +16,10 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -73,6 +77,40 @@ public class StorageService {
 
     public String buildArtifactObjectKey(UUID userId, UUID jobId) {
         return "artifacts/" + userId + "/" + jobId + "/output.zip";
+    }
+
+    public String buildLogObjectKey(UUID userId, UUID jobId, String stream, long sequence) {
+        return "logs/" + userId + "/" + jobId + "/" + stream + "/" + sequence + ".log";
+    }
+
+    public void putTextObject(String objectKey, String content) {
+        try {
+            s3Client.putObject(
+                    PutObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(objectKey)
+                            .contentType("text/plain; charset=utf-8")
+                            .build(),
+                    RequestBody.fromString(content == null ? "" : content)
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to write object " + objectKey, ex);
+        }
+    }
+
+    public String getTextObject(String objectKey) {
+        try {
+            ResponseBytes<GetObjectResponse> bytes = s3Client.getObject(
+                    GetObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(objectKey)
+                            .build(),
+                    ResponseTransformer.toBytes()
+            );
+            return bytes.asUtf8String();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read object " + objectKey, ex);
+        }
     }
 
     public StoredObjectMetadata getObjectMetadata(String objectKey) {

@@ -62,6 +62,10 @@ async function refreshSession() {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
+    if (quotaResponse.status === 401 || quotaResponse.status === 403) {
+      return { ok: false as const, status: 401 as const };
+    }
+
     let role: UserRole = 'STUDENT';
     if (quotaResponse.ok) {
       const quota = (await quotaResponse.json()) as QuotaMeResponse;

@@ -12,4 +12,7 @@ public interface ProfileRepository extends JpaRepository<Profile, UUID> {
 
     @Query(value = "SELECT email FROM auth.users WHERE id = :id", nativeQuery = true)
     Optional<String> findEmailForAuthUser(@Param("id") UUID id);
+
+    @Query(value = "SELECT EXISTS (SELECT 1 FROM auth.users WHERE id = :id)", nativeQuery = true)
+    boolean existsAuthUserById(@Param("id") UUID id);
 }

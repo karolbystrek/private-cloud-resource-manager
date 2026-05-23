@@ -4,6 +4,7 @@ import com.pcrm.backend.user.Profile;
 import com.pcrm.backend.user.UserRole;
 import com.pcrm.backend.user.repository.ProfileRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,9 +18,15 @@ public class ProfileProvisioningService {
 
     @Transactional
     public Profile ensureProfile(UUID authUserId) {
-        return profileRepository.findById(authUserId).orElseGet(() -> profileRepository.save(Profile.builder()
-                .id(authUserId)
-                .role(UserRole.STUDENT)
-                .build()));
+        return profileRepository.findById(authUserId).orElseGet(() -> {
+            if (!profileRepository.existsAuthUserById(authUserId)) {
+                throw new BadCredentialsException("Authenticated user no longer exists.");
+            }
+
+            return profileRepository.save(Profile.builder()
+                    .id(authUserId)
+                    .role(UserRole.STUDENT)
+                    .build());
+        });
     }
 }

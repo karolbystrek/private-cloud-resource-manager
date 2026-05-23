@@ -3,9 +3,11 @@ package com.pcrm.backend.jobs.resource;
 import com.pcrm.backend.auth.domain.CustomUserDetails;
 import com.pcrm.backend.jobs.domain.JobStatus;
 import com.pcrm.backend.jobs.dto.JobDetailsResponse;
+import com.pcrm.backend.jobs.dto.JobLogsResponse;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.jobs.dto.JobSubmissionResponse;
 import com.pcrm.backend.jobs.dto.JobsPageResponse;
+import com.pcrm.backend.jobs.service.JobDetailsStreamService;
 import com.pcrm.backend.jobs.service.JobLogStreamType;
 import com.pcrm.backend.jobs.service.JobLogsService;
 import com.pcrm.backend.jobs.service.JobQueryService;
@@ -38,6 +40,7 @@ public class JobsResource {
     private final JobSubmissionService jobSubmissionService;
     private final JobQueryService jobQueryService;
     private final JobLogsService jobLogsService;
+    private final JobDetailsStreamService jobDetailsStreamService;
 
     @GetMapping
     public JobsPageResponse listJobs(
@@ -59,15 +62,23 @@ public class JobsResource {
         return jobQueryService.getJobDetails(id, principal);
     }
 
-    @GetMapping(value = "/{id}/logs/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamJobLogs(
+    @GetMapping(value = "/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamJobDetails(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        return jobDetailsStreamService.streamJobDetails(id, principal);
+    }
+
+    @GetMapping("/{id}/logs")
+    public JobLogsResponse getJobLogs(
             @PathVariable UUID id,
             @RequestParam(defaultValue = "stdout") String stream,
-            @RequestParam(defaultValue = "0") @Min(0) long offset,
+            @RequestParam(defaultValue = "1048576") @Min(1) @Max(10_485_760) long limitBytes,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         var streamType = JobLogStreamType.from(stream);
-        return jobLogsService.streamJobLogs(id, principal, streamType, offset);
+        return jobLogsService.getJobLogs(id, principal, streamType, limitBytes);
     }
 
     @PostMapping

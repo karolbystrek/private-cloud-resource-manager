@@ -29,6 +29,12 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     Optional<Job> findByIdAndProfile_Id(UUID id, UUID userId);
 
     @EntityGraph(attributePaths = {"profile"})
+    Optional<Job> findWithProfileById(UUID id);
+
+    @EntityGraph(attributePaths = {"profile"})
+    List<Job> findTop100ByStatusInOrderByUpdatedAtDesc(Collection<JobStatus> statuses);
+
+    @EntityGraph(attributePaths = {"profile"})
     List<Job> findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus status);
 
     @Query(value = """

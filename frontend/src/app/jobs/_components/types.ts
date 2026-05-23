@@ -44,6 +44,7 @@ export type JobDetails = {
   reqRamGb: number;
   totalConsumedMinutes: number;
   createdAt: string;
+  updatedAt: string;
   userId: string;
   userEmail: string;
 };
