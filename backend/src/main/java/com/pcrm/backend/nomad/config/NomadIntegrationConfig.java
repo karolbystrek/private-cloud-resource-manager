@@ -16,6 +16,7 @@ import com.pcrm.backend.nomad.http.NomadHttpNodeClient;
 import com.pcrm.backend.nomad.stream.NomadEventStreamListener;
 import com.pcrm.backend.nomad.stream.NomadStreamCursorRepository;
 import com.pcrm.backend.quota.service.QuotaAccountingService;
+import com.pcrm.backend.storage.service.JobArtifactService;
 import com.pcrm.backend.storage.service.StorageService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -65,6 +66,7 @@ public class NomadIntegrationConfig {
             JobStateMachine jobStateMachine,
             NodeRepository nodeRepository,
             QuotaAccountingService quotaAccountingService,
+            JobArtifactService jobArtifactService,
             JobEventPublisher eventPublisher,
             JsonMapper jsonMapper,
             TransactionTemplate transactionTemplate
@@ -76,6 +78,7 @@ public class NomadIntegrationConfig {
                 jobStateMachine,
                 nodeRepository,
                 quotaAccountingService,
+                jobArtifactService,
                 eventPublisher,
                 jsonMapper,
                 transactionTemplate

@@ -14,12 +14,13 @@ job "{{NOMAD_JOB_ID}}" {
       config {
         image   = "{{DOCKER_IMAGE}}"
         command = "/bin/sh"
-        args    = ["-c", "{{EXECUTION_COMMAND}}"]
+        args    = ["-c", "mkdir -p \"$OUTPUT_DIR\" && {{EXECUTION_COMMAND}}"]
       }
 
       env {
         JOB_ID = "{{JOB_ID}}"
         USER_ID = "{{USER_ID}}"
+        OUTPUT_DIR = "/alloc/data"
         TRACE_ID = "{{TRACE_ID}}"
         CORRELATION_ID = "{{CORRELATION_ID}}"
         {{ENV_VARS}}

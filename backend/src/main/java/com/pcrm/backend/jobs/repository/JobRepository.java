@@ -31,6 +31,9 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     @EntityGraph(attributePaths = {"profile"})
     List<Job> findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus status);
 
+    @EntityGraph(attributePaths = {"profile"})
+    List<Job> findTop100ByStatusOrderByProcessFinishedAtAscCreatedAtAsc(JobStatus status);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = {"profile"})
     @Query("""

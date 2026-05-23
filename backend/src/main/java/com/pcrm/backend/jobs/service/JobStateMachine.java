@@ -109,6 +109,26 @@ public class JobStateMachine {
         return save(job);
     }
 
+    public Job markArtifactAvailable(Job job, OffsetDateTime now) {
+        job.setStatus(JobStatus.SUCCEEDED);
+        if (job.getProcessFinishedAt() == null) {
+            job.setProcessFinishedAt(now);
+        }
+        job.setFinalizedAt(now);
+        job.setTerminalReason(null);
+        return save(job);
+    }
+
+    public Job markArtifactFailed(Job job, OffsetDateTime now, String reason) {
+        job.setStatus(JobStatus.FAILED);
+        if (job.getProcessFinishedAt() == null) {
+            job.setProcessFinishedAt(now);
+        }
+        job.setFinalizedAt(now);
+        job.setTerminalReason(reason);
+        return save(job);
+    }
+
     public Job recordLeaseStopFailure(Job job, OffsetDateTime now, String reason) {
         job.setLastLeaseRenewalError(reason);
         job.setLeaseStopRequestedAt(now);

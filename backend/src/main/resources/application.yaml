@@ -71,11 +71,15 @@ app:
   storage:
     s3:
       endpoint: ${STORAGE_S3_ENDPOINT}
-      access-key: ${S3_PROTOCOL_ACCESS_KEY_ID}
-      secret-key: ${S3_PROTOCOL_ACCESS_KEY_SECRET}
+      access-key: ${MINIO_ROOT_USER}
+      secret-key: ${MINIO_ROOT_PASSWORD}
       region: ${REGION}
       bucket: ${GLOBAL_S3_BUCKET}
       path-style-access: ${STORAGE_S3_PATH_STYLE_ACCESS:true}
       presign:
-        upload-ttl-sec: ${STORAGE_S3_PRESIGN_UPLOAD_TTL_SEC:900}
+        upload-ttl-sec: ${STORAGE_S3_PRESIGN_UPLOAD_TTL_SEC:604800}
         download-ttl-sec: ${STORAGE_S3_PRESIGN_DOWNLOAD_TTL_SEC:900}
+    artifacts:
+      finalizer-interval-ms: ${ARTIFACT_FINALIZER_INTERVAL_MS:10000}
+      finalizer-batch-size: ${ARTIFACT_FINALIZER_BATCH_SIZE:50}
+      missing-timeout-ms: ${ARTIFACT_MISSING_TIMEOUT_MS:120000}

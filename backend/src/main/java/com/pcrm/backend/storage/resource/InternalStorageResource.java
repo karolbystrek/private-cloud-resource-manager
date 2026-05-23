@@ -1,7 +1,7 @@
 package com.pcrm.backend.storage.resource;
 
-import com.pcrm.backend.jobs.service.JobQueryService;
 import com.pcrm.backend.storage.dto.PresignedUrlResponse;
+import com.pcrm.backend.storage.service.JobArtifactService;
 import com.pcrm.backend.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -20,14 +20,14 @@ import java.util.UUID;
 public class InternalStorageResource {
 
     private final StorageService storageService;
-    private final JobQueryService jobQueryService;
+    private final JobArtifactService jobArtifactService;
 
     @GetMapping("/{jobId}/artifact-upload-url")
     @PreAuthorize("hasRole('ADMIN')")
     public PresignedUrlResponse getArtifactUploadUrl(@PathVariable UUID jobId) {
-        var ownerId = jobQueryService.getJobOwnerId(jobId);
-        var objectKey = storageService.buildArtifactObjectKey(ownerId, jobId);
-        var uploadUrl = storageService.generatePresignedUploadUrl(ownerId, jobId);
+        var artifact = jobArtifactService.ensurePendingArtifact(jobId);
+        var objectKey = artifact.getObjectKey();
+        var uploadUrl = storageService.generatePresignedUploadUrl(objectKey);
         return new PresignedUrlResponse(uploadUrl, objectKey, storageService.getUploadTtlSec());
     }
 }

@@ -39,13 +39,15 @@ stack up again with `docker compose up --build` (and `docker compose pull` if yo
 | Service                                        | URL (defaults)            |
 |------------------------------------------------|---------------------------|
 | Frontend                                       | http://localhost:3000     |
-| Supabase Studio + REST/Auth/Storage API (Kong) | http://localhost:8000     |
+| Supabase Studio + REST/Auth API (Kong)         | http://localhost:8000     |
 | Backend                                        | http://localhost:8080/api |
 | Nomad                                          | http://localhost:4646     |
+| MinIO S3 API                                   | http://localhost:9000     |
+| MinIO Console                                  | http://localhost:9001     |
 
 Optional HTTPS to the same gateway: `https://localhost:8443` when `KONG_HTTPS_PORT=8443`.
 
-**First run:** sign up in the PCRM UI. For job artifacts, create an object storage bucket in Studio matching
+**First run:** sign up in the PCRM UI. Job artifacts are stored in MinIO; the Compose stack creates the bucket named by
 `GLOBAL_S3_BUCKET` in your `.env`. To use admin APIs, set `profiles.role` to `ADMIN` for your user id (`auth.users.id`)
 in Postgres.
 

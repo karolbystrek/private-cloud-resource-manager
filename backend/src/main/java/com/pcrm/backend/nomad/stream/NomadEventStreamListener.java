@@ -13,6 +13,7 @@ import com.pcrm.backend.nomad.stream.dto.NomadEvent;
 import com.pcrm.backend.nomad.stream.dto.NomadEventPayload;
 import com.pcrm.backend.nomad.stream.dto.NomadEventStreamResponse;
 import com.pcrm.backend.quota.service.QuotaAccountingService;
+import com.pcrm.backend.storage.service.JobArtifactService;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -47,6 +48,7 @@ public class NomadEventStreamListener {
     private final JobStateMachine jobStateMachine;
     private final NodeRepository nodeRepository;
     private final QuotaAccountingService quotaAccountingService;
+    private final JobArtifactService jobArtifactService;
     private final JobEventPublisher eventPublisher;
     private final JsonMapper jsonMapper;
     private final TransactionTemplate transactionTemplate;
@@ -65,6 +67,7 @@ public class NomadEventStreamListener {
             JobStateMachine jobStateMachine,
             NodeRepository nodeRepository,
             QuotaAccountingService quotaAccountingService,
+            JobArtifactService jobArtifactService,
             JobEventPublisher eventPublisher,
             JsonMapper jsonMapper,
             TransactionTemplate transactionTemplate) {
@@ -74,6 +77,7 @@ public class NomadEventStreamListener {
         this.jobStateMachine = jobStateMachine;
         this.nodeRepository = nodeRepository;
         this.quotaAccountingService = quotaAccountingService;
+        this.jobArtifactService = jobArtifactService;
         this.eventPublisher = eventPublisher;
         this.jsonMapper = jsonMapper;
         this.transactionTemplate = transactionTemplate;
@@ -251,7 +255,10 @@ public class NomadEventStreamListener {
                     if (currentStatus != newStatus) {
                         var now = OffsetDateTime.now(ZoneOffset.UTC);
                         var terminalReason = determineTerminalReason(alloc, newStatus);
-                        if (jobStateMachine.isTerminal(newStatus)) {
+                        if (newStatus == JobStatus.FINALIZING) {
+                            settleCurrentLeaseIfNeeded(job, now, "Lease settled after workload process completed");
+                            jobArtifactService.markUploading(job);
+                        } else if (jobStateMachine.isTerminal(newStatus)) {
                             settleCurrentLeaseIfNeeded(job, now, "Lease settled after terminal Nomad allocation event");
                         }
                         jobStateMachine.applyNomadTransition(job, newStatus, now, terminalReason);
@@ -314,7 +321,7 @@ public class NomadEventStreamListener {
 
         return switch (clientStatus.toLowerCase()) {
             case "running" -> JobStatus.RUNNING;
-            case "complete" -> JobStatus.SUCCEEDED;
+            case "complete" -> JobStatus.FINALIZING;
             case "failed" -> isInfrastructureFailure(alloc) ? JobStatus.INFRA_FAILED : JobStatus.FAILED;
             case "pending" -> JobStatus.SCHEDULING;
             case "lost" -> JobStatus.INFRA_FAILED;
@@ -327,7 +334,7 @@ public class NomadEventStreamListener {
                         }
                     }
                 }
-                yield JobStatus.SUCCEEDED;
+                yield JobStatus.FINALIZING;
             }
             default -> current;
         };

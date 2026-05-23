@@ -3,6 +3,7 @@ package com.pcrm.backend.storage.resource;
 import com.pcrm.backend.auth.domain.CustomUserDetails;
 import com.pcrm.backend.jobs.service.JobQueryService;
 import com.pcrm.backend.storage.dto.PresignedUrlResponse;
+import com.pcrm.backend.storage.service.JobArtifactService;
 import com.pcrm.backend.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -21,6 +22,7 @@ import java.util.UUID;
 public class StorageResource {
 
     private final StorageService storageService;
+    private final JobArtifactService jobArtifactService;
     private final JobQueryService jobQueryService;
 
     @GetMapping("/{jobId}/artifact-download-url")
@@ -30,8 +32,9 @@ public class StorageResource {
     ) {
         var jobDetails = jobQueryService.getJobDetails(jobId, principal);
         var ownerId = jobDetails.userId();
-        var objectKey = storageService.buildArtifactObjectKey(ownerId, jobId);
-        var downloadUrl = storageService.generatePresignedDownloadUrl(ownerId, jobId);
+        var artifact = jobArtifactService.getVerifiedDownloadableArtifact(jobId, ownerId);
+        var objectKey = artifact.getObjectKey();
+        var downloadUrl = storageService.generatePresignedDownloadUrl(objectKey);
         return new PresignedUrlResponse(downloadUrl, objectKey, storageService.getDownloadTtlSec());
     }
 }

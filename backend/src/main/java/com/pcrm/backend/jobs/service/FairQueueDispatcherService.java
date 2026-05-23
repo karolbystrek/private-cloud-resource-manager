@@ -16,6 +16,7 @@ import com.pcrm.backend.nomad.NomadDispatchRequest;
 import com.pcrm.backend.nomad.NomadDispatchResult;
 import com.pcrm.backend.quota.service.QuotaAccountingService;
 import com.pcrm.backend.quota.service.QuotaFairnessSnapshot;
+import com.pcrm.backend.storage.service.JobArtifactService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,6 +47,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
     private final NodeRepository nodeRepository;
     private final NomadDispatchClient nomadDispatchClient;
     private final QuotaAccountingService quotaAccountingService;
+    private final JobArtifactService jobArtifactService;
     private final EventConsumerDedupeService dedupeService;
     private final JobEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
@@ -247,6 +249,7 @@ public class FairQueueDispatcherService implements OutboxMessageHandler {
             return Optional.empty();
         }
 
+        jobArtifactService.ensurePendingArtifact(job);
         var savedJob = jobStateMachine.markDispatchRequested(job, OffsetDateTime.now(ZoneOffset.UTC));
         log.debug("Requested dispatch for job {} as Nomad job {}", job.getId(), nomadJobId(job));
         return Optional.of(savedJob);

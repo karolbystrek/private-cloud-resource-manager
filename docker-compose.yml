@@ -329,92 +329,47 @@ services:
       RUN_JANITOR: "true"
       DISABLE_HEALTHCHECK_LOGGING: "true"
 
-  # External S3/MinIO compose overlays are not vendored here; see Supabase self-hosting storage docs if you need them.
-  storage:
-    container_name: supabase-storage
-    image: supabase/storage-api:v1.48.26
+  minio:
+    container_name: minio
+    image: minio/minio:latest
     restart: unless-stopped
-    depends_on:
-      db:
-        # Disable this if you are using an external Postgres database
-        condition: service_healthy
-      rest:
-        condition: service_started
-      imgproxy:
-        condition: service_started
+    ports:
+      - ${MINIO_API_PORT:-9000}:9000
+      - ${MINIO_CONSOLE_PORT:-9001}:9001
+    command: server /data --console-address ":9001"
     healthcheck:
       test:
         [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://storage:5000/status"
+          "CMD-SHELL",
+          "curl -f http://localhost:9000/minio/health/live || exit 1"
         ]
       timeout: 5s
       interval: 5s
-      retries: 3
+      retries: 5
       start_period: 10s
     environment:
-      ANON_KEY: ${ANON_KEY}
-      SERVICE_KEY: ${SERVICE_ROLE_KEY}
-      POSTGREST_URL: http://rest:3000
-
-      # Legacy symmetric HS256 key
-      AUTH_JWT_SECRET: ${JWT_SECRET}
-
-      # JWKS for token verification (EC public + legacy symmetric).
-      # For Podman, use: JWT_JWKS: ${JWT_JWKS}
-      #JWT_JWKS: ${JWT_JWKS:-{"keys":[]}}
-
-      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-      STORAGE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
-      REQUEST_ALLOW_X_FORWARDED_PATH: "true"
-      FILE_SIZE_LIMIT: 52428800
-      STORAGE_BACKEND: file
-      # S3 bucket when using S3 backend, directory name when using 'file'
-      GLOBAL_S3_BUCKET: ${GLOBAL_S3_BUCKET}
-      # S3 Backend configuration
-      #GLOBAL_S3_ENDPOINT: https://your-s3-endpoint
-      #GLOBAL_S3_PROTOCOL: https
-      #GLOBAL_S3_FORCE_PATH_STYLE: "true"
-      #AWS_ACCESS_KEY_ID: your-access-key-id
-      #AWS_SECRET_ACCESS_KEY: your-secret-access-key
-      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
-      TENANT_ID: ${STORAGE_TENANT_ID}
-      # TODO: https://github.com/supabase/storage-api/issues/55
-      REGION: ${REGION}
-      ENABLE_IMAGE_TRANSFORMATION: "true"
-      IMGPROXY_URL: http://imgproxy:5001
-      # S3 protocol endpoint configuration
-      S3_PROTOCOL_ACCESS_KEY_ID: ${S3_PROTOCOL_ACCESS_KEY_ID}
-      S3_PROTOCOL_ACCESS_KEY_SECRET: ${S3_PROTOCOL_ACCESS_KEY_SECRET}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
-      - ./volumes/storage:/var/lib/storage:z
+      - ./volumes/minio:/data:z
 
-  imgproxy:
-    container_name: supabase-imgproxy
-    image: darthsim/imgproxy:v3.30.1
-    restart: unless-stopped
-    volumes:
-      - ./volumes/storage:/var/lib/storage:z
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "imgproxy",
-          "health"
-        ]
-      timeout: 5s
-      interval: 5s
-      retries: 3
+  minio-init:
+    container_name: minio-init
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - >
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb --ignore-existing "local/$$GLOBAL_S3_BUCKET"
     environment:
-      IMGPROXY_BIND: ":5001"
-      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /
-      IMGPROXY_USE_ETAG: "true"
-      IMGPROXY_AUTO_WEBP: ${IMGPROXY_AUTO_WEBP}
-      IMGPROXY_MAX_SRC_RESOLUTION: 16.8
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      GLOBAL_S3_BUCKET: ${GLOBAL_S3_BUCKET}
 
   meta:
     container_name: supabase-meta
@@ -685,13 +640,14 @@ services:
     environment:
       JAVA_TOOL_OPTIONS: "-XX:+UseParallelGC -XX:MaxRAMPercentage=60.0 -XX:InitialRAMPercentage=20.0"
       SERVER_PORT: "8080"
+      STORAGE_S3_ENDPOINT: "http://minio:9000"
     volumes:
       - ./nomad:/app/nomad:ro
     depends_on:
       db:
         condition: service_healthy
-      storage:
-        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
       kong:
         condition: service_healthy
     healthcheck:

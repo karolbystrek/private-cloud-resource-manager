@@ -76,7 +76,7 @@ echo ""
 echo "--- Container health ---"
 if command -v docker >/dev/null 2>&1; then
     container_status=$(docker compose ps --format json 2>/dev/null | jq -rs '
-        [.[] | select(.State != "running" or (.Health != "" and .Health != "healthy"))]
+        [.[] | select((.Service != "minio-init" or .State != "exited") and (.State != "running" or (.Health != "" and .Health != "healthy")))]
         | (length | tostring) + "|" + ([.[] | .Service + ": State=" + .State + " Health=" + (.Health // "none")] | join(", "))
     ' 2>/dev/null || echo "?|")
     unhealthy="${container_status%%|*}"
@@ -205,97 +205,7 @@ gql_has_data=$(echo "$gql_resp" | jq -r 'if .data then "true" else "false" end' 
 check "GraphQL introspection" "true" "$gql_has_data"
 
 # ---------------------------------------------
-# 6. Storage: create bucket, upload >6MB file, download, cleanup
-# ---------------------------------------------
-
-echo ""
-echo "--- Storage: bucket + file lifecycle ---"
-
-bucket_name="smoke-test-$$"
-
-# Create bucket
-create_bucket_status=$(http_status "$BASE_URL/storage/v1/bucket" \
-    -X POST \
-    -H "apikey: $SERVICE_ROLE_KEY" \
-    -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
-    -H "Content-Type: application/json" \
-    -d "{\"id\":\"$bucket_name\",\"name\":\"$bucket_name\",\"public\":true}")
-check "Create bucket" "200" "$create_bucket_status"
-
-if [ "$create_bucket_status" = "200" ]; then
-    # Generate a ~7MB file
-    tmpfile=$(mktemp); cleanup_files="$cleanup_files $tmpfile"
-    dd if=/dev/urandom of="$tmpfile" bs=1048576 count=7 2>/dev/null
-
-    # Upload file
-    upload_status=$(http_status "$BASE_URL/storage/v1/object/$bucket_name/test-large-file.bin" \
-        -X POST \
-        -H "apikey: $SERVICE_ROLE_KEY" \
-        -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
-        -H "Content-Type: application/octet-stream" \
-        --data-binary "@$tmpfile")
-    check "Upload 7MB file" "200" "$upload_status"
-
-    # Download file and verify size
-    download_size=$(curl -s \
-        "$BASE_URL/storage/v1/object/public/$bucket_name/test-large-file.bin" | wc -c | tr -d ' ')
-    original_size=$(wc -c < "$tmpfile" | tr -d ' ')
-    check "Download file (size matches)" "true" \
-        "$([ "$download_size" = "$original_size" ] && echo true || echo false)"
-
-    rm -f "$tmpfile"
-
-    # Signed URL: upload a small file, create signed URL, fetch without auth
-    sign_upload_status=$(http_status "$BASE_URL/storage/v1/object/$bucket_name/sign-test.txt" \
-        -X POST \
-        -H "apikey: $SERVICE_ROLE_KEY" \
-        -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
-        -H "Content-Type: text/plain" \
-        --data-binary "signed url test content")
-    check "Upload file for signing" "200" "$sign_upload_status"
-
-    if [ "$sign_upload_status" = "200" ]; then
-        sign_resp=$(http_body "$BASE_URL/storage/v1/object/sign/$bucket_name/sign-test.txt" \
-            -X POST \
-            -H "apikey: $SERVICE_ROLE_KEY" \
-            -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
-            -H "Content-Type: application/json" \
-            -d '{"expiresIn": 600}')
-        signed_path=$(echo "$sign_resp" | jq -r '.signedURL // empty' 2>/dev/null)
-
-        if [ -n "$signed_path" ]; then
-            check "Create signed URL" "true" "true"
-            # Fetch signed URL without any auth headers (goes through Kong)
-            signed_content=$(curl -s "$BASE_URL/storage/v1$signed_path")
-            check "Fetch signed URL (no auth)" "signed url test content" "$signed_content"
-        else
-            check "Create signed URL" "true" "false"
-        fi
-    fi
-
-    # Delete file
-    delete_file_status=$(http_status "$BASE_URL/storage/v1/object/$bucket_name/test-large-file.bin" \
-        -X DELETE \
-        -H "apikey: $SERVICE_ROLE_KEY" \
-        -H "Authorization: Bearer $SERVICE_ROLE_KEY")
-    check "Delete file" "200" "$delete_file_status"
-
-    # Delete signed test file
-    http_status "$BASE_URL/storage/v1/object/$bucket_name/sign-test.txt" \
-        -X DELETE \
-        -H "apikey: $SERVICE_ROLE_KEY" \
-        -H "Authorization: Bearer $SERVICE_ROLE_KEY" >/dev/null 2>&1
-
-    # Delete bucket
-    delete_bucket_status=$(http_status "$BASE_URL/storage/v1/bucket/$bucket_name" \
-        -X DELETE \
-        -H "apikey: $SERVICE_ROLE_KEY" \
-        -H "Authorization: Bearer $SERVICE_ROLE_KEY")
-    check "Delete bucket" "200" "$delete_bucket_status"
-fi
-
-# ---------------------------------------------
-# 7. Edge Functions
+# 6. Edge Functions
 # ---------------------------------------------
 
 echo ""
@@ -308,7 +218,7 @@ fn_resp=$(http_body "$BASE_URL/functions/v1/hello" \
 check "Call hello function" '"Hello from Edge Functions!"' "$fn_resp"
 
 # ---------------------------------------------
-# 8. pg-meta (Studio backend)
+# 7. pg-meta (Studio backend)
 # ---------------------------------------------
 
 echo ""

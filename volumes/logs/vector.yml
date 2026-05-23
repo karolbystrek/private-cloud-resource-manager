@@ -34,7 +34,6 @@ transforms:
       auth: '.appname == "supabase-auth"'
       rest: '.appname == "supabase-rest"'
       realtime: '.appname == "realtime-dev.supabase-realtime"'
-      storage: '.appname == "supabase-storage"'
       functions: '.appname == "supabase-edge-functions"'
       db: '.appname == "supabase-db"'
   # Ignores non nginx errors since they are related with kong booting up
@@ -133,22 +132,6 @@ transforms:
       - router.functions
     source: |-
       .metadata.project_ref = del(.project)
-  # Storage logs may contain json objects so we parse them for completeness
-  storage_logs:
-    type: remap
-    inputs:
-      - router.storage
-    source: |-
-      .metadata.project = del(.project)
-      .metadata.tenantId = .metadata.project
-      parsed, err = parse_json(.event_message)
-      if err == null {
-          .event_message = parsed.msg
-          .metadata.level = parsed.level
-          .metadata.timestamp = parsed.time
-          .metadata.context[0].host = parsed.hostname
-          .metadata.context[0].pid = parsed.pid
-      }
   # Postgres logs some messages to stderr which we map to warning severity level
   db_logs:
     type: remap
@@ -239,19 +222,6 @@ sinks:
       headers:
         x-api-key: ${LOGFLARE_PUBLIC_ACCESS_TOKEN?LOGFLARE_PUBLIC_ACCESS_TOKEN is required}
     uri: 'http://analytics:4000/api/logs?source_name=deno-relay-logs'
-  logflare_storage:
-    type: 'http'
-    inputs:
-      - storage_logs
-    encoding:
-      codec: 'json'
-    method: 'post'
-    request:
-      retry_max_duration_secs: 30
-      retry_initial_backoff_secs: 1
-      headers:
-        x-api-key: ${LOGFLARE_PUBLIC_ACCESS_TOKEN?LOGFLARE_PUBLIC_ACCESS_TOKEN is required}
-    uri: 'http://analytics:4000/api/logs?source_name=storage.logs.prod.2'
   logflare_kong:
     type: 'http'
     inputs:

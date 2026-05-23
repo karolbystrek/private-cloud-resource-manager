@@ -43,7 +43,7 @@ export function JobCommandFields({
         <Input
           id="executionCommand"
           name="executionCommand"
-          placeholder="python train_model.py --epochs 10"
+          placeholder='python train_model.py --epochs 10 --output "$OUTPUT_DIR"'
           required
           className="font-mono"
           value={executionCommand}
