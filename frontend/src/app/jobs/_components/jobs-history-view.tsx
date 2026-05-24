@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { formatLocalDateTime } from '@/lib/date-time';
 import { formatMinutesAsHoursAndMinutes } from '@/lib/duration';
-import type { JobHistorySortDirection, JobsPageResponse, JobStatus } from './types';
+import type { GpuRequirement, JobHistorySortDirection, JobsPageResponse, JobStatus } from './types';
 
 type JobsHistoryViewProps = {
   jobsPage: JobsPageResponse;
@@ -58,6 +58,21 @@ function formatCommandPreview(command: string): string {
     return command;
   }
   return `${command.slice(0, 77)}...`;
+}
+
+function formatGpuRequirement(gpuRequirement: GpuRequirement): string {
+  if (!gpuRequirement.enabled) {
+    return 'None';
+  }
+
+  const details = [`${gpuRequirement.count} NVIDIA`];
+  if (gpuRequirement.minMemoryGb) {
+    details.push(`${gpuRequirement.minMemoryGb} GB VRAM`);
+  }
+  if (gpuRequirement.model) {
+    details.push(gpuRequirement.model);
+  }
+  return details.join(' / ');
 }
 
 function toggleStatus(current: JobStatus[], status: JobStatus): JobStatus[] {
@@ -133,6 +148,11 @@ export function JobsHistoryView({ jobsPage, statusFilters }: JobsHistoryViewProp
                     {job.reqRamGb}
                     {' '}
                     GB
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">GPU:</span>
+                    {' '}
+                    {formatGpuRequirement(job.gpuRequirement)}
                   </p>
                   <p>
                     <span className="text-muted-foreground">Consumed:</span>

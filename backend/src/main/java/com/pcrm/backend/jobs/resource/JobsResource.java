@@ -2,6 +2,7 @@ package com.pcrm.backend.jobs.resource;
 
 import com.pcrm.backend.auth.domain.CustomUserDetails;
 import com.pcrm.backend.jobs.domain.JobStatus;
+import com.pcrm.backend.jobs.dto.GpuOptionResponse;
 import com.pcrm.backend.jobs.dto.JobDetailsResponse;
 import com.pcrm.backend.jobs.dto.JobLogsResponse;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
@@ -12,6 +13,7 @@ import com.pcrm.backend.jobs.service.JobLogStreamType;
 import com.pcrm.backend.jobs.service.JobLogsService;
 import com.pcrm.backend.jobs.service.JobQueryService;
 import com.pcrm.backend.jobs.service.JobSubmissionService;
+import com.pcrm.backend.nodes.service.GpuCatalogService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -41,6 +43,7 @@ public class JobsResource {
     private final JobQueryService jobQueryService;
     private final JobLogsService jobLogsService;
     private final JobDetailsStreamService jobDetailsStreamService;
+    private final GpuCatalogService gpuCatalogService;
 
     @GetMapping
     public JobsPageResponse listJobs(
@@ -52,6 +55,11 @@ public class JobsResource {
     ) {
         var sortDirection = parseSortDirection(sort);
         return jobQueryService.listUserJobs(principal.id(), page, size, sortDirection, statuses);
+    }
+
+    @GetMapping("/gpu-options")
+    public List<GpuOptionResponse> listGpuOptions() {
+        return gpuCatalogService.listAvailableGpuOptions();
     }
 
     @GetMapping("/{id}")

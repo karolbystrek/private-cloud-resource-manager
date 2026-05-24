@@ -1,5 +1,6 @@
 package com.pcrm.backend.nomad;
 
+import java.util.List;
 import java.util.UUID;
 
 public record NomadNodeSnapshot(
@@ -20,6 +21,7 @@ public record NomadNodeSnapshot(
         Long nomadModifyIndex,
         int totalCpuCores,
         int totalRamMb,
-        String agentVersion
+        String agentVersion,
+        List<NomadGpuDeviceSnapshot> gpuDevices
 ) {
 }

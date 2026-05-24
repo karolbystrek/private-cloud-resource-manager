@@ -2,7 +2,9 @@ package com.pcrm.backend.nodes.service;
 
 import com.pcrm.backend.exception.ResourceNotFoundException;
 import com.pcrm.backend.nodes.dto.NodeDetailsResponse;
+import com.pcrm.backend.nodes.dto.NodeGpuDeviceResponse;
 import com.pcrm.backend.nodes.dto.NodeResponse;
+import com.pcrm.backend.nodes.repository.NodeGpuDeviceRepository;
 import com.pcrm.backend.nodes.repository.NodeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,19 +17,27 @@ import java.util.List;
 public class NodeQueryService {
 
     private final NodeRepository nodeRepository;
+    private final NodeGpuDeviceRepository nodeGpuDeviceRepository;
 
     @Transactional(readOnly = true)
     public List<NodeResponse> listNodes() {
         return nodeRepository.findAllByOrderByHostnameAsc()
                 .stream()
-                .map(NodeResponse::toNodeResponse)
+                .map(node -> NodeResponse.toNodeResponse(
+                        node,
+                        nodeGpuDeviceRepository.findByNodeIdOrderByModelAscDeviceIdAsc(node.getId()).size()
+                ))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public NodeDetailsResponse getNodeDetails(String nodeId) {
-        return nodeRepository.findById(nodeId)
-                .map(NodeDetailsResponse::toNodeDetailsResponse)
+        var node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Node", "id", nodeId));
+        var gpuDevices = nodeGpuDeviceRepository.findByNodeIdOrderByModelAscDeviceIdAsc(nodeId)
+                .stream()
+                .map(NodeGpuDeviceResponse::from)
+                .toList();
+        return NodeDetailsResponse.toNodeDetailsResponse(node, gpuDevices);
     }
 }

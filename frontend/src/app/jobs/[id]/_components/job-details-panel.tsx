@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
 import { RiArrowLeftLine, RiDownloadLine, RiFileCopyLine, RiRefreshLine } from '@remixicon/react';
 import Link from 'next/link';
-import type { JobDetails, JobStatus } from '@/app/jobs/_components/types';
+import type { GpuRequirement, JobDetails, JobStatus } from '@/app/jobs/_components/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -63,6 +63,21 @@ function formatDateForUser(value: Date | string | null | undefined, isClient: bo
     return '-';
   }
   return formatLocalDateTime(value);
+}
+
+function formatGpuRequirement(gpuRequirement: GpuRequirement): string {
+  if (!gpuRequirement.enabled) {
+    return 'None';
+  }
+
+  const details = [`${gpuRequirement.count} NVIDIA GPU${gpuRequirement.count === 1 ? '' : 's'}`];
+  if (gpuRequirement.minMemoryGb) {
+    details.push(`>= ${gpuRequirement.minMemoryGb} GB VRAM`);
+  }
+  if (gpuRequirement.model) {
+    details.push(gpuRequirement.model);
+  }
+  return details.join(' / ');
 }
 
 function FieldRow({ label, value }: FieldRowProps) {
@@ -254,6 +269,11 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
           <CardContent>
             <FieldRow label="CPU (Cores)" value={job.reqCpuCores} />
             <FieldRow label="RAM (GB)" value={job.reqRamGb} />
+            <FieldRow label="GPU" value={formatGpuRequirement(job.gpuRequirement)} />
+            <FieldRow
+              label="Quota Units"
+              value={`${job.quotaBreakdown.totalUnits} total (${job.quotaBreakdown.cpuUnits} CPU / ${job.quotaBreakdown.ramUnits} RAM / ${job.quotaBreakdown.gpuUnits} GPU)`}
+            />
             <FieldRow
               label="Consumed Time"
               value={formatMinutesAsHoursAndMinutes(job.totalConsumedMinutes)}

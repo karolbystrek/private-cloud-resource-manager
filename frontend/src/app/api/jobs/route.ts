@@ -7,7 +7,16 @@ type JobSubmissionBody = {
   executionCommand: string;
   reqCpuCores: number;
   reqRamGb: number;
+  gpuRequirement: GpuRequirementBody;
   envVars: Record<string, string>;
+};
+
+type GpuRequirementBody = {
+  enabled: boolean;
+  count: number;
+  vendor: 'nvidia' | null;
+  minMemoryGb: number | null;
+  model: string | null;
 };
 
 type JobSubmissionResponse = {
@@ -39,6 +48,12 @@ const validFields = new Set([
   'executionCommand',
   'reqCpuCores',
   'reqRamGb',
+  'gpuRequirement',
+  'gpuRequirement.enabled',
+  'gpuRequirement.count',
+  'gpuRequirement.vendor',
+  'gpuRequirement.minMemoryGb',
+  'gpuRequirement.model',
   'envVars',
 ]);
 
@@ -80,6 +95,61 @@ function toNumber(value: unknown): number {
   return Number.NaN;
 }
 
+function parseOptionalNumber(value: unknown): number | null | undefined {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const parsed = toNumber(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function parseGpuRequirement(value: unknown): GpuRequirementBody | null {
+  if (value === null || value === undefined) {
+    return {
+      enabled: false,
+      count: 0,
+      vendor: null,
+      minMemoryGb: null,
+      model: null,
+    };
+  }
+
+  if (!isRecord(value) || typeof value.enabled !== 'boolean') {
+    return null;
+  }
+
+  if (!value.enabled) {
+    return {
+      enabled: false,
+      count: 0,
+      vendor: null,
+      minMemoryGb: null,
+      model: null,
+    };
+  }
+
+  const count = toNumber(value.count);
+  const minMemoryGb = parseOptionalNumber(value.minMemoryGb);
+  const model = typeof value.model === 'string' && value.model.trim()
+    ? value.model.trim()
+    : null;
+  const vendor = typeof value.vendor === 'string' && value.vendor.trim()
+    ? value.vendor.trim().toLowerCase()
+    : 'nvidia';
+
+  if (Number.isNaN(count) || minMemoryGb === undefined || vendor !== 'nvidia') {
+    return null;
+  }
+
+  return {
+    enabled: true,
+    count,
+    vendor: 'nvidia',
+    minMemoryGb,
+    model,
+  };
+}
+
 function parseBody(rawBody: unknown): JobSubmissionBody | null {
   if (!rawBody || typeof rawBody !== 'object') {
     return null;
@@ -88,6 +158,7 @@ function parseBody(rawBody: unknown): JobSubmissionBody | null {
   const body = rawBody as Record<string, unknown>;
   const reqCpuCores = toNumber(body.reqCpuCores);
   const reqRamGb = toNumber(body.reqRamGb);
+  const gpuRequirement = parseGpuRequirement(body.gpuRequirement);
   const envVars = parseEnvVars(body.envVars);
 
   if (
@@ -95,6 +166,7 @@ function parseBody(rawBody: unknown): JobSubmissionBody | null {
     || typeof body.executionCommand !== 'string'
     || Number.isNaN(reqCpuCores)
     || Number.isNaN(reqRamGb)
+    || gpuRequirement === null
     || envVars === null
   ) {
     return null;
@@ -105,6 +177,7 @@ function parseBody(rawBody: unknown): JobSubmissionBody | null {
     executionCommand: body.executionCommand,
     reqCpuCores,
     reqRamGb,
+    gpuRequirement,
     envVars,
   };
 }

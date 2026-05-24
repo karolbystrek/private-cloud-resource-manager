@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { RiAlertLine, RiArrowRightLine, RiServerLine } from '@remixicon/react';
+import { RiAlertLine, RiArrowRightLine, RiScales3Line, RiServerLine } from '@remixicon/react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { NodeSummary } from '@/app/nodes/_components/types';
@@ -140,6 +140,7 @@ export default async function AdminDashboardPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               <Button asChild className="w-full justify-between"><Link href="/nodes">Inspect All Nodes<RiArrowRightLine size={14} /></Link></Button>
+              <Button asChild variant="outline" className="w-full justify-between"><Link href="/admin/resource-weights">Resource Weights<RiScales3Line size={14} /></Link></Button>
               <Button asChild variant="outline" className="w-full justify-between"><Link href="/jobs">Review Jobs<RiArrowRightLine size={14} /></Link></Button>
             </CardContent>
           </Card>

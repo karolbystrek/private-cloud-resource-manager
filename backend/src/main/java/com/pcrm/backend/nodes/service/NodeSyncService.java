@@ -1,5 +1,7 @@
 package com.pcrm.backend.nodes.service;
 
+import com.pcrm.backend.nodes.domain.NodeGpuDevice;
+import com.pcrm.backend.nodes.repository.NodeGpuDeviceRepository;
 import com.pcrm.backend.nodes.repository.NodeRepository;
 import com.pcrm.backend.nomad.NomadNodeClient;
 import com.pcrm.backend.nomad.NomadNodeSnapshot;
@@ -13,12 +15,14 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Slf4j
 @Service
 public class NodeSyncService {
 
     private final NodeRepository nodeRepository;
+    private final NodeGpuDeviceRepository nodeGpuDeviceRepository;
     private final NomadNodeClient nomadNodeClient;
     private final boolean syncEnabled;
     private final long staleTimeoutSec;
@@ -27,12 +31,14 @@ public class NodeSyncService {
 
     public NodeSyncService(
             NodeRepository nodeRepository,
+            NodeGpuDeviceRepository nodeGpuDeviceRepository,
             NomadNodeClient nomadNodeClient,
             PlatformTransactionManager transactionManager,
             @Value("${app.nomad.sync.enabled}") boolean syncEnabled,
             @Value("${app.nomad.sync.stale-timeout-sec}") long staleTimeoutSec
     ) {
         this.nodeRepository = nodeRepository;
+        this.nodeGpuDeviceRepository = nodeGpuDeviceRepository;
         this.nomadNodeClient = nomadNodeClient;
         this.syncEnabled = syncEnabled;
         this.staleTimeoutSec = staleTimeoutSec;
@@ -95,5 +101,23 @@ public class NodeSyncService {
                 snapshot.agentVersion(),
                 now
         );
+        nodeGpuDeviceRepository.deleteByNodeId(snapshot.id());
+        var gpuDevices = snapshot.gpuDevices() == null
+                ? java.util.List.<NodeGpuDevice>of()
+                : snapshot.gpuDevices().stream()
+                .map(device -> NodeGpuDevice.builder()
+                        .id(UUID.randomUUID())
+                        .nodeId(snapshot.id())
+                        .deviceId(device.deviceId())
+                        .vendor(device.vendor())
+                        .type(device.type())
+                        .model(device.model())
+                        .memoryMiB(device.memoryMiB())
+                        .health(device.health())
+                        .driverVersion(device.driverVersion())
+                        .lastSeenAt(now)
+                        .build())
+                .toList();
+        nodeGpuDeviceRepository.saveAll(gpuDevices);
     }
 }

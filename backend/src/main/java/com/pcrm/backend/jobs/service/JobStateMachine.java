@@ -14,11 +14,11 @@ public class JobStateMachine {
 
     private final JobRepository jobRepository;
 
-    public Job markQueued(Job job, OffsetDateTime now, long reservedMinutes) {
+    public Job markQueued(Job job, OffsetDateTime now, long reservedMinutes, long leaseMinutes) {
         job.setStatus(JobStatus.QUEUED);
         job.setQueuedAt(now);
         job.setCurrentLeaseReservedMinutes(reservedMinutes);
-        job.setActiveLeaseExpiresAt(now.plusMinutes(reservedMinutes));
+        job.setActiveLeaseExpiresAt(now.plusMinutes(leaseMinutes));
         job.setLeaseSequence(1L);
         job.setLeaseSettled(false);
         return save(job);

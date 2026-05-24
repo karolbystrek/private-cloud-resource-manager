@@ -14,10 +14,11 @@ public record NodeResponse(
         NodeStatus status,
         int totalCpuCores,
         int totalRamMb,
+        int totalGpuCount,
         OffsetDateTime lastHeartbeat
 ) {
 
-    public static NodeResponse toNodeResponse(Node node) {
+    public static NodeResponse toNodeResponse(Node node, int totalGpuCount) {
         return new NodeResponse(
                 node.getId(),
                 node.getNomadNodeId(),
@@ -26,6 +27,7 @@ public record NodeResponse(
                 node.getStatus(),
                 node.getTotalCpuCores(),
                 node.getTotalRamMb(),
+                totalGpuCount,
                 node.getLastHeartbeat()
         );
     }

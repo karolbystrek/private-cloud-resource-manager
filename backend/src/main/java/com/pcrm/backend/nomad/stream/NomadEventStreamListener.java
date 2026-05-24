@@ -405,13 +405,15 @@ public class NomadEventStreamListener {
             return 0L;
         }
 
+        long totalUnits = Math.max(1L, quotaAccountingService.getJobTotalUnits(job));
+        long reservedRealMinutes = Math.max(1L, (reservedMinutes + totalUnits - 1L) / totalUnits);
         var leaseStart = job.getActiveLeaseExpiresAt() != null
-                ? job.getActiveLeaseExpiresAt().minusMinutes(reservedMinutes)
+                ? job.getActiveLeaseExpiresAt().minusMinutes(reservedRealMinutes)
                 : job.getStartedAt();
         var effectiveStart = leaseStart.isAfter(job.getStartedAt()) ? leaseStart : job.getStartedAt();
         long elapsedSeconds = Math.max(0L, Duration.between(effectiveStart, now).getSeconds());
         long roundedUpMinutes = (elapsedSeconds + 59L) / 60L;
-        return Math.min(reservedMinutes, roundedUpMinutes);
+        return Math.min(reservedMinutes, roundedUpMinutes * totalUnits);
     }
 
     private Map<String, Object> nomadPayload(NomadEventPayload.NomadEventAllocation alloc) {

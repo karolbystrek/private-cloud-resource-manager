@@ -51,6 +51,13 @@ Optional HTTPS to the same gateway: `https://localhost:8443` when `KONG_HTTPS_PO
 `GLOBAL_S3_BUCKET` in your `.env`. To use admin APIs, set `profiles.role` to `ADMIN` for your user id (`auth.users.id`)
 in Postgres.
 
+## GPU-capable Nomad nodes
+
+GPU jobs require Nomad client nodes with NVIDIA device support enabled. Each GPU node should run Linux, have a supported
+NVIDIA GPU, a working NVIDIA driver with `nvidia-smi`, Docker 19.03 or newer, NVIDIA Container Toolkit, and the Nomad
+NVIDIA device plugin enabled. Users submit structured GPU requirements only; the control plane renders the Nomad
+`device "nvidia/gpu"` block.
+
 ## Supabase Dashboard (Studio)
 
 Studio is served through Kong, not on its own port. **Use the public URL from your `.env`:** `SUPABASE_PUBLIC_URL` and

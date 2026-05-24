@@ -4,6 +4,7 @@ import com.pcrm.backend.nodes.domain.Node;
 import com.pcrm.backend.nodes.domain.NodeStatus;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record NodeDetailsResponse(
@@ -25,12 +26,13 @@ public record NodeDetailsResponse(
         Long nomadModifyIndex,
         int totalCpuCores,
         int totalRamMb,
+        List<NodeGpuDeviceResponse> gpuDevices,
         String agentVersion,
         OffsetDateTime lastHeartbeat,
         OffsetDateTime createdAt
 ) {
 
-    public static NodeDetailsResponse toNodeDetailsResponse(Node node) {
+    public static NodeDetailsResponse toNodeDetailsResponse(Node node, List<NodeGpuDeviceResponse> gpuDevices) {
         return new NodeDetailsResponse(
                 node.getId(),
                 node.getNomadNodeId(),
@@ -50,6 +52,7 @@ public record NodeDetailsResponse(
                 node.getNomadModifyIndex(),
                 node.getTotalCpuCores(),
                 node.getTotalRamMb(),
+                gpuDevices,
                 node.getAgentVersion(),
                 node.getLastHeartbeat(),
                 node.getCreatedAt()

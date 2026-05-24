@@ -179,6 +179,9 @@ export function NodesList({ initialNodes, pollIntervalMs, initialUpdatedAt }: No
                   GB
                 </p>
                 <p>
+                  <span className="text-muted-foreground">GPU:</span> {node.totalGpuCount}
+                </p>
+                <p>
                   <span className="text-muted-foreground">Heartbeat:</span>{' '}
                   {formatHeartbeat(node.lastHeartbeat, isClient)}
                 </p>

@@ -1,6 +1,7 @@
 package com.pcrm.backend.nomad.http;
 
 import com.pcrm.backend.exception.NomadDispatchException;
+import com.pcrm.backend.jobs.dto.GpuRequirement;
 import com.pcrm.backend.nomad.NomadDispatchClient;
 import com.pcrm.backend.nomad.NomadDispatchRequest;
 import com.pcrm.backend.nomad.NomadDispatchResult;
@@ -43,35 +44,7 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
             return new NomadDispatchResult(request.nomadJobId(), null);
         }
 
-        StringBuilder envVars = new StringBuilder();
-        if (request.envVars() != null) {
-            request.envVars().forEach((key, value) -> envVars.append(key)
-                    .append(" = \"")
-                    .append(escapeHcl(value))
-                    .append("\"\n        "));
-        }
-
-        String artifactObjectKey = storageService.buildArtifactObjectKey(request.userId(), request.jobId());
-        String artifactUploadUrl = storageService.generatePresignedUploadUrl(request.userId(), request.jobId());
-
-        String renderedHcl = hclTemplate
-                .replace("{{NOMAD_JOB_ID}}", escapeHcl(request.nomadJobId()))
-                .replace("{{USER_ID}}", request.userId().toString())
-                .replace("{{JOB_ID}}", request.jobId().toString())
-                .replace("{{TRACE_ID}}", valueOrEmpty(request.correlationId()))
-                .replace("{{CORRELATION_ID}}", valueOrEmpty(request.correlationId()))
-                .replace("{{DOCKER_IMAGE}}", escapeHcl(request.dockerImage()))
-                .replace("{{EXECUTION_COMMAND}}", escapeHcl(request.executionCommand()))
-                .replace("{{CORES}}", request.reqCpuCores().toString())
-                .replace("{{MEMORY_MB}}", String.valueOf(request.reqRamGb() * 1024))
-                .replace("{{ARTIFACT_OBJECT_KEY}}", escapeHcl(artifactObjectKey))
-                .replace("{{ARTIFACT_UPLOAD_URL}}", escapeHcl(artifactUploadUrl))
-                .replace("{{DOCKER_COMPOSE_NETWORK}}", escapeHcl(dockerComposeNetwork))
-                .replace("{{ENV_VARS}}", envVars.toString());
-
-        if (renderedHcl.contains("{{")) {
-            throw new NomadDispatchException("Rendered Nomad job template contains unresolved placeholders");
-        }
+        String renderedHcl = renderJobHcl(request);
 
         try {
             var parsedResponse = restClient.post()
@@ -129,6 +102,77 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
         if (!request.jobId().toString().equals(existingJobId == null ? null : existingJobId.toString())) {
             throw new NomadDispatchException("Existing Nomad job metadata does not match job " + request.jobId());
         }
+    }
+
+    String renderJobHcl(NomadDispatchRequest request) {
+        StringBuilder envVars = new StringBuilder();
+        if (request.envVars() != null) {
+            request.envVars().forEach((key, value) -> envVars.append(key)
+                    .append(" = \"")
+                    .append(escapeHcl(value))
+                    .append("\"\n        "));
+        }
+
+        String artifactObjectKey = storageService.buildArtifactObjectKey(request.userId(), request.jobId());
+        String artifactUploadUrl = storageService.generatePresignedUploadUrl(request.userId(), request.jobId());
+
+        String renderedHcl = hclTemplate
+                .replace("{{NOMAD_JOB_ID}}", escapeHcl(request.nomadJobId()))
+                .replace("{{USER_ID}}", request.userId().toString())
+                .replace("{{JOB_ID}}", request.jobId().toString())
+                .replace("{{TRACE_ID}}", valueOrEmpty(request.correlationId()))
+                .replace("{{CORRELATION_ID}}", valueOrEmpty(request.correlationId()))
+                .replace("{{DOCKER_IMAGE}}", escapeHcl(request.dockerImage()))
+                .replace("{{EXECUTION_COMMAND}}", escapeHcl(request.executionCommand()))
+                .replace("{{CORES}}", request.reqCpuCores().toString())
+                .replace("{{MEMORY_MB}}", String.valueOf(request.reqRamGb() * 1024))
+                .replace("{{GPU_DEVICE_BLOCK}}", renderGpuDeviceBlock(request.gpuRequirement()))
+                .replace("{{ARTIFACT_OBJECT_KEY}}", escapeHcl(artifactObjectKey))
+                .replace("{{ARTIFACT_UPLOAD_URL}}", escapeHcl(artifactUploadUrl))
+                .replace("{{DOCKER_COMPOSE_NETWORK}}", escapeHcl(dockerComposeNetwork))
+                .replace("{{ENV_VARS}}", envVars.toString());
+
+        if (renderedHcl.contains("{{")) {
+            throw new NomadDispatchException("Rendered Nomad job template contains unresolved placeholders");
+        }
+
+        return renderedHcl;
+    }
+
+    private String renderGpuDeviceBlock(GpuRequirement rawRequirement) {
+        var requirement = rawRequirement == null ? GpuRequirement.disabled() : rawRequirement.normalized();
+        if (!requirement.requested()) {
+            return "";
+        }
+
+        var block = new StringBuilder()
+                .append("        device \"nvidia/gpu\" {\n")
+                .append("          count = ")
+                .append(requirement.count())
+                .append("\n");
+
+        if (requirement.minMemoryGb() != null) {
+            block.append("\n")
+                    .append("          constraint {\n")
+                    .append("            attribute = \"${device.attr.memory}\"\n")
+                    .append("            operator  = \">=\"\n")
+                    .append("            value     = \"")
+                    .append(requirement.minMemoryGb())
+                    .append(" GiB\"\n")
+                    .append("          }\n");
+        }
+
+        if (requirement.model() != null) {
+            block.append("\n")
+                    .append("          constraint {\n")
+                    .append("            attribute = \"${device.model}\"\n")
+                    .append("            value     = \"")
+                    .append(escapeHcl(requirement.model()))
+                    .append("\"\n")
+                    .append("          }\n");
+        }
+
+        return block.append("        }").toString();
     }
 
     private String escapeHcl(String input) {

@@ -6,6 +6,7 @@ import com.pcrm.backend.events.service.OutboxMessageHandler;
 import com.pcrm.backend.events.service.OutboxTopics;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
+import com.pcrm.backend.jobs.dto.GpuRequirement;
 import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.nodes.domain.NodeStatus;
 import com.pcrm.backend.nodes.repository.NodeRepository;
@@ -194,6 +195,7 @@ public class FifoJobDispatcherService implements OutboxMessageHandler {
                 job.getExecutionCommand(),
                 job.getReqCpuCores(),
                 job.getReqRamGb(),
+                GpuRequirement.fromJob(job),
                 deserializeEnvVars(job),
                 correlationId
         );

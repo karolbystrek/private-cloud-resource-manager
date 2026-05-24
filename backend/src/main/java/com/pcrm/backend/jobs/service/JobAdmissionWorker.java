@@ -68,7 +68,7 @@ public class JobAdmissionWorker implements OutboxMessageHandler {
                 "Initial lease reserved during admission"
         );
 
-        jobStateMachine.markQueued(job, now, reservedMinutes);
+        jobStateMachine.markQueued(job, now, reservedMinutes, quotaAccountingService.getLeaseMinutes());
 
         outboxPublisher.jobQueued(job, correlationId);
         log.debug("Admitted job {} with {} reserved minutes", job.getId(), reservedMinutes);

@@ -2,6 +2,8 @@ package com.pcrm.backend.nomad.http;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.pcrm.backend.nomad.NomadGpuDeviceSnapshot;
 import com.pcrm.backend.nomad.NomadNodeClient;
 import com.pcrm.backend.nomad.NomadNodeSnapshot;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +14,7 @@ import org.springframework.web.client.RestClientResponseException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -87,6 +90,7 @@ public class NomadHttpNodeClient implements NomadNodeClient {
                 ? Optional.ofNullable(details.nodeResources().memory().memoryMb()).orElse(1) : 1;
 
         String dockerVersion = resolveDockerVersion(details.drivers());
+        List<NomadGpuDeviceSnapshot> gpuDevices = resolveGpuDevices(details.nodeResources(), details.attributes());
 
         return new NomadNodeSnapshot(
                 customNodeId,
@@ -106,8 +110,99 @@ public class NomadHttpNodeClient implements NomadNodeClient {
                 Optional.ofNullable(details.modifyIndex()).orElse(summary.modifyIndex()),
                 cpuCores,
                 ramMb,
-                Optional.ofNullable(summary.version()).orElse(dockerVersion)
+                Optional.ofNullable(summary.version()).orElse(dockerVersion),
+                gpuDevices
         );
+    }
+
+    private List<NomadGpuDeviceSnapshot> resolveGpuDevices(
+            NomadNodeResources nodeResources,
+            Map<String, String> nodeAttributes
+    ) {
+        if (nodeResources == null || nodeResources.devices() == null) {
+            return List.of();
+        }
+
+        List<NomadGpuDeviceSnapshot> devices = new ArrayList<>();
+        for (NomadDeviceResource device : nodeResources.devices()) {
+            if (device.vendor() == null || device.type() == null) {
+                continue;
+            }
+            if (!"nvidia".equalsIgnoreCase(device.vendor()) || !"gpu".equalsIgnoreCase(device.type())) {
+                continue;
+            }
+
+            String model = Optional.ofNullable(device.name()).orElse("NVIDIA GPU");
+            Integer memoryMiB = resolveMemoryMiB(device.attributes());
+            String driverVersion = nodeAttributes == null ? null : nodeAttributes.get("driver.nvidia.version");
+            var instances = device.instances();
+
+            if (instances == null || instances.isEmpty()) {
+                devices.add(new NomadGpuDeviceSnapshot(
+                        device.vendor().toLowerCase(Locale.ROOT) + ":" + model,
+                        device.vendor().toLowerCase(Locale.ROOT),
+                        device.type().toLowerCase(Locale.ROOT),
+                        model,
+                        memoryMiB,
+                        null,
+                        driverVersion
+                ));
+                continue;
+            }
+
+            for (NomadDeviceInstance instance : instances) {
+                devices.add(new NomadGpuDeviceSnapshot(
+                        Optional.ofNullable(instance.id()).orElse(model),
+                        device.vendor().toLowerCase(Locale.ROOT),
+                        device.type().toLowerCase(Locale.ROOT),
+                        model,
+                        memoryMiB,
+                        Boolean.TRUE.equals(instance.healthy()) ? "healthy" : "unhealthy",
+                        driverVersion
+                ));
+            }
+        }
+
+        return devices;
+    }
+
+    private Integer resolveMemoryMiB(Map<String, JsonNode> attributes) {
+        if (attributes == null) {
+            return null;
+        }
+
+        JsonNode memory = attributes.get("memory");
+        if (memory == null || memory.isNull()) {
+            memory = attributes.get("device.attr.memory");
+        }
+        if (memory == null || memory.isNull()) {
+            return null;
+        }
+
+        if (memory.isNumber()) {
+            return memory.asInt();
+        }
+
+        JsonNode intValue = memory.get("Int");
+        if (intValue != null && intValue.isNumber()) {
+            return intValue.asInt();
+        }
+
+        JsonNode floatValue = memory.get("Float");
+        if (floatValue != null && floatValue.isNumber()) {
+            return (int) Math.round(floatValue.asDouble());
+        }
+
+        JsonNode stringValue = memory.get("String");
+        if (stringValue != null && stringValue.isTextual()) {
+            try {
+                return Integer.parseInt(stringValue.asText());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     private String resolveIpAddress(String httpAddr, String addressFallback) {
@@ -190,7 +285,25 @@ public class NomadHttpNodeClient implements NomadNodeClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record NomadNodeResources(
             @JsonProperty("Cpu") NomadCpuResources cpu,
-            @JsonProperty("Memory") NomadMemoryResources memory
+            @JsonProperty("Memory") NomadMemoryResources memory,
+            @JsonProperty("Devices") List<NomadDeviceResource> devices
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record NomadDeviceResource(
+            @JsonProperty("Vendor") String vendor,
+            @JsonProperty("Type") String type,
+            @JsonProperty("Name") String name,
+            @JsonProperty("Attributes") Map<String, JsonNode> attributes,
+            @JsonProperty("Instances") List<NomadDeviceInstance> instances
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record NomadDeviceInstance(
+            @JsonProperty("ID") String id,
+            @JsonProperty("Healthy") Boolean healthy
     ) {
     }
 

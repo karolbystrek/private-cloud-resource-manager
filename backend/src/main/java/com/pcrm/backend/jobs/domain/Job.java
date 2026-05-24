@@ -44,9 +44,42 @@ public class Job {
     @Column(name = "req_ram_gb", nullable = false)
     private Integer reqRamGb;
 
+    @Column(name = "gpu_enabled", nullable = false)
+    @Builder.Default
+    private Boolean gpuEnabled = false;
+
+    @Column(name = "gpu_count", nullable = false)
+    @Builder.Default
+    private Integer gpuCount = 0;
+
+    @Column(name = "gpu_vendor", length = 40)
+    private String gpuVendor;
+
+    @Column(name = "gpu_min_memory_gb")
+    private Integer gpuMinMemoryGb;
+
+    @Column(name = "gpu_model", length = 120)
+    private String gpuModel;
+
     @Column(name = "total_consumed_minutes", nullable = false)
     @Builder.Default
     private Long totalConsumedMinutes = 0L;
+
+    @Column(name = "quota_cpu_units", nullable = false)
+    @Builder.Default
+    private Long quotaCpuUnits = 0L;
+
+    @Column(name = "quota_ram_units", nullable = false)
+    @Builder.Default
+    private Long quotaRamUnits = 0L;
+
+    @Column(name = "quota_gpu_units", nullable = false)
+    @Builder.Default
+    private Long quotaGpuUnits = 0L;
+
+    @Column(name = "quota_total_units", nullable = false)
+    @Builder.Default
+    private Long quotaTotalUnits = 0L;
 
     @Column(name = "env_vars_json", nullable = false)
     @JdbcTypeCode(SqlTypes.JSON)

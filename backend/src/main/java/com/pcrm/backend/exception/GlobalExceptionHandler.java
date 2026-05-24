@@ -71,6 +71,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(JobSubmissionValidationException.class)
+    public ResponseEntity<ProblemDetail> handleJobSubmissionValidation(JobSubmissionValidationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Validation Error");
+        problem.setType(URI.create("about:blank"));
+        problem.setProperty("errors", ex.getErrors());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
     @ExceptionHandler(InsufficientQuotaException.class)
     public ProblemDetail handleInsufficientQuota(InsufficientQuotaException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(

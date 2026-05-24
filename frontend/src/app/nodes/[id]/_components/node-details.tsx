@@ -156,6 +156,7 @@ export function NodeDetailsPanel({
           <CardContent>
             <FieldRow label="CPU Cores" value={node.totalCpuCores} />
             <FieldRow label="RAM" value={`${formatRamGb(node.totalRamMb)} GB`} />
+            <FieldRow label="GPUs" value={node.gpuDevices.length} />
             <FieldRow label="Agent Version" value={node.agentVersion} />
             <FieldRow label="Nomad Version" value={node.nomadVersion} />
             <FieldRow label="Docker Version" value={node.dockerVersion} />
@@ -183,6 +184,30 @@ export function NodeDetailsPanel({
             <FieldRow label="Create Index" value={node.nomadCreateIndex} />
             <FieldRow label="Modify Index" value={node.nomadModifyIndex} />
             <FieldRow label="Created At" value={formatDateForUser(node.createdAt, isClient)} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>GPUs</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {node.gpuDevices.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No GPUs reported by Nomad.</p>
+            ) : (
+              node.gpuDevices.map((gpu) => (
+                <div key={gpu.deviceId} className="border-b pb-3 text-sm last:border-b-0 last:pb-0">
+                  <p className="font-medium">{gpu.model}</p>
+                  <p className="text-muted-foreground">
+                    {gpu.vendor}
+                    {' / '}
+                    {gpu.memoryMiB ? `${Math.round(gpu.memoryMiB / 1024)} GB VRAM` : 'VRAM unknown'}
+                    {' / '}
+                    {gpu.health ?? 'health unknown'}
+                  </p>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>

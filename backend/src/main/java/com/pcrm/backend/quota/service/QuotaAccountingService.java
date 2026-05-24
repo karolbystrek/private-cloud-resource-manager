@@ -29,14 +29,14 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class QuotaAccountingService {
-    private static final int DEFAULT_MULTIPLIER = 1;
-
     private final ProfileRepository profileRepository;
     private final QuotaGrantRepository quotaGrantRepository;
     private final QuotaReservationRepository quotaReservationRepository;
     private final QuotaUsageLedgerRepository quotaUsageLedgerRepository;
     private final UserQuotaBalanceCurrentRepository userQuotaBalanceCurrentRepository;
     private final QuotaPolicyResolverService quotaPolicyResolverService;
+    private final ResourceWeightPolicyService resourceWeightPolicyService;
+    private final ResourceQuotaCalculator resourceQuotaCalculator;
     @Value("${app.quota.lease-minutes:15}")
     private long leaseMinutes;
 
@@ -54,7 +54,8 @@ public class QuotaAccountingService {
         var effectivePolicy = quotaPolicyResolverService.resolveEffectivePolicy(profile, now);
         var bounds = resolveBounds(now);
         var balance = getOrCreateBalanceForUpdate(profile, bounds, effectivePolicy, now);
-        var computeMinutes = normalizeComputeMinutes(leaseMinutes, DEFAULT_MULTIPLIER);
+        var units = ensureQuotaUnits(job);
+        var computeMinutes = resourceQuotaCalculator.calculateComputeMinutes(leaseMinutes, units.totalUnits());
 
         if (!effectivePolicy.unlimited() && balance.getAvailableMinutes() < computeMinutes) {
             throw new InsufficientQuotaException(balance.getAvailableMinutes(), computeMinutes);
@@ -68,7 +69,7 @@ public class QuotaAccountingService {
                 .reservedComputeMinutes(computeMinutes)
                 .consumedComputeMinutes(0L)
                 .releasedComputeMinutes(0L)
-                .expiresAt(now.plusMinutes(computeMinutes))
+                .expiresAt(now.plusMinutes(leaseMinutes))
                 .status(QuotaReservationStatus.ACTIVE)
                 .createdAt(now)
                 .updatedAt(now)
@@ -92,7 +93,8 @@ public class QuotaAccountingService {
             throw new IllegalStateException("Job %s has no active quota reservation to renew".formatted(job.getId()));
         }
 
-        var computeMinutes = normalizeComputeMinutes(leaseMinutes, DEFAULT_MULTIPLIER);
+        var units = ensureQuotaUnits(job);
+        var computeMinutes = resourceQuotaCalculator.calculateComputeMinutes(leaseMinutes, units.totalUnits());
         if (!effectivePolicy.unlimited() && balance.getAvailableMinutes() < computeMinutes) {
             throw new InsufficientQuotaException(balance.getAvailableMinutes(), computeMinutes);
         }
@@ -381,7 +383,7 @@ public class QuotaAccountingService {
                 .entryType(type)
                 .rawRuntimeSeconds(null)
                 .computeMinutes(Math.max(0L, computeMinutes))
-                .multiplier(DEFAULT_MULTIPLIER)
+                .multiplier((int) Math.min(Integer.MAX_VALUE, getJobTotalUnits(job)))
                 .reasonCode(truncate(reason, 80))
                 .correlationId(UUID.randomUUID())
                 .createdAt(createdAt)
@@ -405,8 +407,33 @@ public class QuotaAccountingService {
         return referenceTime != null ? referenceTime : OffsetDateTime.now(ZoneOffset.UTC);
     }
 
-    private long normalizeComputeMinutes(long requestedMinutes, int multiplier) {
-        return Math.max(0L, requestedMinutes) * Math.max(1, multiplier);
+    public long getJobTotalUnits(Job job) {
+        var totalUnits = job.getQuotaTotalUnits();
+        if (totalUnits != null && totalUnits > 0) {
+            return totalUnits;
+        }
+        return ensureQuotaUnits(job).totalUnits();
+    }
+
+    private ResourceQuotaCalculator.QuotaUnits ensureQuotaUnits(Job job) {
+        if (job.getQuotaTotalUnits() != null && job.getQuotaTotalUnits() > 0) {
+            return new ResourceQuotaCalculator.QuotaUnits(
+                    Math.max(0L, value(job.getQuotaCpuUnits())),
+                    Math.max(0L, value(job.getQuotaRamUnits())),
+                    Math.max(0L, value(job.getQuotaGpuUnits()))
+            );
+        }
+
+        var units = resourceQuotaCalculator.calculate(job, resourceWeightPolicyService.getPolicy());
+        job.setQuotaCpuUnits(units.cpuUnits());
+        job.setQuotaRamUnits(units.ramUnits());
+        job.setQuotaGpuUnits(units.gpuUnits());
+        job.setQuotaTotalUnits(Math.max(1L, units.totalUnits()));
+        return units;
+    }
+
+    private long value(Long value) {
+        return value == null ? 0L : value;
     }
 
     private String truncate(String value, int maxLength) {

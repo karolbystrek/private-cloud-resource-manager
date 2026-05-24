@@ -13,6 +13,23 @@ export type JobStatus =
   | 'TIMED_OUT'
   | 'INFRA_FAILED';
 
+export type GpuRequirement = {
+  enabled: boolean;
+  count: number;
+  vendor: 'nvidia' | null;
+  minMemoryGb: number | null;
+  model: string | null;
+};
+
+export type GpuOption = {
+  nodeId: string;
+  nodeHostname: string;
+  vendor: 'nvidia';
+  model: string;
+  maxMemoryGb: number | null;
+  count: number;
+};
+
 export type JobHistoryItem = {
   id: string;
   status: JobStatus;
@@ -20,6 +37,8 @@ export type JobHistoryItem = {
   executionCommand: string;
   reqCpuCores: number;
   reqRamGb: number;
+  gpuRequirement: GpuRequirement;
+  quotaBreakdown: QuotaBreakdown;
   totalConsumedMinutes: number;
   createdAt: string;
 };
@@ -42,9 +61,18 @@ export type JobDetails = {
   executionCommand: string;
   reqCpuCores: number;
   reqRamGb: number;
+  gpuRequirement: GpuRequirement;
+  quotaBreakdown: QuotaBreakdown;
   totalConsumedMinutes: number;
   createdAt: string;
   updatedAt: string;
   userId: string;
   userEmail: string;
+};
+
+export type QuotaBreakdown = {
+  cpuUnits: number;
+  ramUnits: number;
+  gpuUnits: number;
+  totalUnits: number;
 };

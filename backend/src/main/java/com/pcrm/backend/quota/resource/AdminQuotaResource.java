@@ -2,12 +2,15 @@ package com.pcrm.backend.quota.resource;
 
 import com.pcrm.backend.auth.domain.CustomUserDetails;
 import com.pcrm.backend.quota.dto.QuotaPolicyResponse;
+import com.pcrm.backend.quota.dto.ResourceWeightPolicyResponse;
 import com.pcrm.backend.quota.dto.admin.AdminQuotaGrantRequest;
 import com.pcrm.backend.quota.dto.admin.AdminQuotaGrantResponse;
+import com.pcrm.backend.quota.dto.admin.UpsertResourceWeightPolicyRequest;
 import com.pcrm.backend.quota.dto.admin.UpsertQuotaOverrideRequest;
 import com.pcrm.backend.quota.dto.admin.UpsertQuotaPolicyRequest;
 import com.pcrm.backend.quota.service.AdminQuotaGrantService;
 import com.pcrm.backend.quota.service.QuotaPolicyResolverService;
+import com.pcrm.backend.quota.service.ResourceWeightPolicyService;
 import com.pcrm.backend.user.UserRole;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +32,19 @@ public class AdminQuotaResource {
 
     private final QuotaPolicyResolverService quotaPolicyResolverService;
     private final AdminQuotaGrantService adminQuotaGrantService;
+    private final ResourceWeightPolicyService resourceWeightPolicyService;
+
+    @GetMapping("/resource-weights")
+    public ResourceWeightPolicyResponse getResourceWeights() {
+        return resourceWeightPolicyService.getPolicyResponse();
+    }
+
+    @PutMapping("/resource-weights")
+    public ResourceWeightPolicyResponse updateResourceWeights(
+            @RequestBody @Valid UpsertResourceWeightPolicyRequest request
+    ) {
+        return resourceWeightPolicyService.updatePolicy(request);
+    }
 
     @PutMapping("/policies/{role}")
     public QuotaPolicyResponse upsertRolePolicy(

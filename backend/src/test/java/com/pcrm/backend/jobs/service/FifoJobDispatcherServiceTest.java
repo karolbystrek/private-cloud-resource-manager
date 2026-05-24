@@ -3,6 +3,7 @@ package com.pcrm.backend.jobs.service;
 import com.pcrm.backend.events.service.OutboxConsumerDedupeService;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
+import com.pcrm.backend.jobs.dto.GpuRequirement;
 import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.nodes.domain.Node;
 import com.pcrm.backend.nodes.domain.NodeStatus;
@@ -88,6 +89,37 @@ class FifoJobDispatcherServiceTest {
         assertThat(request.getValue().nomadJobId()).isEqualTo(job.getId().toString());
         assertThat(request.getValue().reqCpuCores()).isEqualTo(2);
         assertThat(request.getValue().reqRamGb()).isEqualTo(4);
+        assertThat(request.getValue().gpuRequirement()).isEqualTo(GpuRequirement.disabled());
+    }
+
+    @Test
+    void sendsGpuRequirementToNomadDispatchRequest() {
+        var job = queuedJob(4, 16);
+        job.setGpuEnabled(true);
+        job.setGpuCount(1);
+        job.setGpuVendor(GpuRequirement.NVIDIA_VENDOR);
+        job.setGpuMinMemoryGb(24);
+        job.setGpuModel("Tesla T4");
+        when(jobRepository.findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus.DISPATCHING))
+                .thenReturn(List.of());
+        when(nodeRepository.findAll()).thenReturn(List.of(node(8, 32_768)));
+        when(jobRepository.findNextQueuedDispatchCandidateIdForUpdate(any(), eq(8L), eq(32_768L)))
+                .thenReturn(Optional.of(job.getId()));
+        when(jobRepository.findByIdForUpdate(job.getId())).thenReturn(Optional.of(job));
+        when(nomadDispatchClient.dispatchJob(any()))
+                .thenReturn(new NomadDispatchResult(job.getId().toString(), "eval-gpu"));
+
+        dispatcherService.requestNextDispatchFromQueue();
+
+        var request = ArgumentCaptor.forClass(NomadDispatchRequest.class);
+        verify(nomadDispatchClient).dispatchJob(request.capture());
+        assertThat(request.getValue().gpuRequirement()).isEqualTo(new GpuRequirement(
+                true,
+                1,
+                GpuRequirement.NVIDIA_VENDOR,
+                24,
+                "Tesla T4"
+        ));
     }
 
     @Test

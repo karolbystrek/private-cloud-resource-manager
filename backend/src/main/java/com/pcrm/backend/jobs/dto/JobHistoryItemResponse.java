@@ -13,6 +13,8 @@ public record JobHistoryItemResponse(
         String executionCommand,
         int reqCpuCores,
         int reqRamGb,
+        GpuRequirement gpuRequirement,
+        QuotaBreakdown quotaBreakdown,
         long totalConsumedMinutes,
         OffsetDateTime createdAt
 ) {
@@ -25,6 +27,8 @@ public record JobHistoryItemResponse(
                 job.getExecutionCommand(),
                 job.getReqCpuCores(),
                 job.getReqRamGb(),
+                GpuRequirement.fromJob(job),
+                QuotaBreakdown.fromJob(job),
                 job.getTotalConsumedMinutes(),
                 job.getCreatedAt()
         );

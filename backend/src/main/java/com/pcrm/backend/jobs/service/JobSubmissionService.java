@@ -3,6 +3,7 @@ package com.pcrm.backend.jobs.service;
 import com.pcrm.backend.idempotency.service.IdempotencyService;
 import com.pcrm.backend.idempotency.service.IdempotentWorkflow;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
+import com.pcrm.backend.nodes.service.GpuCatalogService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -18,19 +19,24 @@ public class JobSubmissionService {
 
     private final IdempotencyService idempotencyService;
     private final JobSubmissionPersistenceService persistenceService;
+    private final GpuCatalogService gpuCatalogService;
     private final TransactionTemplate submissionTransactionTemplate;
 
     public JobSubmissionService(
             IdempotencyService idempotencyService,
             JobSubmissionPersistenceService persistenceService,
+            GpuCatalogService gpuCatalogService,
             PlatformTransactionManager transactionManager
     ) {
         this.idempotencyService = idempotencyService;
         this.persistenceService = persistenceService;
+        this.gpuCatalogService = gpuCatalogService;
         this.submissionTransactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     public PreparedJobSubmission submitJob(UUID userId, JobSubmissionRequest request, String idempotencyKey) {
+        gpuCatalogService.validateRequirement(request.gpuRequirement());
+
         var preparedSubmission = submissionTransactionTemplate.execute(
                 _ -> idempotencyService.execute(new IdempotentWorkflow<>(
                         ACTOR_TYPE_USER,

@@ -1,6 +1,8 @@
 package com.pcrm.backend.jobs.dto;
 
 import com.pcrm.backend.jobs.validation.ValidEnvironmentVariables;
+import com.pcrm.backend.jobs.validation.ValidGpuRequirement;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,6 +25,10 @@ public record JobSubmissionRequest(
         @NotNull
         @Min(1)
         Integer reqRamGb,
+
+        @Valid
+        @ValidGpuRequirement
+        GpuRequirement gpuRequirement,
 
         @NotNull
         @ValidEnvironmentVariables

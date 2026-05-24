@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { GpuOption } from '@/app/jobs/_components/types';
 import { Button } from '@/components/ui/button';
 import {
   collectEnvVarErrorMessages,
@@ -19,6 +20,10 @@ type JobSubmissionPayload = {
   executionCommand: string;
   reqCpuCores: string;
   reqRamGb: string;
+  gpuEnabled: boolean;
+  gpuCount: string;
+  gpuMinMemoryGb: string;
+  gpuModel: string;
 };
 
 type JobSubmissionFieldErrors = Record<string, string[] | undefined>;
@@ -34,6 +39,10 @@ const initialFormData: JobSubmissionPayload = {
   executionCommand: '',
   reqCpuCores: '1',
   reqRamGb: '1',
+  gpuEnabled: false,
+  gpuCount: '1',
+  gpuMinMemoryGb: '',
+  gpuModel: '',
 };
 
 function createIdempotencyKey() {
@@ -45,6 +54,8 @@ export function JobSubmissionForm() {
   const [formData, setFormData] = useState<JobSubmissionPayload>(initialFormData);
   const [fieldErrors, setFieldErrors] = useState<JobSubmissionFieldErrors>({});
   const [envVarRows, setEnvVarRows] = useState<EnvVarRow[]>([createEnvVarRow()]);
+  const [gpuOptions, setGpuOptions] = useState<GpuOption[]>([]);
+  const [selectedGpuOptionKey, setSelectedGpuOptionKey] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState<string>(() => createIdempotencyKey());
@@ -53,11 +64,44 @@ export function JobSubmissionForm() {
     setIdempotencyKey(createIdempotencyKey());
   }
 
-  function handleInputChange(name: keyof JobSubmissionPayload, value: string) {
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadGpuOptions() {
+      try {
+        const response = await fetch('/api/jobs/gpu-options', { cache: 'no-store' });
+        if (!response.ok) {
+          return;
+        }
+        const options = (await response.json()) as GpuOption[];
+        if (isActive) {
+          setGpuOptions(options);
+        }
+      } catch {
+      }
+    }
+
+    void loadGpuOptions();
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  function handleInputChange(name: keyof JobSubmissionPayload, value: string | boolean) {
     rotateIdempotencyKey();
     setFormData((previous) => ({
       ...previous,
       [name]: value,
+    }));
+  }
+
+  function handleGpuOptionChange(optionKey: string) {
+    rotateIdempotencyKey();
+    setSelectedGpuOptionKey(optionKey);
+    const option = gpuOptions.find((item) => gpuOptionKey(item) === optionKey);
+    setFormData((previous) => ({
+      ...previous,
+      gpuModel: option?.model ?? '',
     }));
   }
 
@@ -97,9 +141,15 @@ export function JobSubmissionForm() {
     setErrorMessage('');
 
     const envVarErrors = toEnvVarFieldErrors(envVarRows);
-    if (Object.keys(envVarErrors).length > 0) {
-      setFieldErrors(envVarErrors);
-      setErrorMessage('Please fix environment variable errors.');
+    const gpuErrors: JobSubmissionFieldErrors = {};
+    if (formData.gpuEnabled && !formData.gpuModel) {
+      gpuErrors['gpuRequirement.model'] = ['Select an available GPU model.'];
+    }
+
+    const nextFieldErrors = { ...envVarErrors, ...gpuErrors };
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      setErrorMessage('Please fix highlighted fields.');
       return;
     }
 
@@ -117,6 +167,17 @@ export function JobSubmissionForm() {
           executionCommand: formData.executionCommand,
           reqCpuCores: Number.parseInt(formData.reqCpuCores, 10),
           reqRamGb: Number.parseInt(formData.reqRamGb, 10),
+          gpuRequirement: formData.gpuEnabled
+            ? {
+                enabled: true,
+                count: Number.parseInt(formData.gpuCount, 10),
+                vendor: 'nvidia',
+                minMemoryGb: formData.gpuMinMemoryGb.trim()
+                  ? Number.parseInt(formData.gpuMinMemoryGb, 10)
+                  : null,
+                model: formData.gpuModel.trim() || null,
+              }
+            : { enabled: false },
           envVars: toEnvVarsMap(envVarRows),
         }),
       });
@@ -182,8 +243,15 @@ export function JobSubmissionForm() {
         <JobResourceFields
           reqCpuCores={formData.reqCpuCores}
           reqRamGb={formData.reqRamGb}
+          gpuEnabled={formData.gpuEnabled}
+          gpuOptions={gpuOptions}
+          selectedGpuOptionKey={selectedGpuOptionKey}
+          gpuCount={formData.gpuCount}
+          gpuMinMemoryGb={formData.gpuMinMemoryGb}
+          gpuModel={formData.gpuModel}
           fieldErrors={fieldErrors}
           onChange={handleInputChange}
+          onGpuOptionChange={handleGpuOptionChange}
         />
 
         <div className="pt-4">
@@ -194,4 +262,8 @@ export function JobSubmissionForm() {
       </form>
     </div>
   );
+}
+
+function gpuOptionKey(option: GpuOption): string {
+  return `${option.nodeId}:${option.model}`;
 }

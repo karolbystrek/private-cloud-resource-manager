@@ -6,7 +6,18 @@ export type NodeSummary = {
   status: string;
   totalCpuCores: number;
   totalRamMb: number;
+  totalGpuCount: number;
   lastHeartbeat: string | null;
+};
+
+export type NodeGpuDevice = {
+  deviceId: string;
+  vendor: string;
+  type: string;
+  model: string;
+  memoryMiB: number | null;
+  health: string | null;
+  driverVersion: string | null;
 };
 
 export type NodeDetails = {
@@ -28,6 +39,7 @@ export type NodeDetails = {
   nomadModifyIndex: number | null;
   totalCpuCores: number;
   totalRamMb: number;
+  gpuDevices: NodeGpuDevice[];
   agentVersion: string | null;
   lastHeartbeat: string | null;
   createdAt: string | null;

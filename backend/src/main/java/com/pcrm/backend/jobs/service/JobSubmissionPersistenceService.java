@@ -3,6 +3,7 @@ package com.pcrm.backend.jobs.service;
 import com.pcrm.backend.exception.ResourceNotFoundException;
 import com.pcrm.backend.jobs.domain.Job;
 import com.pcrm.backend.jobs.domain.JobStatus;
+import com.pcrm.backend.jobs.dto.GpuRequirement;
 import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.jobs.repository.JobRepository;
 import com.pcrm.backend.user.Profile;
@@ -47,6 +48,10 @@ public class JobSubmissionPersistenceService {
             JobSubmissionRequest request,
             OffsetDateTime now
     ) {
+        var gpuRequirement = request.gpuRequirement() == null
+                ? GpuRequirement.disabled()
+                : request.gpuRequirement().normalized();
+
         var job = Job.builder()
                 .id(UUID.randomUUID())
                 .profile(profile)
@@ -55,6 +60,11 @@ public class JobSubmissionPersistenceService {
                 .executionCommand(request.executionCommand())
                 .reqCpuCores(request.reqCpuCores())
                 .reqRamGb(request.reqRamGb())
+                .gpuEnabled(gpuRequirement.requested())
+                .gpuCount(gpuRequirement.count())
+                .gpuVendor(gpuRequirement.vendor())
+                .gpuMinMemoryGb(gpuRequirement.minMemoryGb())
+                .gpuModel(gpuRequirement.model())
                 .envVarsJson(request.envVars())
                 .queuedAt(null)
                 .activeLeaseExpiresAt(null)
