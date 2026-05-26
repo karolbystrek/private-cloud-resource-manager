@@ -20,7 +20,7 @@ function StatCardSkeleton() {
 
 export function HomeDashboardSkeleton() {
   return (
-    <div className="bg-background/50 min-h-[calc(100vh-5.5rem)] w-full py-8">
+    <div className="bg-background/50 min-h-[calc(100vh-3.5rem)] w-full py-8">
       <div className="container mx-auto max-w-6xl space-y-6 px-4 md:px-6">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>

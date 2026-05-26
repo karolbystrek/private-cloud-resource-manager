@@ -1,7 +1,7 @@
-# Graph Report - private-cloud-resource-manager  (2026-05-23)
+# Graph Report - private-cloud-resource-manager  (2026-05-26)
 
 ## Corpus Check
-- 266 files · ~47,367 words
+- 263 files · ~44,332 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `e38ee841`
+- Built from commit: `787b2870`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -350,11 +350,11 @@ Nodes (4): Artifacts, Current Backend Flow, Job Submission, Logs
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `LogStream` connect `Community 133` to `Community 20`?**
-  _High betweenness centrality (0.218) - this node is a cross-community bridge._
+  _High betweenness centrality (0.232) - this node is a cross-community bridge._
 - **Why does `build` connect `Community 6` to `Community 0`, `Community 1`, `Community 130`, `Community 3`, `Community 132`, `Community 134`, `Community 8`, `Community 137`, `Community 10`, `Community 9`, `Community 138`, `Community 124`, `Community 148`, `Community 20`, `Community 25`, `Community 156`?**
-  _High betweenness centrality (0.117) - this node is a cross-community bridge._
+  _High betweenness centrality (0.139) - this node is a cross-community bridge._
 - **Why does `cn()` connect `Community 2` to `Community 135`, `Community 136`, `Community 10`, `Community 12`, `Community 117`, `Community 28`, `Community 125`, `Community 127`?**
-  _High betweenness centrality (0.042) - this node is a cross-community bridge._
+  _High betweenness centrality (0.052) - this node is a cross-community bridge._
 - **Are the 37 inferred relationships involving `build` (e.g. with `.queuedJob()` and `.node()`) actually correct?**
   _`build` has 37 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 24 inferred relationships involving `id` (e.g. with `.queuedJob()` and `.node()`) actually correct?**

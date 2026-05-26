@@ -3,45 +3,20 @@
 import {
   RiAddCircleLine,
   RiAdminLine,
-  RiArrowDownSLine,
   RiDashboardLine,
   RiHistoryLine,
-  RiPlayList2Line,
   RiServerLine,
 } from '@remixicon/react';
-import { Fragment } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogoutButton } from '@/components/logout-button';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import type { UserRole } from '@/lib/user-role';
 
 type HeaderProps = {
   hasSession: boolean;
   userRole: UserRole | null;
 };
-
-function formatSegment(segment: string) {
-  return segment
-    .split('-')
-    .filter(Boolean)
-    .map((word) => word[0]?.toUpperCase() + word.slice(1))
-    .join(' ');
-}
 
 export function Header({ hasSession, userRole }: HeaderProps) {
   const pathname = usePathname();
@@ -50,10 +25,10 @@ export function Header({ hasSession, userRole }: HeaderProps) {
     return null;
   }
 
-  const segments = pathname.split('/').filter(Boolean);
   const isDashboardRoute = pathname === '/';
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
-  const isJobsRoute = pathname === '/jobs' || pathname.startsWith('/jobs/');
+  const isJobHistoryRoute = pathname === '/jobs';
+  const isNewJobRoute = pathname === '/jobs/new';
   const isNodesRoute = pathname === '/nodes' || pathname.startsWith('/nodes/');
   const showNodes = userRole === 'ADMIN';
   const showAdmin = userRole === 'ADMIN';
@@ -79,86 +54,29 @@ export function Header({ hasSession, userRole }: HeaderProps) {
               </Link>
             </Button>
           ) : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant={isJobsRoute ? 'default' : 'outline'} size="default">
-                <RiPlayList2Line size={14} />
-                Jobs
-                <RiArrowDownSLine size={14} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[11rem]">
-              <DropdownMenuItem asChild>
-                <Link href="/jobs">
-                  <RiHistoryLine size={14} />
-                  Job History
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/jobs/new">
-                  <RiAddCircleLine size={14} />
-                  New Job
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
           {showNodes ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant={isNodesRoute ? 'default' : 'outline'} size="default">
-                  <RiServerLine size={14} />
-                  Nodes
-                  <RiArrowDownSLine size={14} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[11rem]">
-                <DropdownMenuItem asChild>
-                  <Link href="/nodes">
-                    <RiServerLine size={14} />
-                    All Nodes
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button asChild variant={isNodesRoute ? 'default' : 'outline'} size="default">
+              <Link href="/nodes">
+                <RiServerLine size={14} />
+                All Nodes
+              </Link>
+            </Button>
           ) : null}
+          <Button asChild variant={isJobHistoryRoute ? 'default' : 'outline'} size="default">
+            <Link href="/jobs">
+              <RiHistoryLine size={14} />
+              Job History
+            </Link>
+          </Button>
+          <Button asChild variant={isNewJobRoute ? 'default' : 'outline'} size="default">
+            <Link href="/jobs/new">
+              <RiAddCircleLine size={14} />
+              New Job
+            </Link>
+          </Button>
         </nav>
         <div className="flex shrink-0 items-center gap-1.5">
           <LogoutButton />
-        </div>
-      </div>
-      <div className="bg-muted/40 border-t">
-        <div className="flex h-8 w-full items-center px-4 sm:px-6">
-          <Breadcrumb>
-            <BreadcrumbList>
-              {segments.length === 0 ? (
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Dashboard</BreadcrumbPage>
-                </BreadcrumbItem>
-              ) : (
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/">Dashboard</BreadcrumbLink>
-                </BreadcrumbItem>
-              )}
-              {segments.map((segment, index) => {
-                const href = `/${segments.slice(0, index + 1).join('/')}`;
-                const isLast = index === segments.length - 1;
-                const label = formatSegment(decodeURIComponent(segment));
-
-                return (
-                  <Fragment key={href}>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                      {isLast ? (
-                        <BreadcrumbPage>{label}</BreadcrumbPage>
-                      ) : (
-                        <BreadcrumbLink href={href}>{label}</BreadcrumbLink>
-                      )}
-                    </BreadcrumbItem>
-                  </Fragment>
-                );
-              })}
-            </BreadcrumbList>
-          </Breadcrumb>
         </div>
       </div>
     </header>

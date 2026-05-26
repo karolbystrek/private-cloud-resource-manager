@@ -83,7 +83,7 @@ export function HomeDashboard({ jobs, jobsError, quota, quotaError, statusCounts
   const quotaSegments = quota ? getQuotaBarSegments(quota) : null;
 
   return (
-    <div className="bg-background/50 min-h-[calc(100vh-5.5rem)] w-full py-8">
+    <div className="bg-background/50 min-h-[calc(100vh-3.5rem)] w-full py-8">
       <div className="container mx-auto max-w-6xl space-y-6 px-4 md:px-6">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
@@ -167,13 +167,15 @@ export function HomeDashboard({ jobs, jobsError, quota, quotaError, statusCounts
                     <p className="mt-1 text-2xl font-semibold">
                       {quota.unlimited ? 'Unlimited' : formatMinutesAsHoursAndMinutes(quota.remainingMinutes)}
                     </p>
-                    <p className="text-muted-foreground mt-1 text-xs">
-                      of
-                      {' '}
-                      {formatMinutesAsHoursAndMinutes(quota.allocatedMinutes)}
-                      {' '}
-                      monthly allocation
-                    </p>
+                    {!quota.unlimited ? (
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        of
+                        {' '}
+                        {formatMinutesAsHoursAndMinutes(quota.allocatedMinutes)}
+                        {' '}
+                        monthly allocation
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="space-y-1">
