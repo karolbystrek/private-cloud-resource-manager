@@ -4,6 +4,7 @@
 
 .cursor/
 
+.env
 .env.*
 
 secrets/

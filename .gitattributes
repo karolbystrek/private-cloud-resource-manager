@@ -1,0 +1,22 @@
+# Normalize line endings to LF for all text files
+* text=auto eol=lf
+
+# Force LF for files that must never have CRLF (shell scripts, SQL, YAML)
+*.sh text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.env text eol=lf
+*.env.example text eol=lf
+.env.example text eol=lf
+
+# Binary files – never touch line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.jar binary
+*.class binary
