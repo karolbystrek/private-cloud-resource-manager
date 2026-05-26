@@ -13,7 +13,6 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogoutButton } from '@/components/logout-button';
-import ThemeToggle from '@/components/theme-toggle';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -66,65 +65,64 @@ export function Header({ hasSession, userRole }: HeaderProps) {
           Private Cloud Resource Manager
         </Link>
         <nav className="ml-auto flex min-w-0 items-center justify-end gap-1.5 overflow-x-auto py-1">
-            <Button asChild variant={isDashboardRoute ? 'default' : 'outline'} size="default">
-              <Link href="/">
-                <RiDashboardLine size={14} />
-                Dashboard
+          <Button asChild variant={isDashboardRoute ? 'default' : 'outline'} size="default">
+            <Link href="/">
+              <RiDashboardLine size={14} />
+              Dashboard
+            </Link>
+          </Button>
+          {showAdmin ? (
+            <Button asChild variant={isAdminRoute ? 'default' : 'outline'} size="default">
+              <Link href="/admin">
+                <RiAdminLine size={14} />
+                Admin
               </Link>
             </Button>
-            {showAdmin ? (
-              <Button asChild variant={isAdminRoute ? 'default' : 'outline'} size="default">
-                <Link href="/admin">
-                  <RiAdminLine size={14} />
-                  Admin
-                </Link>
+          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant={isJobsRoute ? 'default' : 'outline'} size="default">
+                <RiPlayList2Line size={14} />
+                Jobs
+                <RiArrowDownSLine size={14} />
               </Button>
-            ) : null}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[11rem]">
+              <DropdownMenuItem asChild>
+                <Link href="/jobs">
+                  <RiHistoryLine size={14} />
+                  Job History
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/jobs/new">
+                  <RiAddCircleLine size={14} />
+                  New Job
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {showNodes ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant={isJobsRoute ? 'default' : 'outline'} size="default">
-                  <RiPlayList2Line size={14} />
-                  Jobs
+                <Button variant={isNodesRoute ? 'default' : 'outline'} size="default">
+                  <RiServerLine size={14} />
+                  Nodes
                   <RiArrowDownSLine size={14} />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-[11rem]">
                 <DropdownMenuItem asChild>
-                  <Link href="/jobs">
-                    <RiHistoryLine size={14} />
-                    Job History
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/jobs/new">
-                    <RiAddCircleLine size={14} />
-                    New Job
+                  <Link href="/nodes">
+                    <RiServerLine size={14} />
+                    All Nodes
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {showNodes ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant={isNodesRoute ? 'default' : 'outline'} size="default">
-                    <RiServerLine size={14} />
-                    Nodes
-                    <RiArrowDownSLine size={14} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[11rem]">
-                  <DropdownMenuItem asChild>
-                    <Link href="/nodes">
-                      <RiServerLine size={14} />
-                      All Nodes
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </nav>
+          ) : null}
+        </nav>
         <div className="flex shrink-0 items-center gap-1.5">
-          <ThemeToggle />
           <LogoutButton />
         </div>
       </div>

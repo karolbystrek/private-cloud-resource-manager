@@ -4,7 +4,6 @@ import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import { cookies } from 'next/headers';
 import '@/app/globals.css';
 import { Header } from '@/components/header';
-import { ThemeProvider } from '@/components/theme-provider';
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, USER_ROLE_COOKIE } from '@/lib/auth';
 import { isUserRole, type UserRole } from '@/lib/user-role';
 import { cn } from '@/lib/utils';
@@ -41,15 +40,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       suppressHydrationWarning
     >
       <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <Header hasSession={hasSession} userRole={userRole} />
-          <main className="w-full">{children}</main>
-        </ThemeProvider>
+        <Header hasSession={hasSession} userRole={userRole} />
+        <main className="w-full">{children}</main>
       </body>
     </html>
   );
