@@ -95,11 +95,9 @@ export function JobsHistoryView({ jobsPage, statusFilters }: JobsHistoryViewProp
   };
 
   let jobsList = (
-    <Card>
-      <CardContent className="py-8">
-        <p className="text-muted-foreground text-sm">No jobs yet.</p>
-      </CardContent>
-    </Card>
+    <div className="flex min-h-40 items-center justify-center">
+      <p className="text-muted-foreground text-center text-sm">Your job history is empty.</p>
+    </div>
   );
 
   if (jobsPage.jobs.length > 0) {

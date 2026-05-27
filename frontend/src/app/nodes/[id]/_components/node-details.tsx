@@ -142,7 +142,6 @@ export function NodeDetailsPanel({
           <CardContent>
             <FieldRow label="Status" value={node.status} />
             <FieldRow label="Nomad Status" value={node.nomadStatus} />
-            <FieldRow label="Nomad Description" value={node.nomadStatusDescription} />
             <FieldRow label="Eligibility" value={node.schedulingEligibility} />
             <FieldRow label="Draining" value={node.draining ? 'true' : 'false'} />
             <FieldRow label="Last Heartbeat" value={formatDateForUser(node.lastHeartbeat, isClient)} />
@@ -169,20 +168,7 @@ export function NodeDetailsPanel({
           <CardContent>
             <FieldRow label="IP Address" value={node.ipAddress} />
             <FieldRow label="Datacenter" value={node.datacenter} />
-            <FieldRow label="Node Pool" value={node.nodePool} />
-            <FieldRow label="Node Class" value={node.nodeClass} />
             <FieldRow label="Nomad Node ID" value={node.nomadNodeId} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Nomad Metadata</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FieldRow label="Create Index" value={node.nomadCreateIndex} />
-            <FieldRow label="Modify Index" value={node.nomadModifyIndex} />
-            <FieldRow label="Created At" value={formatDateForUser(node.createdAt, isClient)} />
           </CardContent>
         </Card>
       </div>

@@ -258,14 +258,6 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
               label="Consumed Time"
               value={formatMinutesAsHoursAndMinutes(job.totalConsumedMinutes)}
             />
-            <FieldRow
-              label="Owner email"
-              value={
-                <span className="inline-flex items-center gap-2">
-                  <span>{job.userEmail}</span>
-                </span>
-              }
-            />
           </CardContent>
         </Card>
       </div>
