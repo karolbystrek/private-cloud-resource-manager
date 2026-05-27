@@ -8,6 +8,7 @@ import com.pcrm.backend.jobs.dto.JobSubmissionRequest;
 import com.pcrm.backend.jobs.dto.JobSubmissionResponse;
 import com.pcrm.backend.jobs.dto.JobsPageResponse;
 import com.pcrm.backend.jobs.service.JobDetailsStreamService;
+import com.pcrm.backend.jobs.service.JobCancellationService;
 import com.pcrm.backend.jobs.service.JobLogStreamType;
 import com.pcrm.backend.jobs.service.JobLogsService;
 import com.pcrm.backend.jobs.service.JobQueryService;
@@ -41,6 +42,7 @@ public class JobsResource {
     private final JobQueryService jobQueryService;
     private final JobLogsService jobLogsService;
     private final JobDetailsStreamService jobDetailsStreamService;
+    private final JobCancellationService jobCancellationService;
 
     @GetMapping
     public JobsPageResponse listJobs(
@@ -91,6 +93,14 @@ public class JobsResource {
         var result = jobSubmissionService.submitJob(principal.id(), request, idempotencyKey);
         var status = result.replayed() ? HttpStatus.OK : HttpStatus.ACCEPTED;
         return ResponseEntity.status(status).body(new JobSubmissionResponse(result.jobId()));
+    }
+
+    @PostMapping("/{id}/cancel")
+    public JobDetailsResponse cancelJob(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        return jobCancellationService.cancelJob(id, principal);
     }
 
     private Sort.Direction parseSortDirection(String sort) {

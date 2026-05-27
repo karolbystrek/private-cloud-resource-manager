@@ -84,6 +84,13 @@ public class JobStateMachine {
         return save(job);
     }
 
+    public Job markCanceledByUser(Job job, OffsetDateTime now) {
+        job.setStatus(JobStatus.CANCELED);
+        job.setProcessFinishedAt(now);
+        job.setTerminalReason("USER_CANCELED");
+        return save(job);
+    }
+
     public Job markLeaseRenewed(Job job, OffsetDateTime nextLeaseExpiresAt, long additionalReservedMinutes) {
         job.setCurrentLeaseReservedMinutes(job.getCurrentLeaseReservedMinutes() + additionalReservedMinutes);
         job.setActiveLeaseExpiresAt(nextLeaseExpiresAt);

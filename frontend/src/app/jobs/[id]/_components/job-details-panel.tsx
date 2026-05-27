@@ -1,7 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
-import { RiArrowLeftLine, RiDownloadLine, RiFileCopyLine, RiRefreshLine } from '@remixicon/react';
+import { RiArrowLeftLine, RiCloseCircleLine, RiDownloadLine, RiFileCopyLine, RiRefreshLine } from '@remixicon/react';
 import Link from 'next/link';
 import type { JobDetails, JobStatus } from '@/app/jobs/_components/types';
 import { Button } from '@/components/ui/button';
@@ -78,6 +78,7 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
   const [job, setJob] = useState<JobDetails>(initialJob);
   const [artifactDownloadUrl, setArtifactDownloadUrl] = useState<string | null>(null);
   const [isCheckingArtifact, setIsCheckingArtifact] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [streamedLogs, setStreamedLogs] = useState<Record<LogStream, string>>({
     stdout: '',
@@ -98,8 +99,52 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
     }
   }
 
+  async function handleCancelJob() {
+    if (!ACTIVE_STATUSES.has(job.status) || isCanceling) {
+      return;
+    }
+
+    const shouldCancel = window.confirm('Cancel this job? This action cannot be undone.');
+    if (!shouldCancel) {
+      return;
+    }
+
+    setIsCanceling(true);
+    setErrorMessage('');
+
+    try {
+      const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/cancel`, {
+        method: 'POST',
+      });
+
+      if (response.status === 401) {
+        redirectToLoginAfterAuthFailure(`/jobs/${jobId}`);
+        return;
+      }
+
+      const data = (await response.json().catch(() => null)) as JobDetails | { error?: string } | null;
+      if (!response.ok) {
+        const errorBody = data as { error?: string } | null;
+        setErrorMessage(errorBody?.error ?? 'Failed to cancel job.');
+        return;
+      }
+
+      const updatedJob = data as JobDetails;
+      setJob((current) => {
+        if (Date.parse(updatedJob.updatedAt) < Date.parse(current.updatedAt)) {
+          return current;
+        }
+        return updatedJob;
+      });
+    } catch {
+      setErrorMessage('Failed to cancel job.');
+    } finally {
+      setIsCanceling(false);
+    }
+  }
+
   useEffect(() => {
-    if (!ACTIVE_STATUSES.has(initialJob.status)) {
+    if (!ACTIVE_STATUSES.has(job.status)) {
       return;
     }
 
@@ -150,7 +195,7 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
     return () => {
       source.close();
     };
-  }, [initialJob.status, jobId]);
+  }, [job.status, jobId]);
 
   useEffect(() => {
     if (isJobActive) {
@@ -217,6 +262,19 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
           <h1 className="text-3xl font-semibold tracking-tight">Job Details</h1>
         </div>
         <div className="flex items-center md:justify-end">
+          {isJobActive ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="lg"
+              className="h-11 px-5 text-base"
+              disabled={isCanceling}
+              onClick={() => void handleCancelJob()}
+            >
+              <RiCloseCircleLine aria-hidden="true" size={18} />
+              {isCanceling ? 'Canceling...' : 'Cancel Job'}
+            </Button>
+          ) : null}
           {!isJobActive && artifactDownloadUrl ? (
             <Button asChild variant="default" size="lg" className="h-11 px-5 text-base">
               <a href={`/api/jobs/${encodeURIComponent(jobId)}/artifact-download`}>
