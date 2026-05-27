@@ -4,11 +4,13 @@ import com.pcrm.backend.auth.domain.CustomUserDetails;
 import com.pcrm.backend.quota.dto.QuotaPolicyResponse;
 import com.pcrm.backend.quota.dto.admin.AdminQuotaGrantRequest;
 import com.pcrm.backend.quota.dto.admin.AdminQuotaGrantResponse;
+import com.pcrm.backend.quota.dto.admin.AdminQuotaUserOptionResponse;
 import com.pcrm.backend.quota.dto.admin.UpsertQuotaOverrideRequest;
 import com.pcrm.backend.quota.dto.admin.UpsertQuotaPolicyRequest;
 import com.pcrm.backend.quota.service.AdminQuotaGrantService;
 import com.pcrm.backend.quota.service.QuotaPolicyResolverService;
 import com.pcrm.backend.user.UserRole;
+import com.pcrm.backend.user.repository.ProfileRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 
 @RestController
@@ -29,6 +32,18 @@ public class AdminQuotaResource {
 
     private final QuotaPolicyResolverService quotaPolicyResolverService;
     private final AdminQuotaGrantService adminQuotaGrantService;
+    private final ProfileRepository profileRepository;
+
+    @GetMapping("/users")
+    public java.util.List<AdminQuotaUserOptionResponse> listUsersForQuotaGrant() {
+        return profileRepository.findAllForAdminQuotaSelection().stream()
+                .map(row -> new AdminQuotaUserOptionResponse(
+                        row.getId(),
+                        Objects.toString(row.getEmail(), ""),
+                        UserRole.valueOf(row.getRole())
+                ))
+                .toList();
+    }
 
     @PutMapping("/policies/{role}")
     public QuotaPolicyResponse upsertRolePolicy(

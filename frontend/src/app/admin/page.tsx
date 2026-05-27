@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { formatUtcDateTime } from '@/lib/date-time';
 import { brokerFetch } from '@/lib/server-auth';
 import { isUserRole } from '@/lib/user-role';
+import { AdminQuotaGrantForm } from './admin-quota-grant-form';
 
 export const metadata: Metadata = {
   title: 'Admin - Private Cloud Resource Manager',
@@ -143,6 +144,10 @@ export default async function AdminDashboardPage() {
               <Button asChild variant="outline" className="w-full justify-between"><Link href="/jobs">Review Jobs<RiArrowRightLine size={14} /></Link></Button>
             </CardContent>
           </Card>
+        </section>
+
+        <section className="mt-6">
+          <AdminQuotaGrantForm />
         </section>
       </div>
     </div>
