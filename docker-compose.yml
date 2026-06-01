@@ -409,15 +409,29 @@ services:
   # ---------------------------------------------------------------------------
   # Private Cloud Resource Manager (merged into this stack; not from upstream)
   # ---------------------------------------------------------------------------
-  nomad:
+  nomad-server:
     image: hashicorp/nomad:1.7
-    container_name: nomad
+    container_name: nomad-server
     restart: unless-stopped
     ports:
       - ${NOMAD_HTTP_PORT}:4646
       - ${NOMAD_RPC_PORT}:4647
       - ${NOMAD_SERF_PORT}:4648
-    command: agent -config=/etc/nomad.d/local-dev.hcl
+    command: agent -config=/etc/nomad.d/server.hcl
+    environment:
+      CHECKPOINT_DISABLE: "1"
+      NOMAD_SKIP_DOCKER_IMAGE_WARN: "1"
+    tmpfs:
+      - /tmp/pcrm-nomad
+    volumes:
+      - ./nomad/server.hcl:/etc/nomad.d/server.hcl:ro
+      - ./secrets/nomad:/etc/nomad.d/certs:ro
+
+  nomad-client:
+    image: hashicorp/nomad:1.7
+    container_name: nomad-client
+    restart: unless-stopped
+    command: agent -config=/etc/nomad.d/client.hcl
     privileged: true
     cgroup: host
     environment:
@@ -426,8 +440,11 @@ services:
     tmpfs:
       - /tmp/pcrm-nomad
     volumes:
-      - ./nomad/local-dev.hcl:/etc/nomad.d/local-dev.hcl:ro
+      - ./nomad/client.hcl:/etc/nomad.d/client.hcl:ro
+      - ./secrets/nomad:/etc/nomad.d/certs:ro
       - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - nomad-server
 
   backend:
     build:

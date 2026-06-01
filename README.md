@@ -18,7 +18,20 @@ from self-hosted Supabase.
    cp .env.example .env
    ```
 
-3. **Start everything** (from the repository root):
+3. **Generate Nomad certificates and configurations** (this sets up mutual TLS and Gossip encryption):
+
+   On Linux/macOS:
+   ```bash
+   chmod +x ./scripts/generate-nomad-certs.sh
+   ./scripts/generate-nomad-certs.sh
+   ```
+
+   On Windows (PowerShell):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\scripts\generate-nomad-certs.ps1
+   ```
+
+4. **Start everything** (from the repository root):
 
    ```bash
    docker compose up --build

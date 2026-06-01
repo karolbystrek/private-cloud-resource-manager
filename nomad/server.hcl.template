@@ -1,0 +1,26 @@
+data_dir = "/tmp/pcrm-nomad"
+bind_addr = "0.0.0.0"
+name = "nomad-server"
+disable_update_check = true
+
+server {
+  enabled = true
+  bootstrap_expect = 1
+  encrypt = "GOSSIP_KEY_PLACEHOLDER"
+}
+
+advertise {
+  http = "{{ GetInterfaceIP \"eth0\" }}"
+  rpc  = "{{ GetInterfaceIP \"eth0\" }}"
+  serf = "{{ GetInterfaceIP \"eth0\" }}"
+}
+
+tls {
+  http = false
+  rpc  = true
+  ca_file   = "/etc/nomad.d/certs/nomad-ca.pem"
+  cert_file = "/etc/nomad.d/certs/server.pem"
+  key_file  = "/etc/nomad.d/certs/server-key.pem"
+  verify_server_hostname = true
+  verify_https_client    = true
+}

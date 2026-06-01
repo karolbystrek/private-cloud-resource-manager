@@ -1,0 +1,32 @@
+data_dir = "/tmp/pcrm-nomad"
+bind_addr = "0.0.0.0"
+name = "nomad-client"
+disable_update_check = true
+
+server {
+  enabled = false
+  encrypt = "GOSSIP_KEY_PLACEHOLDER"
+}
+
+client {
+  enabled = true
+  servers = ["nomad-server:4647"]
+  network_interface = "eth0"
+
+  cpu_total_compute = 4000
+  memory_total_mb = 4096
+
+  meta {
+    "private-cloud-resource-manager.node_id" = "local-node-01"
+  }
+}
+
+tls {
+  http = false
+  rpc  = true
+  ca_file   = "/etc/nomad.d/certs/nomad-ca.pem"
+  cert_file = "/etc/nomad.d/certs/client.pem"
+  key_file  = "/etc/nomad.d/certs/client-key.pem"
+  verify_server_hostname = true
+  verify_https_client    = true
+}
