@@ -1,6 +1,5 @@
 data_dir = "/tmp/pcrm-nomad"
 bind_addr = "0.0.0.0"
-name = "nomad-client"
 disable_update_check = true
 
 server {
@@ -15,10 +14,6 @@ client {
 
   cpu_total_compute = 4000
   memory_total_mb = 4096
-
-  meta {
-    "private-cloud-resource-manager.node_id" = "local-node-01"
-  }
 }
 
 tls {

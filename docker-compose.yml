@@ -429,9 +429,10 @@ services:
 
   nomad-client:
     image: hashicorp/nomad:1.7
-    container_name: nomad-client
     restart: unless-stopped
-    command: agent -config=/etc/nomad.d/client.hcl
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "exec nomad agent -config=/etc/nomad.d/client.hcl -node=nomad-client-$$HOSTNAME -meta private-cloud-resource-manager.node_id=node-$$HOSTNAME"
     privileged: true
     cgroup: host
     environment:
