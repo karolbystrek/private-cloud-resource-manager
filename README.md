@@ -18,10 +18,23 @@ from self-hosted Supabase.
    cp .env.example .env
    ```
 
-3. **Start everything** (from the repository root):
+3. **Generate Nomad certificates and configurations** (this sets up mutual TLS and Gossip encryption):
+
+   On Linux/macOS:
+   ```bash
+   chmod +x ./scripts/generate-nomad-certs.sh
+   ./scripts/generate-nomad-certs.sh
+   ```
+
+   On Windows (PowerShell):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\scripts\generate-nomad-certs.ps1
+   ```
+
+4. **Start everything** (from the repository root):
 
    ```bash
-   docker compose up --build
+   docker compose up --build --scale nomad-client=2
    ```
 
 ## Resetting the local stack (`reset.sh`)
@@ -31,8 +44,15 @@ and replaces `.env` from `.env.example` (after renaming the old file to `.env.ol
 install (corrupted or unwanted DB state, bad migration experiments, storage you do not need, or Compose left volumes in
 a confusing state). It is destructive; do not run it if you care about data in those paths.
 
-Run `./reset.sh` from the repo root and confirm each step, or `./reset.sh -y` to skip prompts. Afterwards, bring the
-stack up again with `docker compose up --build` (and `docker compose pull` if you want newer images).
+Run `./reset.sh` from the repo root and confirm each step, or `./reset.sh -y` to skip prompts.
+
+On Windows (PowerShell):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\reset.ps1
+```
+Or run `powershell -ExecutionPolicy Bypass -File .\reset.ps1 -y` to skip prompts.
+
+Afterwards, bring the stack up again with `docker compose up --build` (and `docker compose pull` if you want newer images).
 
 ## Local service URLs
 

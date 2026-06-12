@@ -42,8 +42,8 @@ else
     echo "Skipping 'docker compose down' because there's no env-file."
 fi
 
-echo "===> Cleaning up bind-mounted directories..."
-BIND_MOUNTS="./volumes/db/data ./volumes/minio"
+echo "===> Cleaning up bind-mounted directories and generated secrets..."
+BIND_MOUNTS="./volumes/db/data ./volumes/minio ./secrets/nomad"
 
 for dir in $BIND_MOUNTS; do
     if [ -d "$dir" ]; then
@@ -54,6 +54,16 @@ for dir in $BIND_MOUNTS; do
         echo "$dir not found."
     fi
 done
+
+# Clean up generated Nomad configuration files
+if [ -f "./nomad/server.hcl" ]; then
+    echo "Removing generated nomad/server.hcl..."
+    rm -f "./nomad/server.hcl"
+fi
+if [ -f "./nomad/client.hcl" ]; then
+    echo "Removing generated nomad/client.hcl..."
+    rm -f "./nomad/client.hcl"
+fi
 
 echo "===> Resetting .env file (will save backup to .env.old)..."
 confirm
