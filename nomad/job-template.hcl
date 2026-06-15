@@ -29,6 +29,7 @@ job "{{NOMAD_JOB_ID}}" {
       resources {
         cores  = {{CORES}}
         memory = {{MEMORY_MB}}
+        {{GPU_DEVICE}}
       }
     }
 

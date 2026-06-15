@@ -44,6 +44,10 @@ public class Job {
     @Column(name = "req_ram_gb", nullable = false)
     private Integer reqRamGb;
 
+    @Column(name = "req_gpu", nullable = false)
+    @Builder.Default
+    private Boolean reqGpu = false;
+
     @Column(name = "total_consumed_minutes", nullable = false)
     @Builder.Default
     private Long totalConsumedMinutes = 0L;

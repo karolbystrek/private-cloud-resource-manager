@@ -54,6 +54,15 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
         String artifactObjectKey = storageService.buildArtifactObjectKey(request.userId(), request.jobId());
         String artifactUploadUrl = storageService.generatePresignedUploadUrl(request.userId(), request.jobId());
 
+        String gpuDeviceConfig = "";
+        if (Boolean.TRUE.equals(request.reqGpu())) {
+            gpuDeviceConfig = """
+                    device "nvidia/gpu" {
+                              count = 1
+                            }
+                    """;
+        }
+
         String renderedHcl = hclTemplate
                 .replace("{{NOMAD_JOB_ID}}", escapeHcl(request.nomadJobId()))
                 .replace("{{USER_ID}}", request.userId().toString())
@@ -64,6 +73,7 @@ public class NomadHttpDispatchClient implements NomadDispatchClient {
                 .replace("{{EXECUTION_COMMAND}}", escapeHcl(request.executionCommand()))
                 .replace("{{CORES}}", request.reqCpuCores().toString())
                 .replace("{{MEMORY_MB}}", String.valueOf(request.reqRamGb() * 1024))
+                .replace("{{GPU_DEVICE}}", gpuDeviceConfig)
                 .replace("{{ARTIFACT_OBJECT_KEY}}", escapeHcl(artifactObjectKey))
                 .replace("{{ARTIFACT_UPLOAD_URL}}", escapeHcl(artifactUploadUrl))
                 .replace("{{DOCKER_COMPOSE_NETWORK}}", escapeHcl(dockerComposeNetwork))

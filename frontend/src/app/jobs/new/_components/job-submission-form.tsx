@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,6 +19,7 @@ type JobSubmissionPayload = {
   executionCommand: string;
   reqCpuCores: string;
   reqRamGb: string;
+  reqGpu: boolean;
 };
 
 type JobSubmissionFieldErrors = Record<string, string[] | undefined>;
@@ -34,6 +35,7 @@ const initialFormData: JobSubmissionPayload = {
   executionCommand: '',
   reqCpuCores: '1',
   reqRamGb: '1',
+  reqGpu: false,
 };
 
 function createIdempotencyKey() {
@@ -44,6 +46,7 @@ export function JobSubmissionForm() {
   const router = useRouter();
   const [formData, setFormData] = useState<JobSubmissionPayload>(initialFormData);
   const [fieldErrors, setFieldErrors] = useState<JobSubmissionFieldErrors>({});
+  const [gpuAvailable, setGpuAvailable] = useState(false);
   const [envVarRows, setEnvVarRows] = useState<EnvVarRow[]>([createEnvVarRow()]);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,7 +56,18 @@ export function JobSubmissionForm() {
     setIdempotencyKey(createIdempotencyKey());
   }
 
-  function handleInputChange(name: keyof JobSubmissionPayload, value: string) {
+  useEffect(() => {
+    fetch('/api/nodes/gpu-available')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data.gpuAvailable === 'boolean') {
+          setGpuAvailable(data.gpuAvailable);
+        }
+      })
+      .catch((err) => console.error('Error fetching GPU availability:', err));
+  }, []);
+
+  function handleInputChange(name: keyof JobSubmissionPayload, value: string | boolean) {
     rotateIdempotencyKey();
     setFormData((previous) => ({
       ...previous,
@@ -117,6 +131,7 @@ export function JobSubmissionForm() {
           executionCommand: formData.executionCommand,
           reqCpuCores: Number.parseInt(formData.reqCpuCores, 10),
           reqRamGb: Number.parseInt(formData.reqRamGb, 10),
+          reqGpu: formData.reqGpu,
           envVars: toEnvVarsMap(envVarRows),
         }),
       });
@@ -182,6 +197,8 @@ export function JobSubmissionForm() {
         <JobResourceFields
           reqCpuCores={formData.reqCpuCores}
           reqRamGb={formData.reqRamGb}
+          reqGpu={formData.reqGpu}
+          gpuAvailable={gpuAvailable}
           fieldErrors={fieldErrors}
           onChange={handleInputChange}
         />

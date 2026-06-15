@@ -312,6 +312,7 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
           <CardContent>
             <FieldRow label="CPU (Cores)" value={job.reqCpuCores} />
             <FieldRow label="RAM (GB)" value={job.reqRamGb} />
+            <FieldRow label="GPU Accelerator" value={job.reqGpu ? 'Yes' : 'No'} />
             <FieldRow
               label="Consumed Time"
               value={formatMinutesAsHoursAndMinutes(job.totalConsumedMinutes)}

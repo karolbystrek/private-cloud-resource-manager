@@ -14,7 +14,8 @@ public record NodeResponse(
         NodeStatus status,
         int totalCpuCores,
         int totalRamMb,
-        OffsetDateTime lastHeartbeat
+        OffsetDateTime lastHeartbeat,
+        boolean hasNvidiaGpu
 ) {
 
     public static NodeResponse toNodeResponse(Node node) {
@@ -26,7 +27,8 @@ public record NodeResponse(
                 node.getStatus(),
                 node.getTotalCpuCores(),
                 node.getTotalRamMb(),
-                node.getLastHeartbeat()
+                node.getLastHeartbeat(),
+                Boolean.TRUE.equals(node.getHasNvidiaGpu())
         );
     }
 }

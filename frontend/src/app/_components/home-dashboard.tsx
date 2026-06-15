@@ -140,7 +140,7 @@ export function HomeDashboard({ jobs, jobsError, quota, quotaError, statusCounts
                       </div>
                       <div className="flex items-center gap-3 text-xs">
                         <span className="border-input bg-muted rounded-none border px-2 py-1">{job.status}</span>
-                        <span>{job.reqCpuCores} CPU</span>
+                        <span>{job.reqCpuCores} CPU{job.reqGpu ? ' + GPU' : ''}</span>
                         <span>{job.reqRamGb} GB RAM</span>
                       </div>
                     </Link>

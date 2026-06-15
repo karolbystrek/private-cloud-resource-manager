@@ -1,5 +1,6 @@
 package com.pcrm.backend.nodes.resource;
 
+import com.pcrm.backend.nodes.dto.GpuAvailabilityResponse;
 import com.pcrm.backend.nodes.dto.NodeDetailsResponse;
 import com.pcrm.backend.nodes.dto.NodeResponse;
 import com.pcrm.backend.nodes.service.NodeQueryService;
@@ -29,5 +30,10 @@ public class NodesResource {
     @PreAuthorize("hasRole('ADMIN')")
     public NodeDetailsResponse getNodeDetails(@PathVariable String id) {
         return nodeQueryService.getNodeDetails(id);
+    }
+
+    @GetMapping("/gpu-available")
+    public GpuAvailabilityResponse isGpuAvailable() {
+        return new GpuAvailabilityResponse(nodeQueryService.isGpuAvailable());
     }
 }

@@ -30,4 +30,9 @@ public class NodeQueryService {
                 .map(NodeDetailsResponse::toNodeDetailsResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Node", "id", nodeId));
     }
+
+    @Transactional(readOnly = true)
+    public boolean isGpuAvailable() {
+        return nodeRepository.existsAvailableGpuNode();
+    }
 }

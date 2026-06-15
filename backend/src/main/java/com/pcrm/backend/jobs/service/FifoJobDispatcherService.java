@@ -125,7 +125,8 @@ public class FifoJobDispatcherService implements OutboxMessageHandler {
         var jobId = jobRepository.findNextQueuedDispatchCandidateIdForUpdate(
                 now,
                 clusterCapacity.totalCpu(),
-                clusterCapacity.totalRamMb()
+                clusterCapacity.totalRamMb(),
+                clusterCapacity.hasGpu()
         );
         if (jobId.isEmpty()) {
             return Optional.empty();
@@ -159,12 +160,14 @@ public class FifoJobDispatcherService implements OutboxMessageHandler {
 
     private boolean isRunnable(Job job, ClusterCapacity clusterCapacity) {
         return job.getReqCpuCores() <= clusterCapacity.totalCpu()
-                && (job.getReqRamGb() * 1024L) <= clusterCapacity.totalRamMb();
+                && (job.getReqRamGb() * 1024L) <= clusterCapacity.totalRamMb()
+                && (!Boolean.TRUE.equals(job.getReqGpu()) || clusterCapacity.hasGpu());
     }
 
     private ClusterCapacity loadClusterCapacity() {
         long totalCpu = 0L;
         long totalRamMb = 0L;
+        boolean hasGpu = false;
 
         var nodes = nodeRepository.findAll();
         for (var node : nodes) {
@@ -180,9 +183,12 @@ public class FifoJobDispatcherService implements OutboxMessageHandler {
 
             totalCpu += node.getTotalCpuCores();
             totalRamMb += node.getTotalRamMb();
+            if (Boolean.TRUE.equals(node.getHasNvidiaGpu())) {
+                hasGpu = true;
+            }
         }
 
-        return new ClusterCapacity(totalCpu, totalRamMb);
+        return new ClusterCapacity(totalCpu, totalRamMb, hasGpu);
     }
 
     private NomadDispatchRequest toDispatchRequest(Job job, UUID correlationId) {
@@ -194,6 +200,7 @@ public class FifoJobDispatcherService implements OutboxMessageHandler {
                 job.getExecutionCommand(),
                 job.getReqCpuCores(),
                 job.getReqRamGb(),
+                Boolean.TRUE.equals(job.getReqGpu()),
                 deserializeEnvVars(job),
                 correlationId
         );
@@ -253,6 +260,6 @@ public class FifoJobDispatcherService implements OutboxMessageHandler {
         return UUID.fromString(rawCorrelationId);
     }
 
-    private record ClusterCapacity(long totalCpu, long totalRamMb) {
+    private record ClusterCapacity(long totalCpu, long totalRamMb, boolean hasGpu) {
     }
 }

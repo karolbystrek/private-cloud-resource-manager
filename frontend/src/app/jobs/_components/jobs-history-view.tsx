@@ -133,6 +133,11 @@ export function JobsHistoryView({ jobsPage, statusFilters }: JobsHistoryViewProp
                     GB
                   </p>
                   <p>
+                    <span className="text-muted-foreground">GPU:</span>
+                    {' '}
+                    {job.reqGpu ? 'Yes' : 'No'}
+                  </p>
+                  <p>
                     <span className="text-muted-foreground">Consumed:</span>
                     {' '}
                     {formatMinutesAsHoursAndMinutes(job.totalConsumedMinutes)}

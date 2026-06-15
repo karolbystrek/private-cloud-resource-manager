@@ -13,6 +13,7 @@ public record JobHistoryItemResponse(
         String executionCommand,
         int reqCpuCores,
         int reqRamGb,
+        boolean reqGpu,
         long totalConsumedMinutes,
         OffsetDateTime createdAt
 ) {
@@ -25,6 +26,7 @@ public record JobHistoryItemResponse(
                 job.getExecutionCommand(),
                 job.getReqCpuCores(),
                 job.getReqRamGb(),
+                Boolean.TRUE.equals(job.getReqGpu()),
                 job.getTotalConsumedMinutes(),
                 job.getCreatedAt()
         );

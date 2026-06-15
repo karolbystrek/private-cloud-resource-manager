@@ -20,6 +20,7 @@ public record NomadNodeSnapshot(
         Long nomadModifyIndex,
         int totalCpuCores,
         int totalRamMb,
-        String agentVersion
+        String agentVersion,
+        boolean hasNvidiaGpu
 ) {
 }

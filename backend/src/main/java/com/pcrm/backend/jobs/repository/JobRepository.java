@@ -46,6 +46,7 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
               AND active_lease_expires_at > :now
               AND req_cpu_cores <= :totalCpu
               AND (req_ram_gb * 1024) <= :totalRamMb
+              AND (req_gpu = FALSE OR :hasGpu = TRUE)
             ORDER BY queued_at ASC NULLS LAST, created_at ASC
             LIMIT 1
             FOR UPDATE SKIP LOCKED
@@ -53,7 +54,8 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     Optional<UUID> findNextQueuedDispatchCandidateIdForUpdate(
             @Param("now") OffsetDateTime now,
             @Param("totalCpu") long totalCpu,
-            @Param("totalRamMb") long totalRamMb
+            @Param("totalRamMb") long totalRamMb,
+            @Param("hasGpu") boolean hasGpu
     );
 
     @EntityGraph(attributePaths = {"profile"})

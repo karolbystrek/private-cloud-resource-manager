@@ -55,6 +55,7 @@ public class JobSubmissionPersistenceService {
                 .executionCommand(request.executionCommand())
                 .reqCpuCores(request.reqCpuCores())
                 .reqRamGb(request.reqRamGb())
+                .reqGpu(request.reqGpu() != null && request.reqGpu())
                 .envVarsJson(request.envVars())
                 .queuedAt(null)
                 .activeLeaseExpiresAt(null)

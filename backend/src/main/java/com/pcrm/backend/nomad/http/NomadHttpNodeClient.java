@@ -86,6 +86,12 @@ public class NomadHttpNodeClient implements NomadNodeClient {
         int ramMb = details.nodeResources() != null && details.nodeResources().memory() != null
                 ? Optional.ofNullable(details.nodeResources().memory().memoryMb()).orElse(1) : 1;
 
+        boolean hasNvidiaGpu = false;
+        if (details.nodeResources() != null && details.nodeResources().devices() != null) {
+            hasNvidiaGpu = details.nodeResources().devices().stream()
+                    .anyMatch(d -> "nvidia".equalsIgnoreCase(d.vendor()) && "gpu".equalsIgnoreCase(d.type()));
+        }
+
         String dockerVersion = resolveDockerVersion(details.drivers());
 
         return new NomadNodeSnapshot(
@@ -106,7 +112,8 @@ public class NomadHttpNodeClient implements NomadNodeClient {
                 Optional.ofNullable(details.modifyIndex()).orElse(summary.modifyIndex()),
                 cpuCores,
                 ramMb,
-                Optional.ofNullable(summary.version()).orElse(dockerVersion)
+                Optional.ofNullable(summary.version()).orElse(dockerVersion),
+                hasNvidiaGpu
         );
     }
 
@@ -190,7 +197,16 @@ public class NomadHttpNodeClient implements NomadNodeClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record NomadNodeResources(
             @JsonProperty("Cpu") NomadCpuResources cpu,
-            @JsonProperty("Memory") NomadMemoryResources memory
+            @JsonProperty("Memory") NomadMemoryResources memory,
+            @JsonProperty("Devices") List<NomadDevice> devices
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record NomadDevice(
+            @JsonProperty("Vendor") String vendor,
+            @JsonProperty("Type") String type,
+            @JsonProperty("Name") String name
     ) {
     }
 

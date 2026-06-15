@@ -71,7 +71,7 @@ class FifoJobDispatcherServiceTest {
         when(jobRepository.findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus.DISPATCHING))
                 .thenReturn(List.of());
         when(nodeRepository.findAll()).thenReturn(List.of(node(8, 16_384)));
-        when(jobRepository.findNextQueuedDispatchCandidateIdForUpdate(any(), eq(8L), eq(16_384L)))
+        when(jobRepository.findNextQueuedDispatchCandidateIdForUpdate(any(), eq(8L), eq(16_384L), anyBoolean()))
                 .thenReturn(Optional.of(job.getId()));
         when(jobRepository.findByIdForUpdate(job.getId())).thenReturn(Optional.of(job));
         when(nomadDispatchClient.dispatchJob(any())).thenReturn(new NomadDispatchResult(job.getId().toString(), "eval-1"));
@@ -98,7 +98,7 @@ class FifoJobDispatcherServiceTest {
 
         dispatcherService.requestNextDispatchFromQueue();
 
-        verify(jobRepository, never()).findNextQueuedDispatchCandidateIdForUpdate(any(), anyLong(), anyLong());
+        verify(jobRepository, never()).findNextQueuedDispatchCandidateIdForUpdate(any(), anyLong(), anyLong(), anyBoolean());
         verify(nomadDispatchClient, never()).dispatchJob(any());
     }
 
@@ -108,7 +108,7 @@ class FifoJobDispatcherServiceTest {
         when(jobRepository.findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus.DISPATCHING))
                 .thenReturn(List.of());
         when(nodeRepository.findAll()).thenReturn(List.of(node(4, 8_192)));
-        when(jobRepository.findNextQueuedDispatchCandidateIdForUpdate(any(), eq(4L), eq(8_192L)))
+        when(jobRepository.findNextQueuedDispatchCandidateIdForUpdate(any(), eq(4L), eq(8_192L), anyBoolean()))
                 .thenReturn(Optional.of(fittingJob.getId()));
         when(jobRepository.findByIdForUpdate(fittingJob.getId())).thenReturn(Optional.of(fittingJob));
         when(nomadDispatchClient.dispatchJob(any()))
@@ -126,7 +126,7 @@ class FifoJobDispatcherServiceTest {
         when(jobRepository.findTop100ByStatusOrderByQueuedAtAscCreatedAtAsc(JobStatus.DISPATCHING))
                 .thenReturn(List.of());
         when(nodeRepository.findAll()).thenReturn(List.of(node(8, 16_384)));
-        when(jobRepository.findNextQueuedDispatchCandidateIdForUpdate(any(), eq(8L), eq(16_384L)))
+        when(jobRepository.findNextQueuedDispatchCandidateIdForUpdate(any(), eq(8L), eq(16_384L), anyBoolean()))
                 .thenReturn(Optional.of(job.getId()));
         when(jobRepository.findByIdForUpdate(job.getId())).thenReturn(Optional.of(job));
         when(nomadDispatchClient.dispatchJob(any())).thenThrow(new IllegalStateException("nomad unavailable"));
@@ -159,7 +159,7 @@ class FifoJobDispatcherServiceTest {
 
         assertThat(staleJob.getStatus()).isEqualTo(JobStatus.SCHEDULING);
         verify(nodeRepository, never()).findAll();
-        verify(jobRepository, never()).findNextQueuedDispatchCandidateIdForUpdate(any(), anyLong(), anyLong());
+        verify(jobRepository, never()).findNextQueuedDispatchCandidateIdForUpdate(any(), anyLong(), anyLong(), anyBoolean());
         verify(nomadDispatchClient).dispatchJob(any());
     }
 

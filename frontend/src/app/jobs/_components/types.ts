@@ -20,6 +20,7 @@ export type JobHistoryItem = {
   executionCommand: string;
   reqCpuCores: number;
   reqRamGb: number;
+  reqGpu: boolean;
   totalConsumedMinutes: number;
   createdAt: string;
 };
@@ -42,6 +43,7 @@ export type JobDetails = {
   executionCommand: string;
   reqCpuCores: number;
   reqRamGb: number;
+  reqGpu: boolean;
   totalConsumedMinutes: number;
   createdAt: string;
   updatedAt: string;

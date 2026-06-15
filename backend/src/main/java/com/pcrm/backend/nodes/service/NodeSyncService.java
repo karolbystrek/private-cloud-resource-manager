@@ -93,7 +93,8 @@ public class NodeSyncService {
                 snapshot.totalCpuCores(),
                 snapshot.totalRamMb(),
                 snapshot.agentVersion(),
-                now
+                now,
+                snapshot.hasNvidiaGpu()
         );
     }
 }

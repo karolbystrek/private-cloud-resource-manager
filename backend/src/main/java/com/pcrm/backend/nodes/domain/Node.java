@@ -85,6 +85,10 @@ public class Node {
     @Column(name = "agent_version", nullable = false, length = 50)
     private String agentVersion;
 
+    @Column(name = "has_nvidia_gpu", nullable = false)
+    @Builder.Default
+    private Boolean hasNvidiaGpu = false;
+
     @Column(name = "last_heartbeat")
     private OffsetDateTime lastHeartbeat;
 

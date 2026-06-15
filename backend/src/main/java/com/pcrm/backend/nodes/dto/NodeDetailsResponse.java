@@ -27,7 +27,8 @@ public record NodeDetailsResponse(
         int totalRamMb,
         String agentVersion,
         OffsetDateTime lastHeartbeat,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        boolean hasNvidiaGpu
 ) {
 
     public static NodeDetailsResponse toNodeDetailsResponse(Node node) {
@@ -52,7 +53,8 @@ public record NodeDetailsResponse(
                 node.getTotalRamMb(),
                 node.getAgentVersion(),
                 node.getLastHeartbeat(),
-                node.getCreatedAt()
+                node.getCreatedAt(),
+                Boolean.TRUE.equals(node.getHasNvidiaGpu())
         );
     }
 }

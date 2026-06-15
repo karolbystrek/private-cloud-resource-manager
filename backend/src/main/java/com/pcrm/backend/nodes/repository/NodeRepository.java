@@ -38,7 +38,8 @@ public interface NodeRepository extends JpaRepository<Node, String> {
                 total_cpu_cores,
                 total_ram_mb,
                 agent_version,
-                last_heartbeat
+                last_heartbeat,
+                has_nvidia_gpu
             ) VALUES (
                 :id,
                 :nomadNodeId,
@@ -58,7 +59,8 @@ public interface NodeRepository extends JpaRepository<Node, String> {
                 :totalCpuCores,
                 :totalRamMb,
                 :agentVersion,
-                :lastHeartbeat
+                :lastHeartbeat,
+                :hasNvidiaGpu
             )
             ON CONFLICT (id)
             DO UPDATE SET
@@ -79,7 +81,8 @@ public interface NodeRepository extends JpaRepository<Node, String> {
                 total_cpu_cores = EXCLUDED.total_cpu_cores,
                 total_ram_mb = EXCLUDED.total_ram_mb,
                 agent_version = EXCLUDED.agent_version,
-                last_heartbeat = EXCLUDED.last_heartbeat
+                last_heartbeat = EXCLUDED.last_heartbeat,
+                has_nvidia_gpu = EXCLUDED.has_nvidia_gpu
             """, nativeQuery = true)
     void upsertFromNomad(
             @Param("id") String id,
@@ -100,8 +103,12 @@ public interface NodeRepository extends JpaRepository<Node, String> {
             @Param("totalCpuCores") int totalCpuCores,
             @Param("totalRamMb") int totalRamMb,
             @Param("agentVersion") String agentVersion,
-            @Param("lastHeartbeat") OffsetDateTime lastHeartbeat
+            @Param("lastHeartbeat") OffsetDateTime lastHeartbeat,
+            @Param("hasNvidiaGpu") boolean hasNvidiaGpu
     );
+
+    @Query("SELECT COUNT(n) > 0 FROM Node n WHERE n.status = 'AVAILABLE' AND n.draining = false AND n.schedulingEligibility <> 'ineligible' AND n.hasNvidiaGpu = true")
+    boolean existsAvailableGpuNode();
 
     @Modifying
     @Query(value = """

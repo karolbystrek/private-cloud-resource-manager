@@ -11,6 +11,7 @@ public record NomadDispatchRequest(
         String executionCommand,
         Integer reqCpuCores,
         Integer reqRamGb,
+        Boolean reqGpu,
         Map<String, String> envVars,
         UUID correlationId
 ) {
