@@ -199,8 +199,6 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
 
   useEffect(() => {
     if (isJobActive) {
-      setArtifactDownloadUrl(null);
-      setIsCheckingArtifact(false);
       return;
     }
 

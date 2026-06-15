@@ -1,4 +1,5 @@
 data_dir = "/tmp/pcrm-nomad"
+plugin_dir = "/nomad/plugins"
 bind_addr = "0.0.0.0"
 name = "nomad-server"
 disable_update_check = true
@@ -6,6 +7,19 @@ disable_update_check = true
 server {
   enabled = true
   bootstrap_expect = 1
+}
+
+plugin "nomad-device-nvidia" {
+  config {
+    enabled            = true
+    fingerprint_period = "30s"
+  }
+}
+
+plugin "docker" {
+  config {
+    allow_privileged = true
+  }
 }
 
 client {
