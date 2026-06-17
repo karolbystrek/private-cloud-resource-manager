@@ -9,13 +9,6 @@ server {
   bootstrap_expect = 1
 }
 
-plugin "nomad-device-nvidia" {
-  config {
-    enabled            = true
-    fingerprint_period = "30s"
-  }
-}
-
 plugin "docker" {
   config {
     allow_privileged = true

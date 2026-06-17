@@ -410,10 +410,11 @@ services:
   # Private Cloud Resource Manager (merged into this stack; not from upstream)
   # ---------------------------------------------------------------------------
   nomad:
-    build:
-      context: ./nomad
-      dockerfile: Dockerfile
-    image: private-cloud-resource-manager-nomad
+    image: hashicorp/nomad:1.7
+    #    build:
+    #      context: ./nomad
+    #      dockerfile: Dockerfile
+    #    image: private-cloud-resource-manager-nomad
     container_name: nomad
     restart: unless-stopped
     ports:
@@ -423,12 +424,12 @@ services:
     command: agent -config=/etc/nomad.d/local-dev.hcl
     privileged: true
     cgroup: host
-    gpus: all
+    #    gpus: all
     environment:
       CHECKPOINT_DISABLE: "1"
       NOMAD_SKIP_DOCKER_IMAGE_WARN: "1"
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    #      NVIDIA_VISIBLE_DEVICES: all
+    #      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     tmpfs:
       - /tmp/pcrm-nomad
     volumes:
