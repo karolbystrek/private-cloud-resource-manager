@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -41,9 +40,6 @@ public class JobArtifactService {
 
     @Value("${app.storage.artifacts.finalizer-batch-size:50}")
     private int finalizerBatchSize;
-
-    @Value("${app.storage.artifacts.missing-timeout-ms:120000}")
-    private long missingTimeoutMs;
 
     @Scheduled(fixedDelayString = "${app.storage.artifacts.finalizer-interval-ms:10000}")
     public void finalizeCompletedArtifacts() {
@@ -136,9 +132,7 @@ public class JobArtifactService {
         var artifact = markUploading(job);
         return new ArtifactCheck(
                 job.getId(),
-                artifact.getObjectKey(),
-                job.getProcessFinishedAt() == null ? job.getCreatedAt() : job.getProcessFinishedAt(),
-                UUID.randomUUID()
+                artifact.getObjectKey()
         );
     }
 
@@ -165,11 +159,7 @@ public class JobArtifactService {
             return;
         }
 
-        if (!isMissingTimedOut(check.processFinishedAt(), now)) {
-            return;
-        }
-
-        markArtifactFailed(job, artifact, now, ARTIFACT_MISSING, check.correlationId());
+        markArtifactMissing(job, artifact, now, ARTIFACT_MISSING);
     }
 
     private void markArtifactMissingIfStillAvailable(UUID jobId, String reason) {
@@ -184,25 +174,19 @@ public class JobArtifactService {
         artifactRepository.save(artifact);
     }
 
-    private void markArtifactFailed(
+    private void markArtifactMissing(
             Job job,
             JobArtifact artifact,
             OffsetDateTime now,
-            String reason,
-            UUID correlationId
+            String reason
     ) {
         artifact.setStatus(JobArtifactStatus.MISSING);
         artifact.setFinalizedAt(now);
         artifact.setFailureReason(truncate(reason));
         artifactRepository.save(artifact);
 
-        jobStateMachine.markArtifactFailed(job, now, reason);
-        log.warn("Marked job {} failed because artifact was missing", job.getId());
-    }
-
-    private boolean isMissingTimedOut(OffsetDateTime processFinishedAt, OffsetDateTime now) {
-        var finishedAt = processFinishedAt == null ? now : processFinishedAt;
-        return !finishedAt.plus(Duration.ofMillis(Math.max(0L, missingTimeoutMs))).isAfter(now);
+        jobStateMachine.markFinalizedWithoutArtifact(job, now);
+        log.info("Finalized job {} without artifact", job.getId());
     }
 
     private String normalizeChecksum(String checksum) {
@@ -222,9 +206,7 @@ public class JobArtifactService {
 
     private record ArtifactCheck(
             UUID jobId,
-            String objectKey,
-            OffsetDateTime processFinishedAt,
-            UUID correlationId
+            String objectKey
     ) {
     }
 }

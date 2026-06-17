@@ -90,4 +90,3 @@ app:
     artifacts:
       finalizer-interval-ms: ${ARTIFACT_FINALIZER_INTERVAL_MS:10000}
       finalizer-batch-size: ${ARTIFACT_FINALIZER_BATCH_SIZE:50}
-      missing-timeout-ms: ${ARTIFACT_MISSING_TIMEOUT_MS:120000}
