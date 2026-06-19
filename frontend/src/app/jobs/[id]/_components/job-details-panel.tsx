@@ -183,13 +183,18 @@ export function JobDetailsPanel({ jobId, initialJob }: JobDetailsPanelProps) {
       }));
     });
 
+    let isEnding = false;
+
     source.addEventListener('end', () => {
+      isEnding = true;
       source.close();
     });
 
     source.onerror = () => {
       source.close();
-      setErrorMessage('Live job updates were interrupted. Refresh the page to reconnect.');
+      if (!isEnding) {
+        setErrorMessage('Live job updates disconnected. Refresh the page if needed.');
+      }
     };
 
     return () => {
